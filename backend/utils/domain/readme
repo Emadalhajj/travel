@@ -1,0 +1,32 @@
+Domain Helpers
+
+تفهم شكل البيانات
+وهو تخصيص نوع محدد من البيانات  مثال
+{
+ phone,
+ email,
+ website,
+ whatsapp
+}
+
+-------------
+normalizedData وظيفته:
+
+تنظيف وتحويل البيانات (Normalization) فقط.
+
+مثل:
+
+String → trim
+Array → array
+Boolean → true/false
+Number → number
+----------
+أما processImages() 
+
+هو يحتوي business logic أكبر:
+
+قراءة ملفات من req.files
+حذف ملفات من السيرفر
+دمج الصور القديمة والجديدة
+
+يعني هو عملية (Processing)

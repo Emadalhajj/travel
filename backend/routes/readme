@@ -1,0 +1,17 @@
+الأفضل في REST APIs:
+
+استخدم plural دائمًا:
+
+فتصبح:
+
+GET all
+GET /hotels
+GET one
+GET /hotels/:id
+CREATE
+POST /hotels
+UPDATE
+PUT /hotels/:id
+DELETE
+DELETE /hotels/:id
+وهذه الطريقة تسمى RESTful

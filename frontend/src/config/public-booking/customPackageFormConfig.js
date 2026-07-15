@@ -1,0 +1,40 @@
+export const customPackageFormConfig = () => ({
+  commonFields: [
+    {
+      name: "startDate",
+      labelAr: "تاريخ البداية",
+      labelEn: "Start Date",
+      type: "date",
+      col: 6,
+      required: true,
+      order: 1,
+    },
+    {
+      name: "endDate",
+      labelAr: "تاريخ النهاية",
+      labelEn: "End Date",
+      type: "date",
+      col: 6,
+      required: true,
+      order: 1,
+    },
+    {
+      name: "travelersCount",
+      labelAr: "عدد المعتمرين",
+      labelEn: "Travelers Count",
+      type: "number",
+      col: 6,
+      min: 1,
+      required: true,
+      order: 2,
+    },
+    {
+      name: "nationality",
+      labelAr: "الجنسية",
+      labelEn: "Nationality",
+      type: "text",
+      col: 6,
+      order: 2,
+    },
+  ],
+});
