@@ -1,0 +1,9 @@
+هذا يجعل الـ Wizard معياريًا،
+ وكل خطوة تأخذ بياناتها من Context بدل تمرير props كثيرة.
+ وهذا متوافق مع فكرة توحيد شكل البيانات بدل تكرار logic خاص بكل صفحة
+
+ BookingProvider.jsx
+useBooking.js
+bookingInitialState.js
+bookingReducer.js
+index.js

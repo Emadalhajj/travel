@@ -1,0 +1,207 @@
+// controllers/payment/paymentTransaction-controller.js
+
+/*
+=====================================================
+Payment Transaction Controller
+=====================================================
+
+هذا الملف مسؤول عن API عمليات الدفع.
+
+المسؤوليات:
+-----------------------------------------------------
+1- إنشاء دفعة لحجز.
+2- عرض دفعات حجز معين.
+3- عرض كل الدفعات للإدارة.
+=====================================================
+*/
+
+import asyncHandler from "express-async-handler";
+
+import Booking from "../../models/booking/booking-model.js";
+import PaymentTransaction from "../../models/paymentTransaction-model.js";
+
+import { buildPagination } from "../../utils/Builders/buildPagination.js";
+import AppError from "../../utils/AppError.js";
+import { isArabicRequest } from "../../utils/getRequestLanguage.js";
+
+import {
+  createPaymentTransactionService,
+  applyPaymentSummaryToBooking,
+} from "../../services/payment/paymentTransaction-service.js";
+
+import Notification from "../../models/notification-model.js";
+import { sendNotification } from "../../services/notifications/notification-service.js";
+import { sendPaymentReceivedNotification } from "../../services/notifications/booking-notification-service.js";
+
+/*
+=====================================================
+CREATE PAYMENT TRANSACTION
+=====================================================
+*/
+
+export const createPaymentTransaction = asyncHandler(async (req, res) => {
+  const isArabic = isArabicRequest(req);
+
+  const transaction = await createPaymentTransactionService({
+    Booking,
+    PaymentTransaction,
+    data: req.body,
+    req,
+  });
+
+  await transaction.populate([
+    {
+      path: "booking",
+      select: "bookingNumber pricing paymentStatus bookingStatus",
+    },
+    { path: "user", select: "firstName lastName username email" },
+    { path: "createdBy", select: "firstName lastName username email" },
+  ]);
+
+  res.status(201).json({
+    success: true,
+    message: isArabic
+      ? "تم تسجيل عملية الدفع بنجاح"
+      : "Payment transaction created successfully",
+    data: transaction,
+  });
+
+  //========== send notification =======
+  const booking = await Booking.findById(transaction.booking);
+
+  await sendPaymentReceivedNotification({
+    Notification,
+    booking,
+    amount: transaction.amount,
+    req,
+    sendNotification,
+  });
+});
+
+/*
+=====================================================
+GET BOOKING PAYMENTS
+=====================================================
+*/
+
+export const getBookingPayments = asyncHandler(async (req, res) => {
+  const isArabic = isArabicRequest(req);
+
+  const booking = await Booking.findById(req.params.bookingId);
+
+  if (!booking) {
+    throw new AppError(
+      isArabic ? "الحجز غير موجود" : "Booking not found",
+      404,
+      "booking",
+    );
+  }
+
+  const payments = await PaymentTransaction.find({
+    booking: booking._id,
+  })
+    .sort({ createdAt: -1 })
+    .populate("createdBy", "firstName lastName username email");
+
+  res.status(200).json({
+    success: true,
+    count: payments.length,
+    data: payments,
+  });
+});
+
+/*
+=====================================================
+GET ALL PAYMENT TRANSACTIONS
+=====================================================
+*/
+
+export const getAllPaymentTransactions = asyncHandler(async (req, res) => {
+  const filter = {};
+
+  if (req.query.booking) {
+    filter.booking = req.query.booking;
+  }
+
+  if (req.query.status) {
+    filter.status = req.query.status;
+  }
+
+  if (req.query.method) {
+    filter.method = req.query.method;
+  }
+
+  const { skip, limit } = buildPagination(req.query);
+
+  const [transactions, total] = await Promise.all([
+    PaymentTransaction.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("booking", "bookingNumber pricing paymentStatus bookingStatus")
+      .populate("user", "firstName lastName username email")
+      .populate("createdBy", "firstName lastName username email"),
+
+    PaymentTransaction.countDocuments(filter),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    total,
+    page: Number(req.query.page) || 1,
+    limit: Number(req.query.limit) || 10,
+    data: transactions,
+  });
+});
+
+/*
+=====================================================
+REFUND PAYMENT TRANSACTION
+=====================================================
+*/
+
+export const refundPaymentTransaction = asyncHandler(async (req, res) => {
+  const isArabic = isArabicRequest(req);
+
+  const transaction = await PaymentTransaction.findById(req.params.id);
+
+  if (!transaction) {
+    throw new AppError(
+      isArabic ? "عملية الدفع غير موجودة" : "Payment transaction not found",
+      404,
+      "payment",
+    );
+  }
+
+  if (transaction.status === "refunded") {
+    throw new AppError(
+      isArabic
+        ? "تم استرجاع هذه العملية مسبقاً"
+        : "Transaction already refunded",
+      400,
+      "status",
+    );
+  }
+
+  transaction.status = "refunded";
+  transaction.notes = req.body.notes || transaction.notes || "Refunded";
+
+  await transaction.save();
+
+  const booking = await Booking.findById(transaction.booking);
+
+  if (booking) {
+    await applyPaymentSummaryToBooking({
+      booking,
+      PaymentTransaction,
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: isArabic
+      ? "تم استرجاع عملية الدفع"
+      : "Payment transaction refunded",
+    data: transaction,
+  });
+});

@@ -1,0 +1,42 @@
+/*
+رتب الكنترولر بهذا الشكل دائمًا:
+
+1. Parse request
+2. Validation
+3. Process files
+4. Normalize data
+5. Update/Create document
+6. Save
+7. Response
+-----------
+مثال عملي 
+/*
+/*
+// 1 parse
+const data =
+  safeJsonParse(...);
+
+// 2 validate
+await validateUnique...;
+
+// 3 files
+roomType.images =
+  await processImages(...);
+
+// 4 normalize
+const normalizedData =
+  {...};
+
+// 5 update
+Object.assign(
+  roomType,
+  normalizedData
+);
+
+// 6 save
+await roomType.save();
+
+// 7 response
+return res.json(...);
+
+*/
