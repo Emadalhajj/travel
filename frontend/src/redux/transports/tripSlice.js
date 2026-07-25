@@ -7,9 +7,8 @@ import {
   updateTripApi,
   deleteTripApi,
   toggleTripStatus,
-} from "../../services/api/transports";
+} from "../../services/api/admin/transports";
 import { handleApiError } from "../../Utils/handleApiError";
-
 
 //fetch
 
@@ -17,14 +16,12 @@ export const fetchTrips = createAsyncThunk(
   "trip/fetch",
   async (params = {}, { rejectWithValue }) => {
     try {
-    
-
       const res = await getAllTrips(params);
       return res.data;
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 //fetchBY id
 
@@ -37,7 +34,7 @@ export const fetchTripById = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 
 //create trip
@@ -51,7 +48,7 @@ export const createNewTrip = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 
 //update
@@ -64,7 +61,7 @@ export const updateExitingTrip = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 //delete
 export const deleteTrip = createAsyncThunk(
@@ -76,7 +73,7 @@ export const deleteTrip = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 //toggle trip
 export const toggleTripActiveStatus = createAsyncThunk(
@@ -89,7 +86,7 @@ export const toggleTripActiveStatus = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 
 //slices
@@ -156,7 +153,7 @@ const tripSlice = createSlice({
         state.loading = false;
         const updateTrip = action.payload?.updateTrip || action.payload;
         state.tripList = state.tripList.map((trip) =>
-          trip._id === updateTrip._id ? updateTrip : trip
+          trip._id === updateTrip._id ? updateTrip : trip,
         );
       })
       .addCase(updateExitingTrip.rejected, (state, action) => {
@@ -171,7 +168,7 @@ const tripSlice = createSlice({
       .addCase(deleteTrip.fulfilled, (state, action) => {
         state.loading = false;
         state.tripList = state.tripList.filter(
-          (item) => item._id !== action.payload.id
+          (item) => item._id !== action.payload.id,
         );
       })
       .addCase(deleteTrip.rejected, (state, action) => {
@@ -188,7 +185,7 @@ const tripSlice = createSlice({
         state.loading = false;
         const toggle = action.payload?.updateStatusTrip;
         state.tripList = state.tripList.map((to) =>
-          to._id === toggle._id ? toggle : to
+          to._id === toggle._id ? toggle : to,
         );
       })
       .addCase(toggleTripActiveStatus.rejected, (state, action) => {
@@ -200,5 +197,5 @@ const tripSlice = createSlice({
         state.error = false;
       });
   },
-})
+});
 export default tripSlice.reducer;

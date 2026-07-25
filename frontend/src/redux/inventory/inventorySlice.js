@@ -6,8 +6,8 @@ import {
   apiUpsertInventoryPeriod,
   apiUpdateInventory,
   apiDeleteInventory,
-  apiGetInventoryPeriods
-} from "../../services/api/inventory";
+  apiGetInventoryPeriods,
+} from "../../services/api/admin/inventory";
 
 import { handleApiError } from "../../Utils/handleApiError";
 
@@ -106,112 +106,112 @@ const inventorySlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-  builder
-    // fetch
-    .addCase(fetchInventory.pending, (state) => {
-      state.loading = true;
-      state.error = null;
-    })
-    .addCase(fetchInventory.fulfilled, (state, action) => {
-      state.loading = false;
-      state.inventoryList = action.payload.data || [];
-      state.pagination = {
-        total: action.payload.total || 0,
-        page: action.payload.page || 1,
-        limit: action.payload.limit || 10,
-        totalPages: action.payload.totalPages || 0,
-      };
-    })
-    .addCase(fetchInventory.rejected, (state, action) => {
-      state.loading = false;
-      state.error = action.payload;
-    })
+    builder
+      // fetch
+      .addCase(fetchInventory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchInventory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.inventoryList = action.payload.data || [];
+        state.pagination = {
+          total: action.payload.total || 0,
+          page: action.payload.page || 1,
+          limit: action.payload.limit || 10,
+          totalPages: action.payload.totalPages || 0,
+        };
+      })
+      .addCase(fetchInventory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
 
-    // create single
-    .addCase(createInventory.pending, (state) => {
-      state.loading = true;
-      state.error = null;
-    })
-    .addCase(createInventory.fulfilled, (state, action) => {
-      state.loading = false;
+      // create single
+      .addCase(createInventory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createInventory.fulfilled, (state, action) => {
+        state.loading = false;
 
-      if (Array.isArray(action.payload)) {
-        state.inventoryList = [...action.payload, ...state.inventoryList];
-      } else if (action.payload) {
-        state.inventoryList.unshift(action.payload);
-      }
-    })
-    .addCase(createInventory.rejected, (state, action) => {
-      state.loading = false;
-      state.error = action.payload;
-    })
+        if (Array.isArray(action.payload)) {
+          state.inventoryList = [...action.payload, ...state.inventoryList];
+        } else if (action.payload) {
+          state.inventoryList.unshift(action.payload);
+        }
+      })
+      .addCase(createInventory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
 
-    // upsert period
-    .addCase(upsertInventoryPeriod.pending, (state) => {
-      state.loading = true;
-      state.error = null;
-    })
-    .addCase(upsertInventoryPeriod.fulfilled, (state) => {
-      state.loading = false;
-    })
-    .addCase(upsertInventoryPeriod.rejected, (state, action) => {
-      state.loading = false;
-      state.error = action.payload;
-    })
+      // upsert period
+      .addCase(upsertInventoryPeriod.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(upsertInventoryPeriod.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(upsertInventoryPeriod.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
 
-    // update
-    .addCase(updateInventory.pending, (state) => {
-      state.loading = true;
-      state.error = null;
-    })
-    .addCase(updateInventory.fulfilled, (state, action) => {
-      state.loading = false;
+      // update
+      .addCase(updateInventory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateInventory.fulfilled, (state, action) => {
+        state.loading = false;
 
-      state.inventoryList = state.inventoryList.map((item) =>
-        item._id === action.payload?._id ? action.payload : item
-      );
-    })
-    .addCase(updateInventory.rejected, (state, action) => {
-      state.loading = false;
-      state.error = action.payload;
-    })
+        state.inventoryList = state.inventoryList.map((item) =>
+          item._id === action.payload?._id ? action.payload : item,
+        );
+      })
+      .addCase(updateInventory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
 
-    // delete
-    .addCase(deleteInventory.pending, (state) => {
-      state.loading = true;
-      state.error = null;
-    })
-    .addCase(deleteInventory.fulfilled, (state, action) => {
-      state.loading = false;
+      // delete
+      .addCase(deleteInventory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteInventory.fulfilled, (state, action) => {
+        state.loading = false;
 
-      state.inventoryList = state.inventoryList.filter(
-        (item) => item._id !== action.payload
-      );
-    })
-    .addCase(deleteInventory.rejected, (state, action) => {
-      state.loading = false;
-      state.error = action.payload;
-    })
-    // fetch periods
-    .addCase(fetchInventoryPeriods.pending, (state) => {
-  state.loading = true;
-  state.error = null;
-})
-.addCase(fetchInventoryPeriods.fulfilled, (state, action) => {
-  state.loading = false;
-  state.inventoryList = action.payload.data || [];
-  state.pagination = {
-    total: action.payload.total || 0,
-    page: action.payload.page || 1,
-    limit: action.payload.limit || 10,
-    totalPages: action.payload.totalPages || 0,
-  };
-})
-.addCase(fetchInventoryPeriods.rejected, (state, action) => {
-  state.loading = false;
-  state.error = action.payload;
-})
-},
+        state.inventoryList = state.inventoryList.filter(
+          (item) => item._id !== action.payload,
+        );
+      })
+      .addCase(deleteInventory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // fetch periods
+      .addCase(fetchInventoryPeriods.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchInventoryPeriods.fulfilled, (state, action) => {
+        state.loading = false;
+        state.inventoryList = action.payload.data || [];
+        state.pagination = {
+          total: action.payload.total || 0,
+          page: action.payload.page || 1,
+          limit: action.payload.limit || 10,
+          totalPages: action.payload.totalPages || 0,
+        };
+      })
+      .addCase(fetchInventoryPeriods.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+  },
 });
 
 export const { setPage, setLimit } = inventorySlice.actions;

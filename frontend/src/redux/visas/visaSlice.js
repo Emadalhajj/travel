@@ -6,7 +6,7 @@ import {
   apiUpdateVisa,
   apiDeleteVisa,
   apiToggleVisa,
-} from "../../services/api/visas";
+} from "../../services/api/admin/visas";
 import { handleApiError } from "../../Utils/handleApiError";
 
 export const fetchVisas = createAsyncThunk(
@@ -19,7 +19,7 @@ export const fetchVisas = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 
 export const createVisa = createAsyncThunk(
@@ -32,7 +32,7 @@ export const createVisa = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 
 export const updateVisa = createAsyncThunk(
@@ -44,7 +44,7 @@ export const updateVisa = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 export const deleteVisa = createAsyncThunk(
   "visas/delete",
@@ -55,7 +55,7 @@ export const deleteVisa = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 export const toggleVisa = createAsyncThunk(
   "visas/toggle",
@@ -66,13 +66,12 @@ export const toggleVisa = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 
 export const visaSlice = createSlice({
   name: "visas",
   initialState: {
-    
     list: [],
     currentVisa: null,
     loading: false,
@@ -87,18 +86,18 @@ export const visaSlice = createSlice({
     builder
       .addCase(fetchVisas.pending, (state) => {
         state.loading = true;
-      state.error = null;
+        state.error = null;
       })
       .addCase(fetchVisas.fulfilled, (state, action) => {
- state.loading = false;
-  state.error = null;
-  state.list = Array.isArray(action.payload?.visas)
-    ? action.payload.visas
-    : [];
+        state.loading = false;
+        state.error = null;
+        state.list = Array.isArray(action.payload?.visas)
+          ? action.payload.visas
+          : [];
       })
       .addCase(fetchVisas.rejected, (state, action) => {
-         state.error = action.payload;
-  state.loading = false;
+        state.error = action.payload;
+        state.loading = false;
       });
 
     builder
@@ -115,8 +114,8 @@ export const visaSlice = createSlice({
         s.error = null;
       })
       .addCase(createVisa.rejected, (s, a) => {
-          s.error = a.payload || a.error?.message;
-  s.loading = false;
+        s.error = a.payload || a.error?.message;
+        s.loading = false;
       })
 
       .addCase(updateVisa.pending, (s, a) => {
@@ -127,7 +126,7 @@ export const visaSlice = createSlice({
         const updatedVisa = a.payload?.visa || a.payload;
         if (updatedVisa) {
           s.list = s.list.map((visa) =>
-            visa._id === updatedVisa._id ? updatedVisa : visa
+            visa._id === updatedVisa._id ? updatedVisa : visa,
           );
         }
       })
@@ -137,10 +136,12 @@ export const visaSlice = createSlice({
           s.list = s.list.filter((visa) => visa._id !== deletedVisaId);
         }
       })
-      .addCase(toggleVisa.fulfilled, (s , a)=>{
-        const updatedVisa = a.payload
-       s.list = s.list.map(v => v._id === updatedVisa._id ? updatedVisa : v);
-      })
+      .addCase(toggleVisa.fulfilled, (s, a) => {
+        const updatedVisa = a.payload;
+        s.list = s.list.map((v) =>
+          v._id === updatedVisa._id ? updatedVisa : v,
+        );
+      });
   },
 });
 

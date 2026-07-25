@@ -26,7 +26,7 @@ import DraftBooking from "../models/draft-bookings/draft-booking-model.js";
 import Voucher from "../models/voucher-model.js";
 import Notification from "../models/notification-model.js";
 import Inventory from "../models/inventory-model.js";
-import PaymentTransaction from "../models/paymentTransaction-model.js";
+import PaymentTransaction from "../models/payments/paymentTransaction-model.js";
 
 import {
   softDeleteDocument,

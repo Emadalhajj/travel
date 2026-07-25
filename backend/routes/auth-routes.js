@@ -76,13 +76,13 @@ authRouter.get(
       profileImage: req.user.profileImage,
     };
 
-    const redirectUrl = `http://localhost:3000/authpage?token=${token}&user=${encodeURIComponent(
-      JSON.stringify(userObj),
-    )}`;
+    // const redirectUrl = `http://localhost:3000/authpage?token=${token}&user=${encodeURIComponent(
+    //   JSON.stringify(userObj),
+    // )}`;
 
-    // console.log("Redirecting to:", redirectUrl); // للتحقق
-    // ✅ إعادة التوجيه إلى واجهة React مع التوكن وبيانات المستخدم
-    res.redirect(redirectUrl);
+    // // console.log("Redirecting to:", redirectUrl); // للتحقق
+    // // ✅ إعادة التوجيه إلى واجهة React مع التوكن وبيانات المستخدم
+    // res.redirect(redirectUrl);
   },
 );
 

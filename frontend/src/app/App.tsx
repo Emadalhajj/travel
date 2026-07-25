@@ -96,6 +96,28 @@ const PublicCustomBookingTravelersPage = lazy(
   () =>
     import("../Pages/public/custom-package/PublicCustomBookingTravelersPage"),
 );
+// طرق الدفع
+const AdminBankAccountsPage = lazy(
+  () => import("../Pages/admin/payments/AdminBankAccountsPage"),
+);
+const AdminPaymentManagementPage = lazy(
+  () => import("../Pages/admin/payments/AdminPaymentManagementPage"),
+)
+
+const AdminPaymentMethodsPage = lazy(
+  () => import("../Pages/admin/payments/AdminPaymentMethodsPage"),
+)
+
+const AdminPaymentProvidersPage = lazy(
+  () => import("../Pages/admin/payments/AdminPaymentProvidersPage"),
+)
+
+const AdminPaymentConfigurationsPage = lazy(
+  () => import("../Pages/admin/payments/AdminPaymentConfigurationsPage"),
+)
+// const AdminBankAccountFormPage = lazy(
+//   () => import("../Pages/admin/payments/AdminBankAccountFormPage"),
+// );
 /*
 إضافة حارس صلاحيات للمسارات (AdminOnlyRoute) في
 [App.tsx](C:/Users/User/Desktop/All Projects/myreact/travel/travel-app/frontend/src/app/App.tsx)
@@ -262,7 +284,33 @@ function App() {
             path="vehicle-rentals"
             element={<AdminVehicleRentalList />}
           />{" "}
+          {/* ادارة الدفع */}
           {/* /admin/vehicle-rentals */}
+          <Route
+            path="payments/bank-accounts"
+            element={<AdminBankAccountsPage />}
+          />
+           <Route
+    path="payments"
+    element={<AdminPaymentManagementPage />}
+  />
+  <Route
+    path="payments/methods"
+    element={<AdminPaymentMethodsPage />}
+  />
+  <Route
+    path="payments"
+    element={<AdminPaymentManagementPage />}
+  />
+    <Route
+    path="payments/providers"
+    element={<AdminPaymentProvidersPage />}
+  />
+  <Route
+    path="payments/configurations"
+    element={<AdminPaymentConfigurationsPage />}
+  />
+        
         </Route>
 
         {/* <Route path="/" element={<Home />} /> */}
@@ -284,6 +332,7 @@ function App() {
             </AdminOnlyRoute>
           }
         />
+
         {/* <Route path="/adminVisaForm" element={<AdminOnlyRoute><AdminVisaForm /></AdminOnlyRoute>} /> */}
         <Route
           path="/adminVisaTypeList"

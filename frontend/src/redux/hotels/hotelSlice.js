@@ -8,7 +8,7 @@ import {
   apiDeleteHotel,
   apiToggleHotel,
   // apiGetRoomTypesByHotelId,
-} from "../../services/api/hotels";
+} from "../../services/api/admin/hotels";
 import { handleApiError } from "../../Utils/handleApiError";
 // ====================== Async Thunks ======================
 //fetch

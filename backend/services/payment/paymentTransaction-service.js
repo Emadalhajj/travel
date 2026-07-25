@@ -31,6 +31,7 @@ export const calculateBookingPaymentSummary = async ({
   const transactions = await PaymentTransaction.find({
     booking: booking._id,
     status: "paid",
+    isDeleted: false,
   }).lean();
 
   const paidAmount = transactions.reduce(
@@ -88,10 +89,22 @@ export const applyPaymentSummaryToBooking = async ({
 export const createPaymentTransactionService = async ({
   Booking,
   PaymentTransaction,
+  PaymentMethod,
   data,
   req = null,
 }) => {
   const isArabic = getLanguage(req);
+  const amount = Number(data.amount);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new AppError(
+      isArabic
+        ? "مبلغ الدفع غير صحيح"
+        : "Invalid payment amount",
+      400,
+      "amount",
+    );
+  }
 
   const booking = await Booking.findById(data.booking);
 
@@ -113,18 +126,55 @@ export const createPaymentTransactionService = async ({
     );
   }
 
+  const methodCode = String(
+    data.methodCode || data.method || "",
+  ).toUpperCase();
+
+  const paymentMethod = await PaymentMethod.findOne({
+    code: methodCode,
+    isActive: true,
+    isDeleted: false,
+  });
+
+  if (!paymentMethod) {
+    throw new AppError(
+      isArabic
+        ? "طريقة الدفع غير موجودة أو غير مفعلة"
+        : "Payment method is unavailable",
+      400,
+      "paymentMethod",
+    );
+  }
+
   const transaction = await PaymentTransaction.create({
     booking: booking._id,
     user: booking.user,
-    amount: Number(data.amount) || 0,
-    currency: data.currency || booking.pricing?.currency || "SAR",
-    method: data.method || "cash",
+
+    paymentMethod: paymentMethod._id,
+    methodCode: paymentMethod.code,
+    methodNameAr: paymentMethod.nameAr,
+    methodNameEn: paymentMethod.nameEn,
+
+    amount,
+    currency:
+      data.currency ||
+      booking.pricing?.currency ||
+      "SAR",
+
     status: data.status || "paid",
+
+    bankAccount: data.bankAccount || null,
+    paymentProvider: data.paymentProvider || null,
+    providerCode: data.providerCode || "",
+
     transactionId: data.transactionId || "",
-    gateway: data.gateway || "",
+    gatewayReference: data.gatewayReference || "",
+    checkoutId: data.checkoutId || "",
+
     gatewayResponse: data.gatewayResponse || {},
     notes: data.notes || "",
-    createdBy: req?.user?._id,
+
+    createdBy: req?.user?._id || null,
   });
 
   await applyPaymentSummaryToBooking({

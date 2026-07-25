@@ -1,7 +1,22 @@
 export const hyperpayConfig = {
-  baseUrl: process.env.HYPERPAY_BASE_URL || "https://eu-test.oppwa.com",
-  entityId: process.env.HYPERPAY_ENTITY_ID,
-  accessToken: process.env.HYPERPAY_ACCESS_TOKEN,
-  frontendUrl: process.env.FRONTEND_URL || "http://localhost:3000",
-  currency: process.env.HYPERPAY_CURRENCY || "SAR",
+  entityId:
+    process.env.HYPERPAY_ENTITY_ID || "",
+
+  accessToken:
+    process.env.HYPERPAY_ACCESS_TOKEN || "",
+
+  webhookSecret:
+    process.env.HYPERPAY_WEBHOOK_SECRET || "",
+
+  baseUrl:
+    process.env.HYPERPAY_BASE_URL ||
+    "https://eu-test.oppwa.com",
+
+  frontendUrl:
+    process.env.FRONTEND_URL ||
+    "http://localhost:3000",
+
+  environment:
+    process.env.HYPERPAY_ENVIRONMENT ||
+    "test",
 };

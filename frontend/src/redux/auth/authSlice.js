@@ -2,8 +2,8 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { toast } from "react-toastify";
 // import axios from "axios";
 import { register, loging } from "../../services/api";
-import { updateUserProfile } from "../../services/api/auth";
-import { changePasswordUser } from "../../services/api/auth";
+import { updateUserProfile } from "../../services/api/admin/auth";
+import { changePasswordUser } from "../../services/api/admin/auth";
 
 // 🟢 تسجيل المستخدم الجديد
 export const registerUser = createAsyncThunk(
@@ -52,14 +52,14 @@ export const changePassword = createAsyncThunk(
   "auth/changePassword",
   async (payload, { rejectWithValue }) => {
     try {
-      const response = await changePasswordUser(payload);   // payload كامل
+      const response = await changePasswordUser(payload); // payload كامل
       return response.data;
     } catch (err) {
       return rejectWithValue(
-        err.response?.data?.message || "Change password failed"
+        err.response?.data?.message || "Change password failed",
       );
     }
-  }
+  },
 );
 
 // 🟣 الشريحة الرئيسية

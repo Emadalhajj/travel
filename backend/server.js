@@ -34,6 +34,7 @@ import ExtraService from './routes/extra-services/extra-service-route.js';
 import VehicleRentalRoute from './routes/transports/vehicle-rental-route.js';
 import paymentCheckoutRoutes from './routes/payment/payment-checkout-routes.js';
 import paymentCallbackRoutes from "./routes/payment/payment-callback-routes.js";
+import bankAccountRoutes from "./routes/payment/bank-account-routes.js";
 
 
 //use packages
@@ -120,6 +121,11 @@ app.use("/api", AvailabilityRoute);
 app.use("/api/payment", paymentCheckoutRoutes);
 
 app.use("/api/payment", paymentCallbackRoutes);
+
+app.use(
+  "/api/bank-accounts",
+  bankAccountRoutes,
+);
 
 app.use(errorHandler);
 

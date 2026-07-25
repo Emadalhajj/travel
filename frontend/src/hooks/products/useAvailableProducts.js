@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import api from "../../services/api/api";
-import { apiGetAvailablePackageProducts } from "../../services/api/availability";
+import { useCallback, useState } from "react";
+import { apiGetAvailablePackageProducts } from "../../services/api/admin/availability";
 
 /*
 =========================================================

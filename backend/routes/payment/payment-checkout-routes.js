@@ -1,10 +1,12 @@
 import express from "express";
-// import { protect } from "../../middleware/authMiddleware.js";
 
 import { createPaymentCheckoutSession } from "../../controllers/payment/payment-checkout-controller.js";
-
+import { protect } from "../../middleware/authMiddleware.js";
 const router = express.Router();
 
-router.post("/checkout-session", createPaymentCheckoutSession);
+router.post(
+    "/checkout-session",
+     protect,
+     createPaymentCheckoutSession);
 
 export default router;

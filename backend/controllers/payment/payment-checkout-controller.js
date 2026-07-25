@@ -1,73 +1,82 @@
 import asyncHandler from "express-async-handler";
-import AppError from "../../utils/AppError.js";
+import PaymentTransaction from "../../models/payments/paymentTransaction-model.js";
+import { createPaymentCheckoutSessionService } from "../../services/payment/payment-checkout-service.js";
 
-import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
-import PaymentTransaction from "../../models/paymentTransaction-model.js";
+export const createPaymentCheckoutSession = asyncHandler(
+  async (req, res) => {
+    const {
+      draftId,
+      paymentMethod = "CARD",
+      gateway = "HYPERPAY",
+    } = req.body || {};
 
-import { buildBookingPricingFromDraft } from "../../services/draft-bookings/draft-booking-service.js";
-import { createHyperPayCheckout } from "../../services/payment/hyperpay-service.js";
+    const checkout =
+      await createPaymentCheckoutSessionService({
+        draftId,
+        paymentMethod,
+        gateway,
+        req,
+      });
 
-export const createPaymentCheckoutSession = asyncHandler(async (req, res) => {
-  const { draftId, paymentMethod = "card" } = req.body || {};
+    /*
+    ملاحظة:
+    هذا الجزء سيعمل بعد تعديل PaymentTransaction Model
+    وإضافة draftBooking وcheckoutId وmethodCode.
+    */
 
-  if (!draftId) {
-    throw new AppError("draftId is required", 400, "draftId");
-  }
+    await PaymentTransaction.create({
+      draftBooking: checkout.draftId,
 
-  const draft = await DraftBooking.findOne({
-    _id: draftId,
-    isDeleted: false,
-  });
+      booking: null,
 
-  if (!draft) {
-    throw new AppError("Draft booking not found", 404, "draftBooking");
-  }
+      user: checkout.userId,
 
-  if (draft.status !== "draft") {
-    throw new AppError("Only draft bookings can be paid", 400, "draftBooking");
-  }
+      amount: checkout.amount,
 
-  const pricing = buildBookingPricingFromDraft(draft);
-  const amount = Number(pricing.totalPrice || pricing.totalAmount || pricing.total || 0);
+      currency: checkout.currency,
 
-  if (!amount || amount <= 0) {
-    throw new AppError("Invalid payment amount", 400, "payment");
-  }
+      methodCode: checkout.paymentMethod,
 
-  const paymentReference = `HP-${Date.now()}-${draft._id}`;
+      status: "pending",
 
-  const checkout = await createHyperPayCheckout({
-    amount,
-    currency: pricing.currency || "SAR",
-    merchantTransactionId: paymentReference,
-    customer: draft.customer,
-    draftId: draft._id,
-  });
+      providerCode: checkout.providerCode,
 
-  await PaymentTransaction.create({
-    booking: null,
-    draftBooking: draft._id,
-    user: draft.user || req.user?._id || null,
-    amount,
-    currency: pricing.currency || "SAR",
-    method: paymentMethod,
-    status: "pending",
-    gateway: "hyperpay",
-    gatewayReference: paymentReference,
-    checkoutId: checkout.id,
-    notes: "HyperPay checkout session created",
-    createdBy: req.user?._id || draft.user || null,
-  });
+      gatewayReference:
+        checkout.paymentReference,
 
-  res.status(201).json({
-    success: true,
-    message: "HyperPay checkout session created successfully",
-    data: {
-      checkoutId: checkout.id,
-      paymentReference,
-      amount,
-      currency: pricing.currency || "SAR",
-      gateway: "hyperpay",
-    },
-  });
-});
+      checkoutId: checkout.checkoutId,
+
+      notes:
+        "Payment checkout session created",
+
+      createdBy:
+        req.user?._id ||
+        checkout.userId ||
+        null,
+    });
+
+    res.status(201).json({
+      success: true,
+
+      message:
+        "Payment checkout session created successfully",
+
+      data: {
+        checkoutId: checkout.checkoutId,
+
+        paymentReference:
+          checkout.paymentReference,
+
+        amount: checkout.amount,
+
+        currency: checkout.currency,
+
+        paymentMethod:
+          checkout.paymentMethod,
+
+        providerCode:
+          checkout.providerCode,
+      },
+    });
+  },
+);

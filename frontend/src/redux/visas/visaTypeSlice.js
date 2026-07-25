@@ -4,7 +4,7 @@ import {
   apiCreateVisaType,
   apiUpdateVisaType,
   apiDeleteVisaType,
-} from "../../services/api/visas";
+} from "../../services/api/admin/visas";
 import { handleApiError } from "../../Utils/handleApiError";
 
 // 🟢 جلب جميع أنواع التأشيرات
@@ -17,7 +17,7 @@ export const fetchVisaTypes = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 
 // create visa type
@@ -30,7 +30,7 @@ export const createVisaType = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 
 // updaet visa type
@@ -43,7 +43,7 @@ export const updateVisaType = createAsyncThunk(
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 
 // delete visa type
@@ -51,12 +51,12 @@ export const deleteVisaType = createAsyncThunk(
   "visaTypes/delete",
   async (id, { rejectWithValue }) => {
     try {
-       await apiDeleteVisaType(id);
-        return id;
+      await apiDeleteVisaType(id);
+      return id;
     } catch (err) {
       return handleApiError(err, rejectWithValue);
     }
-  }
+  },
 );
 
 export const visaTypeSlice = createSlice({
@@ -90,13 +90,13 @@ export const visaTypeSlice = createSlice({
       // update
       .addCase(updateVisaType.fulfilled, (state, action) => {
         state.visaTypes = state.visaTypes.map((vt) =>
-          vt._id === action.payload._id ? action.payload : vt
+          vt._id === action.payload._id ? action.payload : vt,
         );
       })
       // delete
       .addCase(deleteVisaType.fulfilled, (state, action) => {
         state.visaTypes = state.visaTypes.filter(
-          (vt) => vt._id !== action.payload
+          (vt) => vt._id !== action.payload,
         );
       });
   },

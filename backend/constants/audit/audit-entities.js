@@ -25,6 +25,7 @@ export const AUDIT_ENTITIES = {
   NOTIFICATION: "notification",
   USER: "user",
   UMRAH_PROGRAM: "umrah_program",
+  BANK_ACCOUNT: "bank_account",
 };
 
 export const AUDIT_ENTITIES_LIST = Object.values(AUDIT_ENTITIES);
