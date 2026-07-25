@@ -1,12 +1,11 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import {
   apiGetVehicleRentals,
-  apiGetOneVehicleRental,
   apiCreateVehicleRental,
   apiUpdateVehicleRental,
   apiDeleteVehicleRental,
   apiToggleVehicleRentalActive,
-} from "../../services/api/vehicleRentals";
+} from "../../services/api/admin/vehicleRentals";
 
 import { handleApiError } from "../../Utils/handleApiError";
 
@@ -118,7 +117,7 @@ const vehicleRentalSlice = createSlice({
       })
       .addCase(updateVehicleRental.fulfilled, (state, action) => {
         const index = state.vehicleRentalsList.findIndex(
-          (rental) => rental._id === action.payload._id
+          (rental) => rental._id === action.payload._id,
         );
         if (index !== -1) {
           state.vehicleRentalsList[index] = action.payload;
@@ -126,13 +125,13 @@ const vehicleRentalSlice = createSlice({
       })
       .addCase(deleteVehicleRental.fulfilled, (state, action) => {
         state.vehicleRentalsList = state.vehicleRentalsList.filter(
-          (rental) => rental._id !== action.payload
+          (rental) => rental._id !== action.payload,
         );
         state.pagination.total -= 1;
       })
       .addCase(toggleVehicleRentalActive.fulfilled, (state, action) => {
         const index = state.vehicleRentalsList.findIndex(
-          (rental) => rental._id === action.payload._id
+          (rental) => rental._id === action.payload._id,
         );
         if (index !== -1) {
           state.vehicleRentalsList[index] = action.payload;

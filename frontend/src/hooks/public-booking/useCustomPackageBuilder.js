@@ -485,7 +485,7 @@ export default function useCustomPackageBuilder() {
     currentStep: "customer_info",
 
     data: {
-      packageType: "custom",
+      packageType: "CUSTOM_PACKAGE",
       selectedProducts: selectedProductsList,
       selectedProductsByCategory: selectedProducts,
       searchCriteria: formData,

@@ -413,6 +413,7 @@ Soft Delete Fields
         type: Number,
         default: 0,
       },
+      
 
       taxRate: {
         type: Number,
@@ -550,10 +551,6 @@ bookingSchema.pre("save", function (next) {
 | Indexes
 |--------------------------------------------------------------------------
 */
-
-bookingSchema.index({
-  bookingNumber: 1,
-});
 
 bookingSchema.index({
   user: 1,

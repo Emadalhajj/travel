@@ -1,77 +1,176 @@
 import AppError from "../../utils/AppError.js";
 import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import { buildBookingPricingFromDraft } from "../draft-bookings/draft-booking-service.js";
-import { createHyperPayCheckout } from "./hyperpay-service.js";
+
+// import { createHyperPayCheckout } from "./hyperpay-service.js";
+import { createProviderCheckout } from "./providers/payment-provider-factory.js";
+
+/*
+=====================================================
+Create Payment Checkout Session Service
+=====================================================
+
+هذه الخدمة مسؤولة عن:
+
+1- جلب مسودة الحجز.
+2- التحقق من أن المسودة قابلة للدفع.
+3- حساب المبلغ من الخادم.
+4- إنشاء مرجع دفع داخلي.
+5- إرسال الطلب إلى مزود الدفع عن طريق Factory.
+=====================================================
+*/
 
 export const createPaymentCheckoutSessionService = async ({
   draftId,
-  paymentMethod,
-  gateway,
+
+  /*
+  مؤقتًا نقبل paymentMethod وgateway.
+  لاحقًا سيتم استخراج المزود وطريقة الدفع من
+  PaymentConfiguration بدلاً من الثقة في الفرونت.
+  */
+  paymentMethod = "CARD",
+  gateway = "HYPERPAY",
+
+  /*
+  إعدادات المزود القادمة من قاعدة البيانات مستقبلًا.
+  حاليًا يمكن أن تكون null ويستخدم HyperPay fallback.
+  */
+  providerConfig = null,
+
   req,
 }) => {
-  const draft = await DraftBooking.findById(draftId);
+  /*
+  ---------------------------------------------------
+  1- جلب المسودة
+  ---------------------------------------------------
+  */
+
+  const draft = await DraftBooking.findOne({
+    _id: draftId,
+    isDeleted: false,
+  });
 
   if (!draft) {
-    throw new AppError("مسودة الحجز غير موجودة", 404, "draftBooking");
+    throw new AppError(
+      "مسودة الحجز غير موجودة",
+      404,
+      "draftBooking",
+    );
   }
 
+  /*
+  ---------------------------------------------------
+  2- التحقق من حالة المسودة
+  ---------------------------------------------------
+  */
+
   if (draft.status !== "draft") {
-    throw new AppError("لا يمكن الدفع لمسودة غير نشطة", 400, "draftBooking");
+    throw new AppError(
+      "لا يمكن الدفع لمسودة غير نشطة",
+      400,
+      "draftBooking",
+    );
   }
+
+  /*
+  ---------------------------------------------------
+  3- حساب السعر من الخادم
+  ---------------------------------------------------
+
+  لا نأخذ amount من الفرونت.
+  */
 
   const pricing = buildBookingPricingFromDraft(draft);
 
-  const amount = pricing.totalPrice || pricing.totalAmount || pricing.total;
+  const amount = Number(
+    pricing.totalPrice ||
+      pricing.totalAmount ||
+      pricing.total ||
+      0,
+  );
 
-  if (!amount || Number(amount) <= 0) {
-    throw new AppError("مبلغ الدفع غير صحيح", 400, "payment");
+  const currency = pricing.currency || "SAR";
+
+  if (amount <= 0) {
+    throw new AppError(
+      "مبلغ الدفع غير صحيح",
+      400,
+      "payment",
+    );
   }
-
-  const paymentReference = `PAY-${Date.now()}-${draft._id}`;
 
   /*
-    هنا لاحقًا يتم ربط HyperPay / PayTabs / Stripe فعليًا.
-
-    حاليًا نرجع redirectUrl وهمي داخلي حتى يكتمل التدفق.
-    بعد الربط الحقيقي، redirectUrl يأتي من بوابة الدفع.
+  ---------------------------------------------------
+  4- توحيد أسماء الأكواد
+  ---------------------------------------------------
   */
 
-  if (gateway === "hyperpay") {
-    const checkout = await createHyperPayCheckout({
-      amount,
-      currency: pricing.currency || "SAR",
-      merchantTransactionId: paymentReference,
-      customer: draft.customer || {},
-      draftId: draft._id,
-    });
+  const normalizedPaymentMethod = String(
+    paymentMethod || "CARD",
+  ).toUpperCase();
 
-    return {
-      draftId: draft._id,
-      amount,
-      currency: pricing.currency || "SAR",
-      paymentMethod,
-      gateway,
-      paymentReference,
-      checkoutId: checkout.id,
-      checkout,
-    };
-  }
+  const normalizedProviderCode = String(
+    gateway || "HYPERPAY",
+  ).toUpperCase();
 
-  const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000")
-    .replace(/\/$/, "");
+  /*
+  ---------------------------------------------------
+  5- إنشاء مرجع دفع داخلي
+  ---------------------------------------------------
+  */
 
-  const redirectUrl =
-    paymentMethod === "card"
-      ? `${frontendUrl}/booking/payment/redirect/${draft._id}?reference=${paymentReference}`
-      : null;
+  const paymentReference =
+    `PAY-${Date.now()}-${draft._id}`;
+
+  /*
+  ---------------------------------------------------
+  6- إنشاء Checkout من المزود
+  ---------------------------------------------------
+
+  الخدمة لا تستدعي HyperPay مباشرة.
+  بل تمر عبر Payment Provider Factory.
+  */
+
+  const checkout = await createProviderCheckout({
+    providerCode: normalizedProviderCode,
+
+    amount,
+    currency,
+
+    merchantTransactionId: paymentReference,
+
+    customer: draft.customer || {},
+
+    draftId: draft._id,
+
+    providerConfig,
+  });
+
+  /*
+  ---------------------------------------------------
+  7- إعادة النتيجة للكنترولر
+  ---------------------------------------------------
+  */
 
   return {
     draftId: draft._id,
+
+    userId:
+      draft.user ||
+      req?.user?._id ||
+      null,
+
     amount,
-    currency: pricing.currency || "SAR",
-    paymentMethod,
-    gateway,
+    currency,
+
+    paymentMethod: normalizedPaymentMethod,
+
+    providerCode: normalizedProviderCode,
+
     paymentReference,
-    redirectUrl,
+
+    checkoutId: checkout.id,
+
+    checkout,
   };
 };

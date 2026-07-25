@@ -8,7 +8,7 @@ import {
   apiUpdateExtraService,
   apiDeleteExtraService,
   apiToggleExtraService,
-} from "../../services/api/extra-services";
+} from "../../services/api/admin/extra-services";
 
 export const fetchExtraServices = createAsyncThunk(
   "extraServices/fetch",

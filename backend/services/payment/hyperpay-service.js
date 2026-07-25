@@ -7,42 +7,101 @@ export const createHyperPayCheckout = async ({
   merchantTransactionId,
   customer = {},
   draftId,
+  providerConfig = {},
 }) => {
-  if (!hyperpayConfig.entityId || !hyperpayConfig.accessToken) {
-    throw new AppError("HyperPay credentials are missing", 500, "hyperpay");
+  /*
+  الأولوية:
+  1- إعدادات المزود القادمة من قاعدة البيانات.
+  2- إعدادات config/.env الحالية كـ fallback.
+  */
+
+  const entityId =
+    providerConfig.entityId ||
+    providerConfig.credentials?.entityId ||
+    hyperpayConfig.entityId;
+
+  const accessToken =
+    providerConfig.accessToken ||
+    providerConfig.credentials?.accessToken ||
+    hyperpayConfig.accessToken;
+
+  const baseUrl =
+    providerConfig.baseUrl ||
+    providerConfig.configuration?.baseUrl ||
+    hyperpayConfig.baseUrl;
+
+  const frontendUrl = (
+    providerConfig.frontendUrl ||
+    providerConfig.configuration?.frontendUrl ||
+    hyperpayConfig.frontendUrl ||
+    process.env.FRONTEND_URL ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+
+  if (!entityId || !accessToken) {
+    throw new AppError(
+      "HyperPay credentials are missing",
+      500,
+      "hyperpay",
+    );
   }
 
-  const url = `${hyperpayConfig.baseUrl}/v1/checkouts`;
+  if (!baseUrl) {
+    throw new AppError(
+      "HyperPay base URL is missing",
+      500,
+      "hyperpay",
+    );
+  }
+
+  const url = `${baseUrl}/v1/checkouts`;
 
   const params = new URLSearchParams();
 
-  params.append("entityId", hyperpayConfig.entityId);
-  params.append("amount", Number(amount).toFixed(2));
+  params.append("entityId", entityId);
+  params.append(
+    "amount",
+    Number(amount).toFixed(2),
+  );
   params.append("currency", currency);
   params.append("paymentType", "DB");
-  params.append("merchantTransactionId", merchantTransactionId);
+
+  params.append(
+    "merchantTransactionId",
+    merchantTransactionId,
+  );
 
   params.append(
     "shopperResultUrl",
-    `${hyperpayConfig.frontendUrl}/booking/payment/redirect/${draftId}?reference=${encodeURIComponent(
-      merchantTransactionId,
-    )}`,
+    `${frontendUrl}/booking/payment/redirect/${draftId}` +
+      `?reference=${encodeURIComponent(
+        merchantTransactionId,
+      )}`,
   );
 
   if (customer.email) {
-    params.append("customer.email", customer.email);
+    params.append(
+      "customer.email",
+      customer.email,
+    );
   }
 
   if (customer.name) {
-    params.append("customer.givenName", customer.name);
+    params.append(
+      "customer.givenName",
+      customer.name,
+    );
   }
 
   const response = await fetch(url, {
     method: "POST",
+
     headers: {
-      Authorization: `Bearer ${hyperpayConfig.accessToken}`,
-      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type":
+        "application/x-www-form-urlencoded",
     },
+
     body: params.toString(),
   });
 
@@ -50,7 +109,8 @@ export const createHyperPayCheckout = async ({
 
   if (!response.ok || !data?.id) {
     throw new AppError(
-      data?.result?.description || "Failed to create HyperPay checkout",
+      data?.result?.description ||
+        "Failed to create HyperPay checkout",
       400,
       "hyperpay",
     );

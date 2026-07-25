@@ -1,13 +1,12 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import {
   apiGetRoomType,
-  apiGetOneRoomType,
   apiCreateRoomType,
   apiUpdateRoomType,
   apiDeleteRoomType,
   apiGetRoomTypesByHotelId,
   apiToggleRoomType,
-} from "../../services/api/hotels";
+} from "../../services/api/admin/hotels";
 import { handleApiError } from "../../Utils/handleApiError";
 
 // fetch

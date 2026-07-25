@@ -9,11 +9,12 @@ import {
   apiToggleUmrahProgram,
   apiGetPublicUmrahPrograms,
   apiGetPublicUmrahProgramDetails,
-} from "../../services/api/umrahPrograms";
+} from "../../services/api/admin/umrahPrograms";
 
 import { handleApiError } from "../../Utils/handleApiError";
 
-const getProgramsFromResponse = (payload) => payload?.data || payload?.items || [];
+const getProgramsFromResponse = (payload) =>
+  payload?.data || payload?.items || [];
 
 const getTotalPagesFromResponse = (payload) =>
   payload?.totalPages || payload?.pages || 0;

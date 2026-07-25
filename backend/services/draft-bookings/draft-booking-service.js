@@ -1,38 +1,123 @@
 // services/draft-bookings/draft-booking-service.js
 
+/*
+=====================================================
+Draft Booking Service
+=====================================================
+
+هذا الملف مسؤول عن:
+-----------------------------------------------------
+- إنشاء وتحديث المسودات.
+- حساب الأسعار.
+- تجهيز بيانات الحجز.
+- حجز وإرجاع المخزون.
+- تحويل المسودة إلى حجز نهائي.
+- ربط عملية الدفع بالحجز.
+- إنشاء Timeline Logs.
+- إرسال الإشعارات.
+- إنشاء الفاوتشر.
+
+مهم:
+-----------------------------------------------------
+لا يتم الوثوق في المبلغ القادم من الواجهة.
+يتم حساب السعر داخل الخادم من بيانات المسودة.
+=====================================================
+*/
+
+/*
+=====================================================
+Models
+=====================================================
+*/
+
 import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import Booking from "../../models/booking/booking-model.js";
+import PaymentTransaction from "../../models/payments/paymentTransaction-model.js";
+import BookingLog from "../../models/bookingLog-model.js";
+import Inventory from "../../models/inventory-model.js";
+import Notification from "../../models/notification-model.js";
 import { Counter } from "../../models/counterModel.js";
 
-import { DRAFT_BOOKING_STATUS } from "../../constants/draft-bookings/draft-booking-status.js";
-import { BOOKING_STATUS } from "../../constants/booking/booking-status.js";
-import { PAYMENT_STATUS } from "../../constants/booking/payment-status.js";
-import { BOOKING_TYPES } from "../../constants/booking/booking-types.js";
-import { BOOKING_STEPS } from "../../constants/booking/booking-steps.js";
-import BookingLog from "../../models/bookingLog-model.js";
-import { 
+/*
+=====================================================
+Constants
+=====================================================
+*/
+
+import {
+  DRAFT_BOOKING_STATUS,
+} from "../../constants/draft-bookings/draft-booking-status.js";
+
+import {
+  BOOKING_STATUS,
+} from "../../constants/booking/booking-status.js";
+
+import {
+  BOOKING_TYPES,
+} from "../../constants/booking/booking-types.js";
+
+import {
+  BOOKING_STEPS,
+} from "../../constants/booking/booking-steps.js";
+
+/*
+=====================================================
+Inventory Services
+=====================================================
+*/
+
+import {
+  reserveInventory,
+  releaseInventory,
+} from "../booking/inventory-service.js";
+
+import {
+  reserveProgramSeats,
+  releaseProgramSeats,
+} from "../umrah-programs/umrah-program-service.js";
+
+/*
+=====================================================
+Booking Log Services
+=====================================================
+*/
+
+import {
   logBookingCreated,
-  logPaymentTransactionCreated
-  ,
+  logPaymentTransactionCreated,
   logInventoryReserved,
   logVoucherCreated,
- } from "../booking/booking-log-service.js";
+} from "../booking/booking-log-service.js";
+
+/*
+=====================================================
+Notification Services
+=====================================================
+*/
+
+import {
+  sendNotification,
+} from "../notifications/notification-service.js";
+
+import {
+  sendBookingCreatedNotification,
+} from "../notifications/booking-notification-service.js";
+
+/*
+=====================================================
+Voucher Service
+=====================================================
+*/
+
+import {
+  createVoucherForBooking,
+} from "../voucher-service.js";
 
 const buildDraftExpiryDate = (hours = 24) => {
   const date = new Date();
   date.setHours(date.getHours() + hours);
   return date;
 };
-
-import Inventory from "../../models/inventory-model.js";
-
-import { reserveInventory,
-  releaseInventory, } from "../booking/inventory-service.js";
-import {
-  releaseProgramSeats,
-  reserveProgramSeats,
-} from "../umrah-programs/umrah-program-service.js";
-
 
 const generateBookingNumber = async () => {
   const counter = await Counter.findOneAndUpdate(
@@ -58,7 +143,10 @@ const normalizeDraftData = (data = {}) => {
 };
 
 const buildPilgrimNameParts = (fullName = "") => {
-  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  const parts = String(fullName || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
 
   return {
     first: parts[0] || "غير محدد",
@@ -97,79 +185,439 @@ const mapDraftTravelersToBookingPilgrims = (travelers = [], customer = {}) => {
   });
 };
 
-const buildBookingItemsFromDraft = (draft) => {
-  const selectedProducts =
+/*
+=====================================================
+Pricing Helpers
+=====================================================
+*/
+
+const roundMoney = (value) => {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+
+  return Number(number.toFixed(2));
+};
+
+const toNonNegativeNumber = (
+  value,
+  fallback = 0,
+) => {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number < 0) {
+    return fallback;
+  }
+
+  return number;
+};
+
+const getFirstPositiveNumber = (...values) => {
+  for (const value of values) {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      continue;
+    }
+
+    const number = Number(value);
+
+    if (
+      Number.isFinite(number) &&
+      number > 0
+    ) {
+      return number;
+    }
+  }
+
+  return 0;
+};
+
+const getProductUnitPrice = (item = {}) => {
+  return getFirstPositiveNumber(
+    item.pricingSnapshot?.unitPrice,
+    item.pricing?.finalPrice,
+    item.pricing?.unitPrice,
+    item.finalPrice,
+    item.priceAtTime,
+    item.unitPrice,
+    item.price,
+  );
+};
+
+const normalizeProductType = (item = {}) => {
+  return String(
+    item.type ||
+      item.productType ||
+      item.serviceType ||
+      "",
+  ).toLowerCase();
+};
+
+const resolveChargeType = (item = {}) => {
+  const explicitChargeType = String(
+    item.chargeType ||
+      item.pricingMode ||
+      item.billingMode ||
+      item.pricingSnapshot?.chargeType ||
+      "",
+  ).toUpperCase();
+
+  if (
+    [
+      "PER_TRAVELER",
+      "PER_UNIT",
+      "PER_BOOKING",
+    ].includes(explicitChargeType)
+  ) {
+    return explicitChargeType;
+  }
+
+  const productType = normalizeProductType(item);
+
+  if (
+    [
+      "visa",
+      "trip",
+      "ticket",
+      "flight",
+    ].includes(productType)
+  ) {
+    return "PER_TRAVELER";
+  }
+
+  if (
+    [
+      "room",
+      "roomtype",
+      "hotel",
+    ].includes(productType)
+  ) {
+    return "PER_UNIT";
+  }
+
+  if (
+    [
+      "transport",
+      "transfer",
+    ].includes(productType)
+  ) {
+    return "PER_BOOKING";
+  }
+
+  return "PER_UNIT";
+};
+
+const resolveProductQuantity = ({
+  item,
+  chargeType,
+  travelersCount,
+}) => {
+  if (chargeType === "PER_TRAVELER") {
+    return travelersCount;
+  }
+
+  if (chargeType === "PER_BOOKING") {
+    return 1;
+  }
+
+  return Math.max(
+    1,
+    toNonNegativeNumber(
+      item.quantity ??
+        item.roomsCount ??
+        item.unitsCount ??
+        1,
+      1,
+    ),
+  );
+};
+
+const isPackageExtra = (item = {}) => {
+  return (
+    item.isExtra === true ||
+    item.extra === true ||
+    item.includedInPackage === false ||
+    item.isIncluded === false
+  );
+};
+
+const calculateProductPricingLine = ({
+  item,
+  travelersCount,
+}) => {
+  const unitPrice = getProductUnitPrice(item);
+  const chargeType = resolveChargeType(item);
+  const quantity = resolveProductQuantity({
+    item,
+    chargeType,
+    travelersCount,
+  });
+  const total = roundMoney(
+    unitPrice * quantity,
+  );
+
+  return {
+    refId:
+      item.refId ||
+      item.productId ||
+      item._id ||
+      null,
+    type:
+      item.type ||
+      item.productType ||
+      "",
+    nameAr:
+      item.nameAr ||
+      item.name?.ar ||
+      "",
+    nameEn:
+      item.nameEn ||
+      item.name?.en ||
+      "",
+    chargeType,
+    unitPrice,
+    quantity,
+    total,
+    isExtra: isPackageExtra(item),
+  };
+};
+
+const getPositiveInteger = (
+  value,
+  fallback = 1,
+) => {
+  const number = Number(value);
+
+  if (
+    !Number.isFinite(number) ||
+    number <= 0
+  ) {
+    return fallback;
+  }
+
+  return Math.max(
+    1,
+    Math.floor(number),
+  );
+};
+
+/*
+=====================================================
+buildBookingItemsFromDraft
+=====================================================
+*/
+
+const buildBookingItemsFromDraft = (
+  draft,
+) => {
+  const selectedProductsSource =
     draft.data?.selectedProducts ||
     draft.data?.selectedProductsList ||
     [];
 
-  const roomProduct = selectedProducts.find(
-    (item) => item.type === "roomType" || item.type === "hotel",
-  );
+  const selectedProducts =
+    Array.isArray(selectedProductsSource)
+      ? selectedProductsSource
+      : [];
 
-  const visaProduct = selectedProducts.find((item) => item.type === "visa");
+  const roomProduct =
+    selectedProducts.find((item) =>
+      [
+        "room",
+        "roomtype",
+        "hotel",
+      ].includes(
+        String(item.type || "").toLowerCase(),
+      ),
+    );
 
-  const tripProduct = selectedProducts.find((item) => item.type === "trip");
+  const visaProduct =
+    selectedProducts.find(
+      (item) =>
+        String(
+          item.type || "",
+        ).toLowerCase() === "visa",
+    );
 
-  const transportProduct = selectedProducts.find(
-    (item) => item.type === "transport",
-  );
+  const tripProduct =
+    selectedProducts.find((item) =>
+      [
+        "trip",
+        "ticket",
+        "flight",
+      ].includes(
+        String(item.type || "").toLowerCase(),
+      ),
+    );
+
+  const transportProduct =
+    selectedProducts.find((item) =>
+      [
+        "transport",
+        "transfer",
+      ].includes(
+        String(item.type || "").toLowerCase(),
+      ),
+    );
+
+  const roomQuantity =
+    getPositiveInteger(
+      roomProduct?.quantity ??
+        roomProduct?.roomsCount ??
+        roomProduct?.unitsCount ??
+        draft.hotel?.quantity ??
+        draft.hotel?.roomsCount ??
+        1,
+      1,
+    );
+
+  const transportQuantity =
+    getPositiveInteger(
+      transportProduct?.quantity ??
+        transportProduct?.vehiclesCount ??
+        transportProduct?.unitsCount ??
+        draft.transport?.quantity ??
+        1,
+      1,
+    );
 
   return {
     room: {
       roomTypeId:
         roomProduct?.roomTypeId ||
         roomProduct?.refId ||
+        roomProduct?.productId ||
         null,
-
       roomNameAr:
         roomProduct?.nameAr ||
         roomProduct?.name?.ar ||
         draft.hotel?.roomType ||
         "",
-
       roomNameEn:
         roomProduct?.nameEn ||
         roomProduct?.name?.en ||
         draft.hotel?.roomType ||
         "",
-
       hotelId:
         draft.hotel?.hotelId ||
         roomProduct?.hotelId ||
         roomProduct?.hotel?._id ||
         null,
-
       hotelNameAr:
         draft.hotel?.nameAr ||
         roomProduct?.hotel?.nameAr ||
         "",
-
       hotelNameEn:
         draft.hotel?.nameEn ||
         roomProduct?.hotel?.nameEn ||
         "",
-
-      checkIn: draft.program?.startDate || null,
-      checkOut: draft.program?.endDate || null,
-
-      price: Number(roomProduct?.priceAtTime || roomProduct?.price || 0),
+      checkIn:
+        roomProduct?.checkIn ||
+        draft.hotel?.checkIn ||
+        draft.program?.startDate ||
+        null,
+      checkOut:
+        roomProduct?.checkOut ||
+        draft.hotel?.checkOut ||
+        draft.program?.endDate ||
+        null,
+      quantity: roomQuantity,
+      chargeType:
+        String(
+          roomProduct?.chargeType ||
+          "PER_UNIT",
+        ).toUpperCase(),
+      unitPrice:
+        getProductUnitPrice(
+          roomProduct || {},
+        ),
+      price:
+        roundMoney(
+          getProductUnitPrice(
+            roomProduct || {},
+          ) * roomQuantity,
+        ),
     },
 
     visa: {
-      visaId: visaProduct?.visaId || visaProduct?.refId || null,
-      visaNameAr: visaProduct?.nameAr || visaProduct?.name?.ar || "",
-      visaNameEn: visaProduct?.nameEn || visaProduct?.name?.en || "",
-      price: Number(visaProduct?.priceAtTime || visaProduct?.price || 0),
+      visaId:
+        visaProduct?.visaId ||
+        visaProduct?.refId ||
+        visaProduct?.productId ||
+        null,
+      visaNameAr:
+        visaProduct?.nameAr ||
+        visaProduct?.name?.ar ||
+        "",
+      visaNameEn:
+        visaProduct?.nameEn ||
+        visaProduct?.name?.en ||
+        "",
+      quantity:
+        getPositiveInteger(
+          visaProduct?.quantity || 1,
+          1,
+        ),
+      chargeType:
+        String(
+          visaProduct?.chargeType ||
+          "PER_TRAVELER",
+        ).toUpperCase(),
+      unitPrice:
+        getProductUnitPrice(
+          visaProduct || {},
+        ),
+      price:
+        getProductUnitPrice(
+          visaProduct || {},
+        ),
     },
 
     trip: {
-      tripId: tripProduct?.tripId || tripProduct?.refId || null,
-      tripNameAr: tripProduct?.nameAr || tripProduct?.name?.ar || "",
-      tripNameEn: tripProduct?.nameEn || tripProduct?.name?.en || "",
-      travelDate: draft.program?.startDate || null,
-      returnDate: draft.program?.endDate || null,
-      price: Number(tripProduct?.priceAtTime || tripProduct?.price || 0),
+      tripId:
+        tripProduct?.tripId ||
+        tripProduct?.refId ||
+        tripProduct?.productId ||
+        null,
+      tripNameAr:
+        tripProduct?.nameAr ||
+        tripProduct?.name?.ar ||
+        "",
+      tripNameEn:
+        tripProduct?.nameEn ||
+        tripProduct?.name?.en ||
+        "",
+      travelDate:
+        tripProduct?.travelDate ||
+        draft.program?.startDate ||
+        null,
+      returnDate:
+        tripProduct?.returnDate ||
+        draft.program?.endDate ||
+        null,
+      quantity:
+        getPositiveInteger(
+          tripProduct?.quantity || 1,
+          1,
+        ),
+      chargeType:
+        String(
+          tripProduct?.chargeType ||
+          "PER_TRAVELER",
+        ).toUpperCase(),
+      unitPrice:
+        getProductUnitPrice(
+          tripProduct || {},
+        ),
+      price:
+        getProductUnitPrice(
+          tripProduct || {},
+        ),
     },
 
     transport: {
@@ -177,86 +625,303 @@ const buildBookingItemsFromDraft = (draft) => {
         draft.transport?.transportId ||
         transportProduct?.transportId ||
         transportProduct?.refId ||
+        transportProduct?.productId ||
         null,
-
       transportNameAr:
         transportProduct?.nameAr ||
         transportProduct?.name?.ar ||
         "",
-
       transportNameEn:
         transportProduct?.nameEn ||
         transportProduct?.name?.en ||
         "",
-
       vehicleType:
         draft.transport?.type ||
         transportProduct?.vehicleType ||
         transportProduct?.transportType ||
         "",
-
-      price: Number(
-        transportProduct?.priceAtTime ||
-          transportProduct?.price ||
-          0,
-      ),
+      startDate:
+        transportProduct?.startDate ||
+        draft.program?.startDate ||
+        null,
+      endDate:
+        transportProduct?.endDate ||
+        draft.program?.endDate ||
+        null,
+      quantity: transportQuantity,
+      chargeType:
+        String(
+          transportProduct?.chargeType ||
+          "PER_BOOKING",
+        ).toUpperCase(),
+      unitPrice:
+        getProductUnitPrice(
+          transportProduct || {},
+        ),
+      price:
+        roundMoney(
+          getProductUnitPrice(
+            transportProduct || {},
+          ) * transportQuantity,
+        ),
     },
   };
 };
 
-const getNumber = (...values) => {
-  for (const value of values) {
-    const number = Number(value);
-    if (Number.isFinite(number) && number > 0) return number;
-  }
+/*
+=====================================================
+buildBookingPricingFromDraft
+=====================================================
+*/
 
-  return 0;
-};
+export const buildBookingPricingFromDraft = (
+  draft,
+) => {
+  const travelersCount = Math.max(
+    1,
+    Array.isArray(draft.travelers)
+      ? draft.travelers.length
+      : 0,
+  );
 
-export const buildBookingPricingFromDraft = (draft) => {
-  const travelersCount = Math.max(1, draft.travelers?.length || 1);
-  const selectedPackage = draft.data?.selectedPackage || {};
-  const selectedProducts =
+  const selectedPackage =
+    draft.data?.selectedPackage || null;
+
+  const selectedProductsSource =
     draft.data?.selectedProducts ||
     draft.data?.selectedProductsList ||
     [];
 
-  const packageUnitPrice = getNumber(
-    selectedPackage?.pricing?.finalPrice,
-    selectedPackage?.pricing?.totalPrice,
-    selectedPackage?.pricing?.basePrice,
-    draft.pricing?.unitPrice,
+  const selectedProducts =
+    Array.isArray(selectedProductsSource)
+      ? selectedProductsSource
+      : [];
+
+  const packageUnitPrice =
+    getFirstPositiveNumber(
+      selectedPackage?.pricingSnapshot
+        ?.unitPrice,
+      selectedPackage?.pricing?.finalPrice,
+      selectedPackage?.pricing?.totalPrice,
+      selectedPackage?.pricing?.basePrice,
+      selectedPackage?.finalPrice,
+      selectedPackage?.priceAtTime,
+      selectedPackage?.unitPrice,
+      selectedPackage?.price,
+      draft.pricing?.unitPrice,
+    );
+
+  const explicitPackageType = String(
+    draft.data?.packageType ||
+      draft.data?.bookingMode ||
+      draft.data?.bookingType ||
+      "",
+  ).toUpperCase();
+
+  const hasSelectedPackage = Boolean(
+    selectedPackage?._id ||
+      selectedPackage?.id ||
+      selectedPackage?.refId ||
+      selectedPackage?.programId,
   );
 
-  const selectedProductsSubtotal = selectedProducts.reduce((sum, item) => {
-    const price = Number(item.priceAtTime || item.price || 0);
-    const quantity = Number(item.quantity || 1);
+  const hasReadyPackage =
+    packageUnitPrice > 0 &&
+    (
+      hasSelectedPackage ||
+      explicitPackageType === "READY_PACKAGE" ||
+      explicitPackageType === "PREDEFINED_PACKAGE"
+    );
 
-    return sum + price * quantity;
-  }, 0);
+  const productLines =
+    selectedProducts.map((item) =>
+      calculateProductPricingLine({
+        item,
+        travelersCount,
+      }),
+    );
 
-  const subtotal =
-    packageUnitPrice > 0
-      ? packageUnitPrice * travelersCount + selectedProductsSubtotal
-      : getNumber(draft.pricing?.subtotal, draft.pricing?.total);
+  let packageSubtotal = 0;
+  let productsSubtotal = 0;
+  let pricingSource = "CUSTOM_PACKAGE";
 
-  const discount = Number(draft.pricing?.discount || 0);
-  const taxRate = 15;
-  const tax = Number((subtotal * (taxRate / 100)).toFixed(2));
-  const total = Math.max(0, Number((subtotal + tax - discount).toFixed(2)));
+  if (hasReadyPackage) {
+    packageSubtotal = roundMoney(
+      packageUnitPrice * travelersCount,
+    );
+
+    productsSubtotal = roundMoney(
+      productLines
+        .filter((line) => line.isExtra)
+        .reduce(
+          (sum, line) =>
+            sum + line.total,
+          0,
+        ),
+    );
+
+    pricingSource = "READY_PACKAGE";
+  } else {
+    productsSubtotal = roundMoney(
+      productLines.reduce(
+        (sum, line) =>
+          sum + line.total,
+        0,
+      ),
+    );
+  }
+
+  let subtotal = roundMoney(
+    packageSubtotal + productsSubtotal,
+  );
+
+  if (subtotal <= 0) {
+    subtotal = roundMoney(
+      getFirstPositiveNumber(
+        draft.pricing?.subtotal,
+        draft.pricing?.subTotal,
+        draft.pricing?.totalBeforeTax,
+      ),
+    );
+
+    pricingSource = "LEGACY_DRAFT_PRICING";
+  }
+
+  const requestedDiscount =
+    toNonNegativeNumber(
+      draft.pricing?.discount,
+      0,
+    );
+
+  const discount = roundMoney(
+    Math.min(
+      requestedDiscount,
+      subtotal,
+    ),
+  );
+
+  const taxRate =
+    toNonNegativeNumber(
+      draft.pricing?.taxRate,
+      15,
+    );
+
+  const pricesIncludeTax =
+    draft.pricing?.pricesIncludeTax === true ||
+    draft.pricing?.taxIncluded === true;
+
+  const taxableAmount = roundMoney(
+    Math.max(
+      0,
+      subtotal - discount,
+    ),
+  );
+
+  const taxAmount = pricesIncludeTax
+    ? 0
+    : roundMoney(
+        taxableAmount *
+          (taxRate / 100),
+      );
+
+  const totalPrice = roundMoney(
+    taxableAmount + taxAmount,
+  );
+
+  /*
+  في الباقة الجاهزة نعرض فقط الخدمات المدفوعة كإضافات.
+  أما في البرنامج المخصص فنعرض جميع المنتجات.
+  */
+  const billableProductLines =
+    hasReadyPackage
+      ? productLines.filter(
+          (line) => line.isExtra,
+        )
+      : productLines;
+
+  const getTypeTotal = (...types) => {
+    const normalizedTypes =
+      types.map((type) =>
+        String(type).toLowerCase(),
+      );
+
+    return roundMoney(
+      billableProductLines
+        .filter((line) =>
+          normalizedTypes.includes(
+            String(
+              line.type || "",
+            ).toLowerCase(),
+          ),
+        )
+        .reduce(
+          (sum, line) =>
+            sum + line.total,
+          0,
+        ),
+    );
+  };
 
   return {
-    roomPrice: 0,
-    visaPrice: 0,
-    tripPrice: 0,
-    transportPrice: 0,
-
+    pricingSource,
+    travelersCount,
+    packageUnitPrice:
+      hasReadyPackage
+        ? roundMoney(packageUnitPrice)
+        : 0,
+    packageSubtotal,
+    productsSubtotal,
+    roomPrice:
+      getTypeTotal(
+        "room",
+        "roomType",
+        "hotel",
+      ),
+    visaPrice:
+      getTypeTotal("visa"),
+    tripPrice:
+      getTypeTotal(
+        "trip",
+        "ticket",
+        "flight",
+      ),
+    transportPrice:
+      getTypeTotal(
+        "transport",
+        "transfer",
+      ),
     subtotal,
+    discount,
+    taxableAmount,
     taxRate,
-    taxAmount: tax,
-    totalPrice: total,
-
-    currency: draft.pricing?.currency || "SAR",
+    taxAmount,
+    pricesIncludeTax,
+    totalPrice,
+    totalAmount: totalPrice,
+    currency: String(
+      draft.pricing?.currency ||
+      selectedPackage?.pricing?.currency ||
+      "SAR",
+    ).toUpperCase(),
+    breakdown: {
+      package: hasReadyPackage
+        ? {
+            unitPrice:
+              roundMoney(
+                packageUnitPrice,
+              ),
+            travelersCount,
+            total:
+              packageSubtotal,
+          }
+        : null,
+      products: hasReadyPackage
+        ? productLines.filter(
+            (line) =>
+              line.isExtra,
+          )
+        : productLines,
+    },
   };
 };
 
@@ -271,14 +936,22 @@ export const buildBookingPaymentFromDraft = (
     Number(pricing?.total) ||
     0;
 
-  const paidAmount = Number(
+  const rawPaidAmount = Number(
     paymentData?.paidAmount ??
       draft.payment?.paidAmount ??
       draft.data?.payment?.paidAmount ??
       0,
   );
 
-  const safePaidAmount = Math.min(paidAmount, totalAmount);
+  const safePaidAmount = Math.max(
+    0,
+    Math.min(
+      Number.isFinite(rawPaidAmount)
+        ? rawPaidAmount
+        : 0,
+      totalAmount,
+    ),
+  );
 
   const remainingAmount = Math.max(0, totalAmount - safePaidAmount);
 
@@ -291,11 +964,12 @@ export const buildBookingPaymentFromDraft = (
   }
 
   return {
-    paymentMethod:
+    paymentMethod: String(
       paymentData?.paymentMethod ||
       draft.payment?.paymentMethod ||
       draft.data?.payment?.paymentMethod ||
-      "cash",
+      "CASH",
+    ).toUpperCase(),
 
     paymentStatus,
     paidAmount: safePaidAmount,
@@ -309,10 +983,7 @@ export const buildBookingPaymentFromDraft = (
 
     gateway: paymentData?.gateway || "",
     paymentReference: paymentData?.paymentReference || "",
-    currency:
-      paymentData?.currency ||
-      pricing?.currency ||
-      "SAR",
+    currency: paymentData?.currency || pricing?.currency || "SAR",
   };
 };
 
@@ -423,10 +1094,7 @@ export const getMyDraftBookings = async ({ userId, page = 1, limit = 10 }) => {
   };
 
   const [items, total] = await Promise.all([
-    DraftBooking.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
+    DraftBooking.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
 
     DraftBooking.countDocuments(filter),
   ]);
@@ -471,7 +1139,7 @@ export const getAllDraftBookings = async ({ page = 1, limit = 10, status }) => {
   };
 };
 
-export const cancelDraftBooking = async ({ draftId , userId}) => {
+export const cancelDraftBooking = async ({ draftId, userId }) => {
   const draft = await DraftBooking.findOne({
     _id: draftId,
     isDeleted: false,
@@ -492,7 +1160,7 @@ export const cancelDraftBooking = async ({ draftId , userId}) => {
   return draft;
 };
 
-// ============ 
+// ============
 const createPaymentTransactionFromDraft = async ({
   draft,
   booking,
@@ -500,48 +1168,160 @@ const createPaymentTransactionFromDraft = async ({
   userId,
   paymentData = null,
 }) => {
-  if (!payment?.paidAmount || Number(payment.paidAmount) <= 0) {
+  /*
+  لا توجد دفعة فعلية.
+  */
+  const paidAmount = Number(
+    payment?.paidAmount || 0,
+  );
+
+  if (
+    !Number.isFinite(paidAmount) ||
+    paidAmount <= 0
+  ) {
     return null;
   }
 
-  return await PaymentTransaction.create({
-    booking: booking._id,
-    user: booking.user,
+  /*
+  =====================================================
+  الحالة الأولى:
+  توجد PaymentTransaction تم إنشاؤها مسبقًا
+  عند إنشاء Checkout Session.
+  =====================================================
+  */
 
-    amount: Number(payment.paidAmount),
-    currency:
-      paymentData?.currency ||
-      payment.currency ||
+  if (paymentData?.paymentTransactionId) {
+    const updateData = {
+      booking: booking._id,
+    };
+
+    if (paymentData.transactionId) {
+      updateData.transactionId =
+        paymentData.transactionId;
+    }
+
+    if (paymentData.paymentReference) {
+      updateData.gatewayReference =
+        paymentData.paymentReference;
+    }
+
+    if (paymentData.gateway) {
+      updateData.providerCode = String(
+        paymentData.gateway,
+      ).toUpperCase();
+    }
+
+    const existingTransaction =
+      await PaymentTransaction.findOneAndUpdate(
+        {
+          _id: paymentData.paymentTransactionId,
+          isDeleted: false,
+        },
+        {
+          $set: updateData,
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
+      );
+
+    if (!existingTransaction) {
+      throw new Error(
+        "Existing payment transaction not found",
+      );
+    }
+
+    return existingTransaction;
+  }
+
+  /*
+  =====================================================
+  الحالة الثانية:
+  لا توجد معاملة سابقة.
+
+  تستخدم مثلًا عند تسجيل دفعة نقدية أو تحويل
+  من لوحة الإدارة، أو عند إكمال الحجز بدون Checkout.
+  =====================================================
+  */
+
+  const methodCode = String(
+    paymentData?.paymentMethod ||
+      payment?.paymentMethod ||
+      "CASH",
+  ).toUpperCase();
+
+  const providerCode = String(
+    paymentData?.gateway ||
+      payment?.gateway ||
+      "",
+  ).toUpperCase();
+
+  const currency = String(
+    paymentData?.currency ||
+      payment?.currency ||
       booking.pricing?.currency ||
       draft.pricing?.currency ||
       "SAR",
+  ).toUpperCase();
 
-    method: payment.paymentMethod || "cash",
-    status: payment.paymentStatus || "paid",
+  const transaction =
+    await PaymentTransaction.create({
+      draftBooking: draft._id,
 
-    transactionId:
-      paymentData?.transactionId ||
-      payment.transactionId ||
-      "",
+      booking: booking._id,
 
-    gateway:
-      paymentData?.gateway ||
-      payment.gateway ||
-      "",
+      user:
+        booking.user ||
+        draft.user ||
+        userId ||
+        null,
 
-    gatewayReference:
-      paymentData?.paymentReference ||
-      payment.paymentReference ||
-      "",
+      amount: paidAmount,
 
-    notes: "Payment created automatically from draft booking completion",
+      currency,
 
-    createdBy: userId || booking.user || null,
-  });
+      methodCode,
+
+      /*
+      المعاملة نفسها مدفوعة.
+      أما الحجز فقد يكون partial إذا كان المبلغ
+      أقل من الإجمالي.
+      */
+      status: "paid",
+
+      transactionId:
+        paymentData?.transactionId ||
+        payment?.transactionId ||
+        "",
+
+      providerCode,
+
+      gatewayReference:
+        paymentData?.paymentReference ||
+        payment?.paymentReference ||
+        "",
+
+      notes:
+        "Payment created automatically from draft booking completion",
+
+      createdBy:
+        userId ||
+        booking.user ||
+        draft.user ||
+        null,
+    });
+
+  return transaction;
 };
 // =======================
 
-//==================== هلبر لحجز المخزون تلقائيًا عند تحويل المسودة إلى حجز
+/*
+=====================================================
+reserveInventoryFromDraft
+=====================================================
+*/
+
 const reserveInventoryFromDraft = async ({
   draft,
   bookingItems,
@@ -549,6 +1329,11 @@ const reserveInventoryFromDraft = async ({
   req = null,
 }) => {
   const results = [];
+  const safeTravelersCount =
+    getPositiveInteger(
+      travelersCount,
+      1,
+    );
 
   const room = bookingItems?.room;
   const trip = bookingItems?.trip;
@@ -557,13 +1342,19 @@ const reserveInventoryFromDraft = async ({
 
   try {
     if (room?.roomTypeId && room?.checkIn && room?.checkOut) {
+      const requestedRooms =
+        getPositiveInteger(
+          room.quantity,
+          1,
+        );
+
       const roomResult = await reserveInventory({
         Inventory,
         inventoryType: "roomType",
         itemId: room.roomTypeId,
         startDate: room.checkIn,
         endDate: room.checkOut,
-        requested: 1,
+        requested: requestedRooms,
         defaultTotal: 0,
         req,
       });
@@ -573,19 +1364,27 @@ const reserveInventoryFromDraft = async ({
         itemId: room.roomTypeId,
         startDate: room.checkIn,
         endDate: room.checkOut,
-        requested: 1,
+        requested: requestedRooms,
         result: roomResult,
       });
     }
 
     if (trip?.tripId && trip?.travelDate && trip?.returnDate) {
+      const requestedTripSeats =
+        trip.chargeType === "PER_UNIT"
+          ? getPositiveInteger(
+              trip.quantity,
+              1,
+            )
+          : safeTravelersCount;
+
       const tripResult = await reserveInventory({
         Inventory,
         inventoryType: "trip",
         itemId: trip.tripId,
         startDate: trip.travelDate,
         endDate: trip.returnDate,
-        requested: travelersCount,
+        requested: requestedTripSeats,
         defaultTotal: 0,
         req,
       });
@@ -595,19 +1394,39 @@ const reserveInventoryFromDraft = async ({
         itemId: trip.tripId,
         startDate: trip.travelDate,
         endDate: trip.returnDate,
-        requested: travelersCount,
+        requested: requestedTripSeats,
         result: tripResult,
       });
     }
 
-    if (transport?.transportId && draft.program?.startDate && draft.program?.endDate) {
+    if (
+      transport?.transportId &&
+      transport?.startDate &&
+      transport?.endDate
+    ) {
+      let requestedTransport = 1;
+
+      if (
+        transport.chargeType ===
+        "PER_TRAVELER"
+      ) {
+        requestedTransport =
+          safeTravelersCount;
+      } else {
+        requestedTransport =
+          getPositiveInteger(
+            transport.quantity,
+            1,
+          );
+      }
+
       const transportResult = await reserveInventory({
         Inventory,
         inventoryType: "transport",
         itemId: transport.transportId,
-        startDate: draft.program.startDate,
-        endDate: draft.program.endDate,
-        requested: 1,
+        startDate: transport.startDate,
+        endDate: transport.endDate,
+        requested: requestedTransport,
         defaultTotal: 0,
         req,
       });
@@ -615,21 +1434,29 @@ const reserveInventoryFromDraft = async ({
       results.push({
         type: "transport",
         itemId: transport.transportId,
-        startDate: draft.program.startDate,
-        endDate: draft.program.endDate,
-        requested: 1,
+        startDate: transport.startDate,
+        endDate: transport.endDate,
+        requested: requestedTransport,
         result: transportResult,
       });
     }
 
     if (visa?.visaId && draft.program?.startDate && draft.program?.endDate) {
+      const requestedVisas =
+        visa.chargeType === "PER_UNIT"
+          ? getPositiveInteger(
+              visa.quantity,
+              1,
+            )
+          : safeTravelersCount;
+
       const visaResult = await reserveInventory({
         Inventory,
         inventoryType: "visa",
         itemId: visa.visaId,
         startDate: draft.program.startDate,
         endDate: draft.program.endDate,
-        requested: travelersCount,
+        requested: requestedVisas,
         defaultTotal: 0,
         req,
       });
@@ -639,7 +1466,7 @@ const reserveInventoryFromDraft = async ({
         itemId: visa.visaId,
         startDate: draft.program.startDate,
         endDate: draft.program.endDate,
-        requested: travelersCount,
+        requested: requestedVisas,
         result: visaResult,
       });
     }
@@ -678,9 +1505,8 @@ const rollbackInventoryReservations = async ({
   }
 };
 
-
 export const convertDraftToBooking = async ({
- draftId,
+  draftId,
   userId,
   req = null,
   paymentData = null,
@@ -726,11 +1552,7 @@ export const convertDraftToBooking = async ({
   );
 
   const pricing = buildBookingPricingFromDraft(draft);
-  const payment = buildBookingPaymentFromDraft(
-  draft,
-  pricing,
-  paymentData,
-);
+  const payment = buildBookingPaymentFromDraft(draft, pricing, paymentData);
   const bookingItems = buildBookingItemsFromDraft(draft);
 
   let inventoryReservations = [];
@@ -772,55 +1594,53 @@ export const convertDraftToBooking = async ({
     4) إنشاء الحجز Booking
     =====================================================
     */
-   let booking = null;
+    booking = await Booking.create({
+      bookingNumber,
 
-   booking = await Booking.create({
-  bookingNumber,
+      user: draft.user || userId,
 
-  user: draft.user || userId,
+      customer: {
+        name: draft.customer?.name || "",
+        email: draft.customer?.email || "",
+        phone: draft.customer?.phone || "",
+        nationality: draft.customer?.nationality || "",
+      },
 
-  customer: {
-    name: draft.customer?.name || "",
-    email: draft.customer?.email || "",
-    phone: draft.customer?.phone || "",
-    nationality: draft.customer?.nationality || "",
-  },
+      program: {
+        programId: draft.program?.programId || null,
+        nameAr: draft.program?.nameAr || "",
+        nameEn: draft.program?.nameEn || "",
+        startDate: draft.program?.startDate || null,
+        endDate: draft.program?.endDate || null,
+      },
 
-  program: {
-    programId: draft.program?.programId || null,
-    nameAr: draft.program?.nameAr || "",
-    nameEn: draft.program?.nameEn || "",
-    startDate: draft.program?.startDate || null,
-    endDate: draft.program?.endDate || null,
-  },
+      pilgrims,
 
-  pilgrims,
+      hotel: bookingItems.room?.hotelId || undefined,
+      roomType: bookingItems.room?.roomTypeId || undefined,
+      visa: bookingItems.visa?.visaId || undefined,
+      trip: bookingItems.trip?.tripId || undefined,
+      transport: bookingItems.transport?.transportId || undefined,
 
-  hotel: bookingItems.room?.hotelId || undefined,
-  roomType: bookingItems.room?.roomTypeId || undefined,
-  visa: bookingItems.visa?.visaId || undefined,
-  trip: bookingItems.trip?.tripId || undefined,
-  transport: bookingItems.transport?.transportId || undefined,
+      bookingItems,
 
-  bookingItems,
+      pricing,
 
-  pricing,
+      paymentStatus: payment.paymentStatus,
+      paymentMethod: payment.paymentMethod,
+      paidAmount: payment.paidAmount,
+      remainingAmount: payment.remainingAmount,
 
-  paymentStatus: payment.paymentStatus,
-  paymentMethod: payment.paymentMethod,
-  paidAmount: payment.paidAmount,
-  remainingAmount: payment.remainingAmount,
+      bookingType: BOOKING_TYPES.UMRAH_PACKAGE,
+      currentStep: BOOKING_STEPS.PAYMENT,
+      bookingStatus: BOOKING_STATUS.PENDING,
 
-  bookingType: BOOKING_TYPES.UMRAH_PACKAGE,
-  currentStep: BOOKING_STEPS.PAYMENT,
-  bookingStatus: BOOKING_STATUS.PENDING,
+      notes: draft.data?.notes || "",
+      attachments: draft.data?.attachments || [],
+      data: draft.data || {},
 
-  notes: draft.data?.notes || "",
-  attachments: draft.data?.attachments || [],
-  data: draft.data || {},
-
-  createdBy: userId || draft.user || null,
-});
+      createdBy: userId || draft.user || null,
+    });
 
     /*
     =====================================================
@@ -859,13 +1679,13 @@ export const convertDraftToBooking = async ({
     =====================================================
     */
 
-   paymentTransaction = await createPaymentTransactionFromDraft({
-  draft,
-  booking,
-  payment,
-  userId,
-  paymentData,
-});
+    paymentTransaction = await createPaymentTransactionFromDraft({
+      draft,
+      booking,
+      payment,
+      userId,
+      paymentData,
+    });
 
     /*
     =====================================================
@@ -960,6 +1780,86 @@ export const convertDraftToBooking = async ({
     };
   } catch (error) {
     /*
+    إذا كانت معاملة الدفع موجودة قبل إنشاء الحجز،
+    نفصلها عن الحجز الذي سيتم حذفه.
+    */
+    if (
+      paymentData?.paymentTransactionId &&
+      booking?._id
+    ) {
+      try {
+        await PaymentTransaction.findByIdAndUpdate(
+          paymentData.paymentTransactionId,
+          {
+            $set: {
+              booking: null,
+            },
+          },
+        );
+      } catch (paymentRollbackError) {
+        console.error(
+          "Payment transaction rollback failed:",
+          paymentRollbackError,
+        );
+      }
+    }
+
+    /*
+    إذا كانت المعاملة قد أُنشئت داخل هذه العملية،
+    نحذفها لأنها مرتبطة بحجز فشل إنشاؤه.
+    */
+    if (
+      paymentTransaction?._id &&
+      !paymentData?.paymentTransactionId
+    ) {
+      try {
+        await PaymentTransaction.findByIdAndDelete(
+          paymentTransaction._id,
+        );
+      } catch (paymentDeleteError) {
+        console.error(
+          "Created payment transaction rollback failed:",
+          paymentDeleteError,
+        );
+      }
+    }
+
+    /*
+    حذف سجلات Timeline المرتبطة بالحجز الفاشل
+    حتى لا تبقى سجلات يتيمة.
+    */
+    if (booking?._id) {
+      try {
+        await BookingLog.deleteMany({
+          booking: booking._id,
+        });
+      } catch (bookingLogRollbackError) {
+        console.error(
+          "Booking log rollback failed:",
+          bookingLogRollbackError,
+        );
+      }
+    }
+
+    /*
+    إذا تم إنشاء الحجز ثم فشل جزء أساسي لاحق،
+    نحذف الحجز قبل إعادة المخزون.
+    */
+
+    if (booking?._id) {
+      try {
+        await Booking.findByIdAndDelete(
+          booking._id,
+        );
+      } catch (bookingRollbackError) {
+        console.error(
+          "Booking rollback failed:",
+          bookingRollbackError,
+        );
+      }
+    }
+
+    /*
     =====================================================
     Rollback Inventory
 
@@ -991,31 +1891,62 @@ export const convertDraftToBooking = async ({
   }
 };
 
-//==================== هلبر لإنهاء صلاحية المسودات القديمة تلقائيًا  
-export const expireOldDraftBookings = async () => {
-  const now = new Date();
+/*
+=====================================================
+expireOldDraftBookings
+=====================================================
 
-  const result = await DraftBooking.updateMany(
-    {
-      status: DRAFT_BOOKING_STATUS.DRAFT,
-      isDeleted: false,
-      expiresAt: { $lte: now },
-    },
-    {
-      $set: {
-        status: DRAFT_BOOKING_STATUS.EXPIRED,
-        currentStep: "expired",
+تغلق المسودات التي انتهت صلاحيتها ولم تتحول إلى حجز.
+=====================================================
+*/
+
+export const expireOldDraftBookings =
+  async () => {
+    const now = new Date();
+
+    return DraftBooking.updateMany(
+      {
+        status:
+          DRAFT_BOOKING_STATUS.DRAFT,
+        isDeleted: false,
+        expiresAt: {
+          $ne: null,
+          $lte: now,
+        },
       },
-    },
-  );
+      {
+        $set: {
+          status:
+            DRAFT_BOOKING_STATUS.EXPIRED,
+          currentStep: "expired",
+        },
+      },
+    );
+  };
 
-  return result;
-};
-export const softDeleteDraftBooking = async ({ draftId, userId }) => {
-  const draft = await DraftBooking.findById(draftId);
+/*
+=====================================================
+softDeleteDraftBooking
+=====================================================
 
-  if (!draft || draft.isDeleted) {
-    throw new Error("Draft booking not found");
+حذف منطقي للمسودة دون حذفها نهائيًا من MongoDB.
+=====================================================
+*/
+
+export const softDeleteDraftBooking = async ({
+  draftId,
+  userId,
+}) => {
+  const draft =
+    await DraftBooking.findOne({
+      _id: draftId,
+      isDeleted: false,
+    });
+
+  if (!draft) {
+    throw new Error(
+      "Draft booking not found",
+    );
   }
 
   draft.isDeleted = true;
