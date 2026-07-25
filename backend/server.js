@@ -35,6 +35,7 @@ import VehicleRentalRoute from './routes/transports/vehicle-rental-route.js';
 import paymentCheckoutRoutes from './routes/payment/payment-checkout-routes.js';
 import paymentCallbackRoutes from "./routes/payment/payment-callback-routes.js";
 import bankAccountRoutes from "./routes/payment/bank-account-routes.js";
+import paymentMethodRoutes from "./routes/payment/payment-method-routes.js"
 
 
 //use packages
@@ -125,6 +126,10 @@ app.use("/api/payment", paymentCallbackRoutes);
 app.use(
   "/api/bank-accounts",
   bankAccountRoutes,
+);
+app.use(
+  "/api/payment-methods",
+  paymentMethodRoutes,
 );
 
 app.use(errorHandler);

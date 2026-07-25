@@ -17,6 +17,7 @@ import publicProgramReducer from "./public/programSlice";
 import publicBookingReducer from "./public/bookingSlice";
 import publicPaymentReducer from "./public/paymentSlice";
 import bankAccountsReducer from "./payments/bankAccountSlice";
+import paymentMethodsReducer from "./payments/paymentMethodSlice";
 
 const store = configureStore({
   reducer: {
@@ -38,6 +39,7 @@ const store = configureStore({
     publicBooking: publicBookingReducer,
     publicPayment: publicPaymentReducer,
     bankAccounts: bankAccountsReducer,
+    paymentMethods: paymentMethodsReducer,
     
   }, // أضف الـ reducers الخاصة بك هنا
 });

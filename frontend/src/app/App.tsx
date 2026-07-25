@@ -16,6 +16,7 @@ import PublicBookingPage from "../Pages/public/booking/PublicBookingPage";
 import PublicBookingSuccessPage from "../Pages/public/booking/PublicBookingSuccessPage";
 import PublicBookingDetailsPage from "../Pages/public/booking/PublicBookingDetailsPage";
 import PublicMyDraftBookingsPage from "../Pages/public/booking/PublicMyDraftBookingsPage";
+// import AdminPaymentMethodsPage from "./Pages/admin/payments/AdminPaymentMethodsPage";
 
 const Home = lazy(() => import("../Pages/client/Home"));
 const AuthPage = lazy(() => import("../Pages/Auth/AuthPage"));
@@ -115,6 +116,9 @@ const AdminPaymentProvidersPage = lazy(
 const AdminPaymentConfigurationsPage = lazy(
   () => import("../Pages/admin/payments/AdminPaymentConfigurationsPage"),
 )
+
+
+
 // const AdminBankAccountFormPage = lazy(
 //   () => import("../Pages/admin/payments/AdminBankAccountFormPage"),
 // );
@@ -310,7 +314,9 @@ function App() {
     path="payments/configurations"
     element={<AdminPaymentConfigurationsPage />}
   />
-        
+
+
+ 
         </Route>
 
         {/* <Route path="/" element={<Home />} /> */}
