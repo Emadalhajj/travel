@@ -11,6 +11,7 @@ import {
   Navigate,
   Outlet,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import {
@@ -103,6 +104,8 @@ export default function AdminLayout() {
 
   const location =
     useLocation();
+  const navigate =
+    useNavigate();
 
   /*
   =====================================================
@@ -633,11 +636,20 @@ export default function AdminLayout() {
                   >
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
                         toggleMenu(
                           item.key,
-                        )
-                      }
+                        );
+
+                        if (
+                          item.key ===
+                          "payments"
+                        ) {
+                          navigate(
+                            "/admin/payments",
+                          );
+                        }
+                      }}
                       title={
                         !isSidebarOpen
                           ? item.label

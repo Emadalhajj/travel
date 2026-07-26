@@ -35,7 +35,7 @@ import React, {
   useImperativeHandle,
 } from "react";
 
-import { Tabs, Tab, Row, Col, Button, Alert } from "react-bootstrap";
+import { Tabs, Tab, Row, Col, Alert } from "react-bootstrap";
 
 import { useTranslation } from "react-i18next";
 
@@ -302,6 +302,75 @@ const UniversalForm = forwardRef(
           .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
       );
     }, [config, conditionKey, conditionValue]);
+
+    /*
+    =========================================================================
+    Reset Conditional Fields On Condition Change
+    =========================================================================
+
+    يمنع بقاء قيم الفرع السابق عند تغيير الحقل
+    المتحكم، ويطبق القيم الافتراضية للفرع الجديد.
+    */
+
+    useEffect(() => {
+      if (!config?.conditionKey) {
+        return;
+      }
+
+      const allConditionalFields =
+        Object.values(
+          config.conditionalFields || {},
+        ).flat();
+
+      const activeConditionalFields =
+        config.conditionalFields?.[
+          conditionValue
+        ] || [];
+
+      const activeNames =
+        new Set(
+          activeConditionalFields.map(
+            (field) => field.name,
+          ),
+        );
+
+      setFormState((previous) => {
+        const next = {
+          ...previous,
+        };
+
+        allConditionalFields.forEach(
+          (field) => {
+            if (
+              !activeNames.has(
+                field.name,
+              )
+            ) {
+              delete next[
+                field.name
+              ];
+            }
+          },
+        );
+
+        activeConditionalFields.forEach(
+          (field) => {
+            if (
+              field.defaultValue !==
+              undefined
+            ) {
+              next[field.name] =
+                field.defaultValue;
+            }
+          },
+        );
+
+        return next;
+      });
+    }, [
+      config,
+      conditionValue,
+    ]);
 
     /*
     =========================================================================

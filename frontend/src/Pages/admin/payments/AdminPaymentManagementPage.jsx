@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -31,7 +31,6 @@ Admin Payment Management Page
 */
 
 export default function AdminPaymentManagementPage() {
-  const navigate = useNavigate();
 
   const { i18n } = useTranslation();
 
@@ -244,9 +243,8 @@ export default function AdminPaymentManagementPage() {
               key={section.key}
               className="col-12 col-md-6 col-xl-4"
             >
-              <button
-                type="button"
-                onClick={() => navigate(section.path)}
+              <NavLink
+                to={section.path}
                 className="h-100 w-100 border-0 bg-transparent p-0 text-start"
               >
                 <article className="card h-100 border-0 shadow-sm transition">
@@ -282,7 +280,7 @@ export default function AdminPaymentManagementPage() {
                     </div>
                   </div>
                 </article>
-              </button>
+              </NavLink>
             </div>
           );
         })}

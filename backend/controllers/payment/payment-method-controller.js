@@ -40,6 +40,14 @@ import {
   createAuditLog,
 } from "../../services/audit/audit-log-service.js";
 
+import {
+  AUDIT_ACTIONS,
+} from "../../constants/audit/audit-actions.js";
+
+import {
+  AUDIT_ENTITIES,
+} from "../../constants/audit/audit-entities.js";
+
 /*
 =====================================================
 Get Admin List
@@ -170,10 +178,10 @@ export const createPaymentMethod =
         req,
 
         action:
-          "CREATE",
+          AUDIT_ACTIONS.CREATE,
 
         entity:
-          "PaymentMethod",
+          AUDIT_ENTITIES.PAYMENT_METHOD,
 
         entityId:
           method._id,
@@ -247,10 +255,10 @@ export const updatePaymentMethod =
         req,
 
         action:
-          "UPDATE",
+          AUDIT_ACTIONS.UPDATE,
 
         entity:
-          "PaymentMethod",
+          AUDIT_ENTITIES.PAYMENT_METHOD,
 
         entityId:
           method._id,
@@ -321,10 +329,10 @@ export const updatePaymentMethodStatus =
         req,
 
         action:
-          "STATUS_UPDATE",
+          AUDIT_ACTIONS.STATUS_CHANGE,
 
         entity:
-          "PaymentMethod",
+          AUDIT_ENTITIES.PAYMENT_METHOD,
 
         entityId:
           method._id,
@@ -385,10 +393,10 @@ export const deletePaymentMethod =
         req,
 
         action:
-          "DELETE",
+          AUDIT_ACTIONS.DELETE,
 
         entity:
-          "PaymentMethod",
+          AUDIT_ENTITIES.PAYMENT_METHOD,
 
         entityId:
           method._id,
