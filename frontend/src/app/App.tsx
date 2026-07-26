@@ -294,26 +294,22 @@ function App() {
             path="payments/bank-accounts"
             element={<AdminBankAccountsPage />}
           />
-           <Route
-    path="payments"
-    element={<AdminPaymentManagementPage />}
-  />
-  <Route
-    path="payments/methods"
-    element={<AdminPaymentMethodsPage />}
-  />
-  <Route
-    path="payments"
-    element={<AdminPaymentManagementPage />}
-  />
-    <Route
-    path="payments/providers"
-    element={<AdminPaymentProvidersPage />}
-  />
-  <Route
-    path="payments/configurations"
-    element={<AdminPaymentConfigurationsPage />}
-  />
+          <Route
+            path="payments"
+            element={<AdminPaymentManagementPage />}
+          />
+          <Route
+            path="payments/methods"
+            element={<AdminPaymentMethodsPage />}
+          />
+          <Route
+            path="payments/providers"
+            element={<AdminPaymentProvidersPage />}
+          />
+          <Route
+            path="payments/configurations"
+            element={<AdminPaymentConfigurationsPage />}
+          />
 
 
  

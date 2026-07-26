@@ -32,29 +32,15 @@
 
 // Pages/admin/payments/AdminPaymentMethodsPage.jsx
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import {
-  Badge,
-  Form,
-} from "react-bootstrap";
+import { Badge, Form } from "react-bootstrap";
 
-import {
-  useDispatch,
-  useSelector,
-} from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 
-import {
-  toast,
-} from "react-toastify";
+import { toast } from "react-toastify";
 
-import {
-  useTranslation,
-} from "react-i18next";
+import { useTranslation } from "react-i18next";
 
 import {
   createPaymentMethod,
@@ -66,17 +52,11 @@ import {
   updatePaymentMethodStatus,
 } from "../../../redux/payments/paymentMethodSlice";
 
-import {
-  paymentMethodFormConfig,
-} from "../../../Components/common/ModalForms/payments/paymentMethodFormConfig";
+import { paymentMethodFormConfig } from "../../../Components/common/ModalForms/payments/paymentMethodFormConfig";
 
-import {
-  buildQuery,
-} from "../../../Utils/buildQuery";
+import { buildQuery } from "../../../Utils/buildQuery";
 
-import {
-  normalizeForForm,
-} from "../../../Utils/formData/normalize";
+import { normalizeForForm } from "../../../Utils/formData/normalize";
 
 import PageHeader from "../../../Components/layout/PageHeader";
 
@@ -119,18 +99,13 @@ Admin Payment Methods Page
 */
 
 export default function AdminPaymentMethodsPage() {
-  const dispatch =
-    useDispatch();
+  const dispatch = useDispatch();
 
-  const {
-    i18n,
-  } = useTranslation();
+  const { i18n } = useTranslation();
 
-  const lang =
-    i18n.language || "ar";
+  const lang = i18n.language || "ar";
 
-  const isArabic =
-    lang === "ar";
+  const isArabic = lang === "ar";
 
   const {
     paymentMethodsList = [],
@@ -145,11 +120,7 @@ export default function AdminPaymentMethodsPage() {
       limit: 10,
       totalPages: 0,
     },
-  } = useSelector(
-    (state) =>
-      state.paymentMethods ||
-      {},
-  );
+  } = useSelector((state) => state.paymentMethods || {});
 
   /*
   =====================================================
@@ -157,30 +128,15 @@ export default function AdminPaymentMethodsPage() {
   =====================================================
   */
 
-  const [
-    showModal,
-    setShowModal,
-  ] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
-  const [
-    currentMethod,
-    setCurrentMethod,
-  ] = useState(null);
+  const [currentMethod, setCurrentMethod] = useState(null);
 
-  const [
-    formMode,
-    setFormMode,
-  ] = useState("create");
+  const [formMode, setFormMode] = useState("create");
 
-  const [
-    formErrors,
-    setFormErrors,
-  ] = useState({});
+  const [formErrors, setFormErrors] = useState({});
 
-  const [
-    loadingSave,
-    setLoadingSave,
-  ] = useState(false);
+  const [loadingSave, setLoadingSave] = useState(false);
 
   /*
   =====================================================
@@ -188,10 +144,7 @@ export default function AdminPaymentMethodsPage() {
   =====================================================
   */
 
-  const [
-    showDetails,
-    setShowDetails,
-  ] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   /*
   =====================================================
@@ -199,10 +152,7 @@ export default function AdminPaymentMethodsPage() {
   =====================================================
   */
 
-  const [
-    deleteModal,
-    setDeleteModal,
-  ] = useState({
+  const [deleteModal, setDeleteModal] = useState({
     show: false,
     id: null,
     name: "",
@@ -214,10 +164,7 @@ export default function AdminPaymentMethodsPage() {
   =====================================================
   */
 
-  const [
-    filters,
-    setFilters,
-  ] = useState({
+  const [filters, setFilters] = useState({
     search: "",
     type: "",
     isActive: "",
@@ -229,12 +176,7 @@ export default function AdminPaymentMethodsPage() {
   =====================================================
   */
 
-  const memoizedConfig =
-    useMemo(
-      () =>
-        paymentMethodFormConfig(),
-      [],
-    );
+  const memoizedConfig = useMemo(() => paymentMethodFormConfig(), []);
 
   /*
   =====================================================
@@ -243,23 +185,18 @@ export default function AdminPaymentMethodsPage() {
   */
 
   useEffect(() => {
-    const query =
-      buildQuery(
-        filters,
-        pagination,
-      );
-
-    dispatch(
-      fetchPaymentMethods(
-        query,
-      ),
+    const query = buildQuery(
+      filters,
+      {
+        page:
+          pagination.page,
+        limit:
+          pagination.limit,
+      },
     );
-  }, [
-    dispatch,
-    filters,
-    pagination.page,
-    pagination.limit,
-  ]);
+
+    dispatch(fetchPaymentMethods(query));
+  }, [dispatch, filters, pagination.page, pagination.limit]);
 
   /*
   =====================================================
@@ -300,17 +237,10 @@ export default function AdminPaymentMethodsPage() {
   =====================================================
   */
 
-  const openUpdateModal = (
-    method,
-  ) => {
+  const openUpdateModal = (method) => {
     setFormMode("update");
 
-    setCurrentMethod(
-      normalizeForForm(
-        method,
-        memoizedConfig,
-      ),
-    );
+    setCurrentMethod(normalizeForForm(method, memoizedConfig));
 
     setFormErrors({});
     setShowModal(true);
@@ -324,14 +254,8 @@ export default function AdminPaymentMethodsPage() {
   الكود يجب أن يكون فريدًا، لذلك يتم تفريغه.
   */
 
-  const openCloneModal = (
-    method,
-  ) => {
-    const normalized =
-      normalizeForForm(
-        method,
-        memoizedConfig,
-      );
+  const openCloneModal = (method) => {
+    const normalized = normalizeForForm(method, memoizedConfig);
 
     setFormMode("clone");
 
@@ -342,11 +266,9 @@ export default function AdminPaymentMethodsPage() {
 
       code: "",
 
-      nameAr:
-        `${method.nameAr || ""} (نسخة)`,
+      nameAr: `${method.nameAr || ""} (نسخة)`,
 
-      nameEn:
-        `${method.nameEn || method.nameAr || ""} (Copy)`,
+      nameEn: `${method.nameEn || method.nameAr || ""} (Copy)`,
 
       isActive: false,
     });
@@ -361,28 +283,19 @@ export default function AdminPaymentMethodsPage() {
   =====================================================
   */
 
-  const handleSave = async (
-    data,
-  ) => {
-    const formData =
-      data?.formState ||
-      data ||
-      {};
+  const handleSave = async (data) => {
+    const formData = data?.formState || data || {};
 
     setLoadingSave(true);
     setFormErrors({});
 
     try {
-      if (
-        formMode === "update"
-      ) {
+      if (formMode === "update") {
         await dispatch(
           updatePaymentMethod({
-            id:
-              currentMethod._id,
+            id: currentMethod._id,
 
-            data:
-              formData,
+            data: formData,
           }),
         ).unwrap();
 
@@ -392,11 +305,7 @@ export default function AdminPaymentMethodsPage() {
             : "Payment method updated successfully",
         );
       } else {
-        await dispatch(
-          createPaymentMethod(
-            formData,
-          ),
-        ).unwrap();
+        await dispatch(createPaymentMethod(formData)).unwrap();
 
         toast.success(
           formMode === "clone"
@@ -414,39 +323,22 @@ export default function AdminPaymentMethodsPage() {
       setFormMode("create");
       setFormErrors({});
 
-      const query =
-        buildQuery(
-          filters,
-          pagination,
-        );
+      const query = buildQuery(filters, pagination);
 
-      await dispatch(
-        fetchPaymentMethods(
-          query,
-        ),
-      );
+      await dispatch(fetchPaymentMethods(query));
     } catch (err) {
-      if (
-        err?.errors &&
-        typeof err.errors ===
-          "object"
-      ) {
-        setFormErrors(
-          err.errors,
-        );
+      if (err?.errors && typeof err.errors === "object") {
+        setFormErrors(err.errors);
       }
 
       const message =
         err?.message ||
         err?.data?.message ||
         err ||
-        (isArabic
-          ? "حدث خطأ أثناء الحفظ"
-          : "Save failed");
+        (isArabic ? "حدث خطأ أثناء الحفظ" : "Save failed");
 
       toast.error(
-        typeof message ===
-          "string"
+        typeof message === "string"
           ? message
           : isArabic
             ? "حدث خطأ أثناء الحفظ"
@@ -463,42 +355,35 @@ export default function AdminPaymentMethodsPage() {
   =====================================================
   */
 
-  const handleStatusChange =
-    async (
-      method,
-      isActive,
-    ) => {
-      try {
-        await dispatch(
-          updatePaymentMethodStatus({
-            id:
-              method._id,
+  const handleStatusChange = async (method, isActive) => {
+    try {
+      await dispatch(
+        updatePaymentMethodStatus({
+          id: method._id,
 
-            data: {
-              isActive,
-            },
-          }),
-        ).unwrap();
+          data: {
+            isActive,
+          },
+        }),
+      ).unwrap();
 
-        toast.success(
-          isActive
-            ? isArabic
-              ? "تم تفعيل طريقة الدفع"
-              : "Payment method activated"
-            : isArabic
-              ? "تم تعطيل طريقة الدفع"
-              : "Payment method deactivated",
-        );
-      } catch (err) {
-        toast.error(
-          err?.message ||
-            err ||
-            (isArabic
-              ? "تعذر تحديث الحالة"
-              : "Status update failed"),
-        );
-      }
-    };
+      toast.success(
+        isActive
+          ? isArabic
+            ? "تم تفعيل طريقة الدفع"
+            : "Payment method activated"
+          : isArabic
+            ? "تم تعطيل طريقة الدفع"
+            : "Payment method deactivated",
+      );
+    } catch (err) {
+      toast.error(
+        err?.message ||
+          err ||
+          (isArabic ? "تعذر تحديث الحالة" : "Status update failed"),
+      );
+    }
+  };
 
   /*
   =====================================================
@@ -506,36 +391,25 @@ export default function AdminPaymentMethodsPage() {
   =====================================================
   */
 
-  const confirmDelete =
-    async () => {
-      try {
-        await dispatch(
-          deletePaymentMethod(
-            deleteModal.id,
-          ),
-        ).unwrap();
+  const confirmDelete = async () => {
+    try {
+      await dispatch(deletePaymentMethod(deleteModal.id)).unwrap();
 
-        toast.success(
-          isArabic
-            ? "تم حذف طريقة الدفع"
-            : "Payment method deleted",
-        );
-      } catch (err) {
-        toast.error(
-          err?.message ||
-            err ||
-            (isArabic
-              ? "تعذر حذف طريقة الدفع"
-              : "Delete failed"),
-        );
-      } finally {
-        setDeleteModal({
-          show: false,
-          id: null,
-          name: "",
-        });
-      }
-    };
+      toast.success(isArabic ? "تم حذف طريقة الدفع" : "Payment method deleted");
+    } catch (err) {
+      toast.error(
+        err?.message ||
+          err ||
+          (isArabic ? "تعذر حذف طريقة الدفع" : "Delete failed"),
+      );
+    } finally {
+      setDeleteModal({
+        show: false,
+        id: null,
+        name: "",
+      });
+    }
+  };
 
   /*
   =====================================================
@@ -543,53 +417,35 @@ export default function AdminPaymentMethodsPage() {
   =====================================================
   */
 
-  const typeLabel = (
-    type,
-  ) => {
+  const typeLabel = (type) => {
     const labels = {
       offline: {
-        ar:
-          "غير إلكتروني",
-        en:
-          "Offline",
+        ar: "غير إلكتروني",
+        en: "Offline",
       },
 
       online: {
-        ar:
-          "إلكتروني",
-        en:
-          "Online",
+        ar: "إلكتروني",
+        en: "Online",
       },
 
       invoice: {
-        ar:
-          "فاتورة",
-        en:
-          "Invoice",
+        ar: "فاتورة",
+        en: "Invoice",
       },
 
       cash: {
-        ar:
-          "نقدي",
-        en:
-          "Cash",
+        ar: "نقدي",
+        en: "Cash",
       },
 
       credit: {
-        ar:
-          "آجل",
-        en:
-          "Credit",
+        ar: "آجل",
+        en: "Credit",
       },
     };
 
-    return (
-      labels[type]?.[
-        isArabic
-          ? "ar"
-          : "en"
-      ] || type
-    );
+    return labels[type]?.[isArabic ? "ar" : "en"] || type;
   };
 
   /*
@@ -606,140 +462,91 @@ export default function AdminPaymentMethodsPage() {
 
       width: "50px",
 
-      render: (
-        _,
-        index,
-      ) => (
-        <span className="fw-bold text-muted">
-          {index + 1}
-        </span>
+      render: (_, index) => (
+        <span className="fw-bold text-muted">{index + 1}</span>
       ),
     },
 
     {
-      header:
-        isArabic
-          ? "طريقة الدفع"
-          : "Payment Method",
+      header: isArabic ? "طريقة الدفع" : "Payment Method",
 
       render: (row) => (
         <div>
           <div className="fw-bold">
-            {isArabic
-              ? row.nameAr
-              : row.nameEn ||
-                row.nameAr}
+            {isArabic ? row.nameAr : row.nameEn || row.nameAr}
           </div>
 
-          <small className="text-muted">
-            {row.code}
-          </small>
+          <small className="text-muted">{row.code}</small>
         </div>
       ),
     },
 
     {
-      header:
-        isArabic
-          ? "النوع"
-          : "Type",
+      header: isArabic ? "النوع" : "Type",
 
       align: "center",
 
       render: (row) => (
         <Badge
           bg={
-            row.type ===
-            "online"
+            row.type === "online"
               ? "primary"
-              : row.type ===
-                  "offline"
+              : row.type === "offline"
                 ? "info"
-                : row.type ===
-                    "invoice"
+                : row.type === "invoice"
                   ? "warning"
                   : "secondary"
           }
         >
-          {typeLabel(
-            row.type,
-          )}
+          {typeLabel(row.type)}
         </Badge>
       ),
     },
 
     {
-      header:
-        isArabic
-          ? "المتطلبات"
-          : "Requirements",
+      header: isArabic ? "المتطلبات" : "Requirements",
 
       render: (row) => (
         <div className="d-flex flex-column gap-1">
           {row.requiresBankAccount ? (
-            <Badge bg="info">
-              {isArabic
-                ? "حساب بنكي"
-                : "Bank Account"}
-            </Badge>
+            <Badge bg="info">{isArabic ? "حساب بنكي" : "Bank Account"}</Badge>
           ) : null}
 
           {row.requiresPaymentProvider ? (
-            <Badge bg="primary">
-              {isArabic
-                ? "مزود دفع"
-                : "Provider"}
-            </Badge>
+            <Badge bg="primary">{isArabic ? "مزود دفع" : "Provider"}</Badge>
           ) : null}
 
           {row.requiresProofUpload ? (
             <Badge bg="warning">
-              {isArabic
-                ? "رفع إثبات"
-                : "Proof Upload"}
+              {isArabic ? "رفع إثبات" : "Proof Upload"}
             </Badge>
           ) : null}
 
           {!row.requiresBankAccount &&
           !row.requiresPaymentProvider &&
           !row.requiresProofUpload ? (
-            <span className="text-muted">
-              -
-            </span>
+            <span className="text-muted">-</span>
           ) : null}
         </div>
       ),
     },
 
     {
-      header:
-        isArabic
-          ? "الترتيب"
-          : "Order",
+      header: isArabic ? "الترتيب" : "Order",
 
       align: "center",
 
-      render: (row) =>
-        row.sortOrder ?? 0,
+      render: (row) => row.sortOrder ?? 0,
     },
 
     {
-      header:
-        isArabic
-          ? "الحالة"
-          : "Status",
+      header: isArabic ? "الحالة" : "Status",
 
       align: "center",
 
       render: (row) => (
         <div className="d-flex flex-column align-items-center gap-1">
-          <Badge
-            bg={
-              row.isActive
-                ? "success"
-                : "secondary"
-            }
-          >
+          <Badge bg={row.isActive ? "success" : "secondary"}>
             {row.isActive
               ? isArabic
                 ? "مفعل"
@@ -751,59 +558,30 @@ export default function AdminPaymentMethodsPage() {
 
           <Form.Check
             type="switch"
-            checked={Boolean(
-              row.isActive,
-            )}
-            onChange={(event) =>
-              handleStatusChange(
-                row,
-                event.target
-                  .checked,
-              )
-            }
+            checked={Boolean(row.isActive)}
+            onChange={(event) => handleStatusChange(row, event.target.checked)}
           />
         </div>
       ),
     },
 
     {
-      header:
-        isArabic
-          ? "الإجراءات"
-          : "Actions",
+      header: isArabic ? "الإجراءات" : "Actions",
 
       align: "center",
 
       render: (row) => (
         <div className="d-flex justify-content-center gap-1">
-          <ActionButton
-            action="edit"
-            onClick={() =>
-              openUpdateModal(
-                row,
-              )
-            }
-          />
+          <ActionButton action="edit" onClick={() => openUpdateModal(row)} />
 
-          <ActionButton
-            action="clone"
-            onClick={() =>
-              openCloneModal(
-                row,
-              )
-            }
-          />
+          <ActionButton action="clone" onClick={() => openCloneModal(row)} />
 
           <ActionButton
             action="view"
             onClick={() => {
-              setCurrentMethod(
-                row,
-              );
+              setCurrentMethod(row);
 
-              setShowDetails(
-                true,
-              );
+              setShowDetails(true);
             }}
           />
 
@@ -813,14 +591,9 @@ export default function AdminPaymentMethodsPage() {
               setDeleteModal({
                 show: true,
 
-                id:
-                  row._id,
+                id: row._id,
 
-                name:
-                  isArabic
-                    ? row.nameAr
-                    : row.nameEn ||
-                      row.nameAr,
+                name: isArabic ? row.nameAr : row.nameEn || row.nameAr,
               })
             }
           />
@@ -846,47 +619,31 @@ export default function AdminPaymentMethodsPage() {
         <div className="d-flex justify-content-center w-100">
           <ActionButton
             action="add"
-            label={
-              isArabic
-                ? "إضافة طريقة دفع"
-                : "Add Payment Method"
-            }
-            onClick={
-              openCreateModal
-            }
+            label={isArabic ? "إضافة طريقة دفع" : "Add Payment Method"}
+            onClick={openCreateModal}
           />
         </div>
       </PageHeader>
 
       <LoadingOverlay
         show={loading}
-        text={
-          isArabic
-            ? "جاري التحميل..."
-            : "Loading..."
-        }
+        text={isArabic ? "جاري التحميل..." : "Loading..."}
       />
 
-      <ErrorOverlay
-        show={Boolean(error)}
-        message={error}
-      />
+      <ErrorOverlay show={Boolean(error)} message={error} />
 
       <EntityFilter
         filters={filters}
-        setFilters={
-          setFilters
-        }
+        setFilters={setFilters}
         config={{
           search: {
             type: "text",
 
             col: 4,
 
-            placeholder:
-              isArabic
-                ? "البحث بالاسم أو الكود"
-                : "Search name or code",
+            placeholder: isArabic
+              ? "البحث بالاسم أو الكود"
+              : "Search name or code",
           },
 
           type: {
@@ -894,65 +651,47 @@ export default function AdminPaymentMethodsPage() {
 
             col: 4,
 
-            placeholder:
-              isArabic
-                ? "نوع طريقة الدفع"
-                : "Payment Type",
+            placeholder: isArabic ? "نوع طريقة الدفع" : "Payment Type",
 
             options: [
               {
-                value:
-                  "offline",
+                value: "offline",
 
-                labelAr:
-                  "غير إلكتروني",
+                labelAr: "غير إلكتروني",
 
-                labelEn:
-                  "Offline",
+                labelEn: "Offline",
               },
 
               {
-                value:
-                  "online",
+                value: "online",
 
-                labelAr:
-                  "إلكتروني",
+                labelAr: "إلكتروني",
 
-                labelEn:
-                  "Online",
+                labelEn: "Online",
               },
 
               {
-                value:
-                  "invoice",
+                value: "invoice",
 
-                labelAr:
-                  "فاتورة",
+                labelAr: "فاتورة",
 
-                labelEn:
-                  "Invoice",
+                labelEn: "Invoice",
               },
 
               {
-                value:
-                  "cash",
+                value: "cash",
 
-                labelAr:
-                  "نقدي",
+                labelAr: "نقدي",
 
-                labelEn:
-                  "Cash",
+                labelEn: "Cash",
               },
 
               {
-                value:
-                  "credit",
+                value: "credit",
 
-                labelAr:
-                  "آجل",
+                labelAr: "آجل",
 
-                labelEn:
-                  "Credit",
+                labelEn: "Credit",
               },
             ],
           },
@@ -962,30 +701,23 @@ export default function AdminPaymentMethodsPage() {
 
             col: 4,
 
-            placeholder:
-              isArabic
-                ? "حالة التفعيل"
-                : "Active Status",
+            placeholder: isArabic ? "حالة التفعيل" : "Active Status",
 
             options: [
               {
                 value: "true",
 
-                labelAr:
-                  "مفعل",
+                labelAr: "مفعل",
 
-                labelEn:
-                  "Active",
+                labelEn: "Active",
               },
 
               {
                 value: "false",
 
-                labelAr:
-                  "غير مفعل",
+                labelAr: "غير مفعل",
 
-                labelEn:
-                  "Inactive",
+                labelEn: "Inactive",
               },
             ],
           },
@@ -993,50 +725,19 @@ export default function AdminPaymentMethodsPage() {
       />
 
       <PaginationComponent
-        total={
-          pagination.total
-        }
-        page={
-          pagination.page
-        }
-        limit={
-          pagination.limit
-        }
-        totalPages={
-          pagination.totalPages
-        }
-        onPageChange={(
-          newPage,
-        ) =>
-          dispatch(
-            setPage(
-              newPage,
-            ),
-          )
-        }
-        onLimitChange={(
-          newLimit,
-        ) =>
-          dispatch(
-            setLimit(
-              newLimit,
-            ),
-          )
-        }
+        total={pagination.total}
+        page={pagination.page}
+        limit={pagination.limit}
+        totalPages={pagination.totalPages}
+        onPageChange={(newPage) => dispatch(setPage(newPage))}
+        onLimitChange={(newLimit) => dispatch(setLimit(newLimit))}
       />
-      
 
       <UniversalTable
         columns={columns}
-        data={
-          paymentMethodsList
-        }
+        data={paymentMethodsList}
         lang={lang}
-        emptyMessage={
-          isArabic
-            ? "لا توجد طرق دفع"
-            : "No payment methods found"
-        }
+        emptyMessage={isArabic ? "لا توجد طرق دفع" : "No payment methods found"}
       />
 
       {/* Details Modal */}
@@ -1047,193 +748,119 @@ export default function AdminPaymentMethodsPage() {
           setShowDetails(false);
           setCurrentMethod(null);
         }}
-        title={
-          isArabic
-            ? "تفاصيل طريقة الدفع"
-            : "Payment Method Details"
-        }
+        title={isArabic ? "تفاصيل طريقة الدفع" : "Payment Method Details"}
         fields={[
           {
-            label:
-              isArabic
-                ? "الكود"
-                : "Code",
+            label: isArabic ? "الكود" : "Code",
 
-            value:
-              currentMethod?.code ||
-              "-",
+            value: currentMethod?.code || "-",
           },
 
           {
-            label:
-              isArabic
-                ? "الاسم بالعربية"
-                : "Arabic Name",
+            label: isArabic ? "الاسم بالعربية" : "Arabic Name",
 
-            value:
-              currentMethod?.nameAr ||
-              "-",
+            value: currentMethod?.nameAr || "-",
           },
 
           {
-            label:
-              isArabic
-                ? "الاسم بالإنجليزية"
-                : "English Name",
+            label: isArabic ? "الاسم بالإنجليزية" : "English Name",
 
-            value:
-              currentMethod?.nameEn ||
-              "-",
+            value: currentMethod?.nameEn || "-",
           },
 
           {
-            label:
-              isArabic
-                ? "النوع"
-                : "Type",
+            label: isArabic ? "النوع" : "Type",
 
-            value:
-              typeLabel(
-                currentMethod?.type,
-              ),
+            value: typeLabel(currentMethod?.type),
           },
 
           {
-            label:
-              isArabic
-                ? "الوصف بالعربية"
-                : "Arabic Description",
+            label: isArabic ? "الوصف بالعربية" : "Arabic Description",
 
-            value:
-              currentMethod?.descriptionAr ||
-              "-",
+            value: currentMethod?.descriptionAr || "-",
           },
 
           {
-            label:
-              isArabic
-                ? "الوصف بالإنجليزية"
-                : "English Description",
+            label: isArabic ? "الوصف بالإنجليزية" : "English Description",
 
-            value:
-              currentMethod?.descriptionEn ||
-              "-",
+            value: currentMethod?.descriptionEn || "-",
           },
 
           {
-            label:
-              isArabic
-                ? "يتطلب حسابًا بنكيًا"
-                : "Requires Bank Account",
+            label: isArabic ? "يتطلب حسابًا بنكيًا" : "Requires Bank Account",
 
-            value:
-              currentMethod?.requiresBankAccount
-                ? isArabic
-                  ? "نعم"
-                  : "Yes"
-                : isArabic
-                  ? "لا"
-                  : "No",
+            value: currentMethod?.requiresBankAccount
+              ? isArabic
+                ? "نعم"
+                : "Yes"
+              : isArabic
+                ? "لا"
+                : "No",
           },
 
           {
-            label:
-              isArabic
-                ? "يتطلب مزود دفع"
-                : "Requires Provider",
+            label: isArabic ? "يتطلب مزود دفع" : "Requires Provider",
 
-            value:
-              currentMethod?.requiresPaymentProvider
-                ? isArabic
-                  ? "نعم"
-                  : "Yes"
-                : isArabic
-                  ? "لا"
-                  : "No",
+            value: currentMethod?.requiresPaymentProvider
+              ? isArabic
+                ? "نعم"
+                : "Yes"
+              : isArabic
+                ? "لا"
+                : "No",
           },
 
           {
-            label:
-              isArabic
-                ? "يتطلب رفع إثبات"
-                : "Requires Proof Upload",
+            label: isArabic ? "يتطلب رفع إثبات" : "Requires Proof Upload",
 
-            value:
-              currentMethod?.requiresProofUpload
-                ? isArabic
-                  ? "نعم"
-                  : "Yes"
-                : isArabic
-                  ? "لا"
-                  : "No",
+            value: currentMethod?.requiresProofUpload
+              ? isArabic
+                ? "نعم"
+                : "Yes"
+              : isArabic
+                ? "لا"
+                : "No",
           },
 
           {
-            label:
-              isArabic
-                ? "ترتيب العرض"
-                : "Sort Order",
+            label: isArabic ? "ترتيب العرض" : "Sort Order",
 
-            value:
-              currentMethod?.sortOrder ??
-              0,
+            value: currentMethod?.sortOrder ?? 0,
           },
 
           {
-            label:
-              isArabic
-                ? "الحالة"
-                : "Status",
+            label: isArabic ? "الحالة" : "Status",
 
-            value:
-              currentMethod?.isActive
-                ? isArabic
-                  ? "مفعل"
-                  : "Active"
-                : isArabic
-                  ? "غير مفعل"
-                  : "Inactive",
+            value: currentMethod?.isActive
+              ? isArabic
+                ? "مفعل"
+                : "Active"
+              : isArabic
+                ? "غير مفعل"
+                : "Inactive",
           },
 
           {
-            label:
-              isArabic
-                ? "تاريخ الإنشاء"
-                : "Created At",
+            label: isArabic ? "تاريخ الإنشاء" : "Created At",
 
-            value:
-              currentMethod?.createdAt
-                ? new Date(
-                    currentMethod.createdAt,
-                  ).toLocaleString(
-                    isArabic
-                      ? "ar-SA"
-                      : "en-US",
-                  )
-                : "-",
+            value: currentMethod?.createdAt
+              ? new Date(currentMethod.createdAt).toLocaleString(
+                  isArabic ? "ar-SA" : "en-US",
+                )
+              : "-",
           },
 
           {
-            label:
-              isArabic
-                ? "آخر تعديل"
-                : "Updated At",
+            label: isArabic ? "آخر تعديل" : "Updated At",
 
-            value:
-              currentMethod?.updatedAt
-                ? new Date(
-                    currentMethod.updatedAt,
-                  ).toLocaleString(
-                    isArabic
-                      ? "ar-SA"
-                      : "en-US",
-                  )
-                : "-",
+            value: currentMethod?.updatedAt
+              ? new Date(currentMethod.updatedAt).toLocaleString(
+                  isArabic ? "ar-SA" : "en-US",
+                )
+              : "-",
           },
         ]}
-        entity={
-          currentMethod
-        }
+        entity={currentMethod}
       />
 
       {/* Form Modal */}
@@ -1246,15 +873,9 @@ export default function AdminPaymentMethodsPage() {
           setFormMode("create");
           setFormErrors({});
         }}
-        onSave={
-          handleSave
-        }
-        config={
-          memoizedConfig
-        }
-        initialData={
-          currentMethod
-        }
+        onSave={handleSave}
+        config={memoizedConfig}
+        initialData={currentMethod}
         titleAr={
           formMode === "update"
             ? "تعديل طريقة الدفع"
@@ -1269,20 +890,14 @@ export default function AdminPaymentMethodsPage() {
               ? "Clone Payment Method"
               : "Add Payment Method"
         }
-        errors={
-          formErrors
-        }
-        loading={
-          loadingSave
-        }
+        errors={formErrors}
+        loading={loadingSave}
       />
 
       {/* Delete Dialog */}
 
       <ConfirmDialog
-        show={
-          deleteModal.show
-        }
+        show={deleteModal.show}
         onHide={() =>
           setDeleteModal({
             show: false,
@@ -1290,29 +905,15 @@ export default function AdminPaymentMethodsPage() {
             name: "",
           })
         }
-        onConfirm={
-          confirmDelete
-        }
-        title={
-          isArabic
-            ? "تأكيد حذف طريقة الدفع"
-            : "Confirm Delete"
-        }
+        onConfirm={confirmDelete}
+        title={isArabic ? "تأكيد حذف طريقة الدفع" : "Confirm Delete"}
         message={
           isArabic
             ? `هل أنت متأكد من حذف ${deleteModal.name || "طريقة الدفع"}؟`
             : `Are you sure you want to delete ${deleteModal.name || "this payment method"}?`
         }
-        confirmText={
-          isArabic
-            ? "نعم، احذف"
-            : "Yes, Delete"
-        }
-        cancelText={
-          isArabic
-            ? "إلغاء"
-            : "Cancel"
-        }
+        confirmText={isArabic ? "نعم، احذف" : "Yes, Delete"}
+        cancelText={isArabic ? "إلغاء" : "Cancel"}
         variant="danger"
       />
     </div>

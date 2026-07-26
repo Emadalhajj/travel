@@ -14,7 +14,7 @@ import Joi from "joi";
 
 import {
   PAYMENT_METHOD_CODE_VALUES,
-} from "../../constants/payments/payment-method-codes.js";
+} from "../../../constants/payments/payment-method-codes.js";
 
 const PAYMENT_METHOD_TYPES = [
   "offline",
