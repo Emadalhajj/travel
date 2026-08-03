@@ -120,3 +120,14 @@ export const uploadUmrahProgram =
       IMAGE_EXTENSIONS
     }
   })
+
+// إثباتات التحويل البنكي
+export const uploadPaymentProof =
+  createUploader({
+    folder: "payment-proofs",
+
+    fieldRules: {
+      proofAttachments:
+        DOCUMENT_EXTENSIONS,
+    },
+  });

@@ -27,6 +27,9 @@ export const AUDIT_ENTITIES = {
   UMRAH_PROGRAM: "umrah_program",
   BANK_ACCOUNT: "bank_account",
   PAYMENT_METHOD: "payment_method",
+  PAYMENT_PROVIDER: "payment_provider",
+  PAYMENT_CONFIGURATION:
+    "payment_configuration",
 };
 
 export const AUDIT_ENTITIES_LIST = Object.values(AUDIT_ENTITIES);

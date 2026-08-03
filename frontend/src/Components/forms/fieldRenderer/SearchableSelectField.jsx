@@ -17,7 +17,17 @@ export default function SearchableSelectField(props) {
     getSelectedLocationOption,
     handleLocationSelectChange,
     isArabic,
+    fieldErrors,
+    helpers,
   } = props;
+
+  const hasError = Boolean(
+    fieldErrors?.[
+      helpers.getFieldStatePath(
+        field,
+      )
+    ],
+  );
 
   return (
     <Select
@@ -26,6 +36,9 @@ export default function SearchableSelectField(props) {
           ...base,
           minHeight: "48px",
           boxShadow: "0 .125rem .25rem rgba(0,0,0,.075)",
+          borderColor: hasError
+            ? "#dc3545"
+            : base.borderColor,
         }),
       }}
       value={getSelectedLocationOption(field)}
@@ -34,6 +47,7 @@ export default function SearchableSelectField(props) {
       isLoading={field.optionsSource === "cities" && loadingCities}
       placeholder={isArabic ? "ابحث واختر..." : "Search..."}
       isSearchable
+      aria-invalid={hasError}
     />
   );
 }

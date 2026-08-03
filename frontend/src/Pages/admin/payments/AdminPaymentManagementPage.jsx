@@ -142,7 +142,7 @@ export default function AdminPaymentManagementPage() {
       descriptionEn:
         "Review successful, pending, failed, refunded, and bank transfer transactions.",
 
-      path: "/admin/payment-transactions",
+      path: "/admin/payments/payment-transactions",
 
       icon: ReceiptText,
 

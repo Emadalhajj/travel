@@ -232,9 +232,28 @@ const bookingItemSchema = new mongoose.Schema(
       checkIn: Date,
       checkOut: Date,
 
+      quantity: {
+        type: Number,
+        default: 1,
+        min: 0,
+      },
+
+      chargeType: {
+        type: String,
+        enum: ["PER_TRAVELER", "PER_UNIT", "PER_BOOKING"],
+        default: "PER_UNIT",
+      },
+
+      unitPrice: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
       price: {
         type: Number,
         default: 0,
+        min: 0,
       },
     },
 
@@ -247,9 +266,28 @@ const bookingItemSchema = new mongoose.Schema(
       visaNameAr: String,
       visaNameEn: String,
 
+      quantity: {
+        type: Number,
+        default: 1,
+        min: 0,
+      },
+
+      chargeType: {
+        type: String,
+        enum: ["PER_TRAVELER", "PER_UNIT", "PER_BOOKING"],
+        default: "PER_TRAVELER",
+      },
+
+      unitPrice: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
       price: {
         type: Number,
         default: 0,
+        min: 0,
       },
     },
 
@@ -265,9 +303,28 @@ const bookingItemSchema = new mongoose.Schema(
       travelDate: Date,
       returnDate: Date,
 
+      quantity: {
+        type: Number,
+        default: 1,
+        min: 0,
+      },
+
+      chargeType: {
+        type: String,
+        enum: ["PER_TRAVELER", "PER_UNIT", "PER_BOOKING"],
+        default: "PER_TRAVELER",
+      },
+
+      unitPrice: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
       price: {
         type: Number,
         default: 0,
+        min: 0,
       },
     },
 
@@ -282,9 +339,38 @@ const bookingItemSchema = new mongoose.Schema(
 
       vehicleType: String,
 
+      startDate: {
+        type: Date,
+        default: null,
+      },
+
+      endDate: {
+        type: Date,
+        default: null,
+      },
+
+      quantity: {
+        type: Number,
+        default: 1,
+        min: 0,
+      },
+
+      chargeType: {
+        type: String,
+        enum: ["PER_TRAVELER", "PER_UNIT", "PER_BOOKING"],
+        default: "PER_BOOKING",
+      },
+
+      unitPrice: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
       price: {
         type: Number,
         default: 0,
+        min: 0,
       },
     },
   },

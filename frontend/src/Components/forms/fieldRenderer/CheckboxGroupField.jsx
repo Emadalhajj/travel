@@ -11,16 +11,20 @@ import {
   Col,
 } from "react-bootstrap";
 
+import {
+  set,
+} from "../utils/objectPath";
+
 export default function CheckboxGroupField(
   props,
 ) {
 
   const {
     field,
-    formState,
     setFormState,
     isArabic,
     helpers,
+    fieldErrors,
   } = props;
 
   if (!field) {
@@ -30,68 +34,125 @@ export default function CheckboxGroupField(
   const options =
     field.options || [];
 
+  const fieldPath =
+    helpers.getFieldStatePath(
+      field,
+    );
+
+  const currentValue =
+    helpers.getFieldValue(
+      field,
+    );
+
+  const hasError = Boolean(
+    fieldErrors?.[
+      fieldPath
+    ],
+  );
+
+  const usesArrayValue =
+    field.valueMode === "array";
+
+  const selectedValues =
+    Array.isArray(currentValue)
+      ? currentValue
+      : [];
+
+  const selectedObject =
+    !usesArrayValue &&
+    currentValue &&
+    typeof currentValue ===
+      "object" &&
+    !Array.isArray(currentValue)
+      ? currentValue
+      : {};
+
   return (
-    <div className="border rounded p-3 bg-light">
+    <div
+      className={`border rounded p-3 bg-light ${
+        hasError
+          ? "border-danger"
+          : ""
+      }`}
+    >
 
       <Row className="g-2">
 
-        {options.map((opt) => (
+        {options.map((opt) => {
+          const optionValue =
+            opt.value ?? opt.key;
 
-          <Col
-            md={4}
-            sm={6}
-            xs={12}
-            key={opt.key}
-          >
+          return (
+            <Col
+              md={4}
+              sm={6}
+              xs={12}
+              key={optionValue}
+            >
 
-            <Form.Check
+              <Form.Check
 
-              label={
-                isArabic
-                  ? opt.labelAr
-                  : opt.labelEn
-              }
+                label={
+                  isArabic
+                    ? opt.labelAr
+                    : opt.labelEn
+                }
 
-              checked={
-                !!formState?.[
-                  field.name
-                ]?.[
-                  opt.key
-                ]
-              }
+                checked={
+                  usesArrayValue
+                    ? selectedValues.includes(
+                        optionValue,
+                      )
+                    : !!selectedObject[
+                        optionValue
+                      ]
+                }
 
-              onChange={(e) => {
+                onChange={(e) => {
 
-                setFormState(
-                  (prev) => ({
+                  const checked =
+                    e.target.checked;
 
-                    ...prev,
+                  const nextValue =
+                    usesArrayValue
+                      ? checked
+                        ? [
+                            ...new Set([
+                              ...selectedValues,
+                              optionValue,
+                            ]),
+                          ]
+                        : selectedValues.filter(
+                            (value) =>
+                              value !==
+                              optionValue,
+                          )
+                      : {
+                          ...selectedObject,
+                          [optionValue]:
+                            checked,
+                        };
 
-                    [field.name]: {
+                  setFormState(
+                    (prev) =>
+                      set(
+                        prev,
+                        fieldPath,
+                        nextValue,
+                      ),
+                  );
 
-                      ...prev?.[
-                        field.name
-                      ],
+                  helpers.clearFieldError(
+                    field,
+                  );
 
-                      [opt.key]:
-                        e.target.checked,
+                }}
 
-                    },
+              />
 
-                  }),
-                );
-
-                helpers.clearFieldError(
-                  field,
-                );
-
-              }}
-
-            />
-
-          </Col>
-
-        ))}
+            </Col>
+          );
+        })}
 
       </Row>
 

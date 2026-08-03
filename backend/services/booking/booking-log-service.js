@@ -171,7 +171,10 @@ export const logPaymentTransactionCreated = async ({
       currency: paymentTransaction.currency,
       method: paymentTransaction.method,
       status: paymentTransaction.status,
-      transactionId: paymentTransaction.transactionId,
+      paymentReference:
+        paymentTransaction.paymentReference || "",
+      providerReference:
+        paymentTransaction.providerReference || "",
     },
     req,
   });

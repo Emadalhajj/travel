@@ -5,26 +5,75 @@ import api from "../api";
 Public Payment API
 =========================================================
 
-منطق الدفع:
-1- Authorization أولًا
-2- Capture لاحقًا بعد تأكيد تنفيذ الطلب
+التدفق الموحد فقط:
+- initialize
+- status
+- bank-transfer proof
+
+تم حذف تدفق التفويض القديم بعد نقل الصفحات إلى
+initializePublicPayment.
 =========================================================
 */
 
-const PAYMENT_BASE_URL = "/payments";
+const PUBLIC_PAYMENT_BASE_URL =
+  "/public/payments";
 
-// إنشاء تفويض دفع للحجز المبدئي
-export const apiAuthorizeDraftBookingPayment = async (draftBookingId, data = {}) => {
+export const apiInitializePublicPayment = async (
+  payload,
+) => {
   const response = await api.post(
-    `${PAYMENT_BASE_URL}/authorize/draft-booking/${draftBookingId}`,
-    data
+    `${PUBLIC_PAYMENT_BASE_URL}/initialize`,
+    payload,
   );
-
   return response.data;
 };
 
-// جلب حالة الدفع
-export const apiGetPaymentStatus = async (paymentId) => {
-  const response = await api.get(`${PAYMENT_BASE_URL}/${paymentId}/status`);
+export const apiGetPaymentStatus = async (
+  transactionId,
+) => {
+  if (!transactionId) {
+    throw new Error(
+      "Payment transaction ID is required",
+    );
+  }
+
+  const response = await api.get(
+    `${PUBLIC_PAYMENT_BASE_URL}/${transactionId}/status`,
+  );
+  return response.data;
+};
+
+export const apiSubmitBankTransferProof = async ({
+  transactionId,
+  transferReference,
+  proofAttachments,
+}) => {
+  if (!transactionId) {
+    throw new Error(
+      "Payment transaction ID is required",
+    );
+  }
+
+  const formData = new FormData();
+
+  if (transferReference) {
+    formData.append(
+      "transferReference",
+      transferReference,
+    );
+  }
+
+  (proofAttachments || []).forEach((file) => {
+    formData.append(
+      "proofAttachments",
+      file,
+    );
+  });
+
+  const response = await api.post(
+    `${PUBLIC_PAYMENT_BASE_URL}/bank-transfer/${transactionId}/proof`,
+    formData,
+  );
+
   return response.data;
 };

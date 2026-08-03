@@ -1,58 +1,28 @@
 import asyncHandler from "express-async-handler";
-import PaymentTransaction from "../../models/payments/paymentTransaction-model.js";
-import { createPaymentCheckoutSessionService } from "../../services/payment/payment-checkout-service.js";
+import { initializePublicPaymentService } from "../../services/payment/initialize-public-payment-service.js";
 
 export const createPaymentCheckoutSession = asyncHandler(
   async (req, res) => {
     const {
       draftId,
-      paymentMethod = "CARD",
-      gateway = "HYPERPAY",
+      configurationId,
+      sectionCode,
+      paymentMethodCode,
+      selectedBankAccountId,
     } = req.body || {};
 
-    const checkout =
-      await createPaymentCheckoutSessionService({
+    const result =
+      await initializePublicPaymentService({
         draftId,
-        paymentMethod,
-        gateway,
+        configurationId,
+        sectionCode,
+        paymentMethodCode,
+        selectedBankAccountId,
+        userId:
+          req.user?._id ||
+          req.user?.id ||
+          null,
         req,
-      });
-
-    /*
-    ملاحظة:
-    هذا الجزء سيعمل بعد تعديل PaymentTransaction Model
-    وإضافة draftBooking وcheckoutId وmethodCode.
-    */
-
-    await PaymentTransaction.create({
-      draftBooking: checkout.draftId,
-
-      booking: null,
-
-      user: checkout.userId,
-
-      amount: checkout.amount,
-
-      currency: checkout.currency,
-
-      methodCode: checkout.paymentMethod,
-
-      status: "pending",
-
-      providerCode: checkout.providerCode,
-
-      gatewayReference:
-        checkout.paymentReference,
-
-      checkoutId: checkout.checkoutId,
-
-      notes:
-        "Payment checkout session created",
-
-      createdBy:
-        req.user?._id ||
-        checkout.userId ||
-        null,
     });
 
     res.status(201).json({
@@ -62,20 +32,7 @@ export const createPaymentCheckoutSession = asyncHandler(
         "Payment checkout session created successfully",
 
       data: {
-        checkoutId: checkout.checkoutId,
-
-        paymentReference:
-          checkout.paymentReference,
-
-        amount: checkout.amount,
-
-        currency: checkout.currency,
-
-        paymentMethod:
-          checkout.paymentMethod,
-
-        providerCode:
-          checkout.providerCode,
+        ...result,
       },
     });
   },

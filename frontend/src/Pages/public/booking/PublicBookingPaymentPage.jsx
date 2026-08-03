@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useParams } from "react-router-dom";
-
-import api from "../../../services/api/api";
+import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "react-toastify";
 
 import Loader from "../../../Components/common/Loader";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
@@ -10,79 +9,58 @@ import PageHeader from "../../../Components/layout/PageHeader";
 import BookingProgressTimeline from "../../../Components/shared/booking/BookingProgressTimeline";
 
 import { fetchPublicDraftBookingById } from "../../../redux/public/bookingSlice";
+import {
+  fetchPublicPaymentConfigurations,
+  selectPublicPaymentConfigurations,
+  selectPublicPaymentConfigurationsLoading,
+  selectPublicPaymentConfigurationsError,
+} from "../../../redux/public/publicPaymentConfigurationSlice";
+import {
+  initializePublicPayment,
+} from "../../../redux/public/publicPaymentSlice";
 import { calculateBookingPricing } from "../../../Components/shared/booking-wizard/bookingPricing";
-
-const paymentMethods = [
-  {
-    id: "mada",
-    labelAr: "بطاقة مدى",
-    labelEn: "Mada Card",
-    descriptionAr: "الدفع عبر بطاقة مدى البنكية",
-    descriptionEn: "Pay with Mada debit card",
-    icon: "💳",
-    brands: "MADA",
-  },
-  {
-    id: "credit",
-    labelAr: "بطاقة ائتمانية",
-    labelEn: "Credit Card",
-    descriptionAr: "Visa / MasterCard",
-    descriptionEn: "Visa / MasterCard",
-    icon: "💳",
-    brands: "VISA MASTER",
-  },
-  {
-    id: "sadad",
-    labelAr: "سداد",
-    labelEn: "SADAD",
-    descriptionAr: "إنشاء فاتورة سداد لإتمام الدفع",
-    descriptionEn: "Create SADAD bill",
-    icon: "📱",
-    brands: "",
-  },
-];
+import {
+  PAYMENT_CONFIGURATION_TYPES,
+  PAYMENT_SECTION_CODES,
+} from "../../../constants/payments/paymentConfigurationConstants";
 
 export default function PublicBookingPaymentPage() {
   const { draftId } = useParams();
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   const { draftBooking, loading, error } = useSelector(
     (state) => state.publicBooking,
   );
 
+  const paymentConfigurations = useSelector(
+    selectPublicPaymentConfigurations,
+  );
+  const paymentMethodsLoading = useSelector(
+    selectPublicPaymentConfigurationsLoading,
+  );
+  const paymentMethodsError = useSelector(
+    selectPublicPaymentConfigurationsError,
+  );
+  const initializationLoading = useSelector(
+    (state) =>
+      Boolean(
+        state.publicPayment
+          ?.initializationLoading,
+      ),
+  );
+
   const lang = localStorage.getItem("lang") || "ar";
   const isArabic = lang === "ar";
 
-  const [selectedMethod, setSelectedMethod] = useState("mada");
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentError, setPaymentError] = useState("");
-  const [checkoutId, setCheckoutId] = useState("");
-  const [sadadReference, setSadadReference] = useState("");
+  const [selectedConfigurationId, setSelectedConfigurationId] = useState("");
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState("");
 
   useEffect(() => {
     if (draftId) {
       dispatch(fetchPublicDraftBookingById(draftId));
     }
   }, [dispatch, draftId]);
-
-  useEffect(() => {
-    if (!checkoutId || selectedMethod === "sadad") return;
-
-    const oldScript = document.getElementById("hyperpay-widget-script");
-    if (oldScript) oldScript.remove();
-
-    const script = document.createElement("script");
-    script.id = "hyperpay-widget-script";
-    script.src = `https://eu-test.oppwa.com/v1/paymentWidgets.js?checkoutId=${checkoutId}`;
-    script.async = true;
-
-    document.body.appendChild(script);
-
-    return () => {
-      const existingScript = document.getElementById("hyperpay-widget-script");
-      if (existingScript) existingScript.remove();
-    };
-  }, [checkoutId, selectedMethod]);
 
   const travelers = useMemo(() => {
     return draftBooking?.travelers || [];
@@ -106,6 +84,25 @@ export default function PublicBookingPaymentPage() {
     });
   }, [draftBooking, travelers, selectedProducts]);
 
+  useEffect(() => {
+    if (!draftBooking?._id) return;
+
+    dispatch(
+      fetchPublicPaymentConfigurations({
+        sectionCode: PAYMENT_SECTION_CODES.CUSTOM_PACKAGE,
+        currency: draftBooking.currency || pricing.currency || "SAR",
+        amount: pricing.totalPrice ?? pricing.total,
+      }),
+    );
+  }, [
+    dispatch,
+    draftBooking?._id,
+    draftBooking?.currency,
+    pricing.currency,
+    pricing.total,
+    pricing.totalPrice,
+  ]);
+
   const programName = useMemo(() => {
     if (!draftBooking?.program) return "-";
 
@@ -114,56 +111,84 @@ export default function PublicBookingPaymentPage() {
       : draftBooking.program.nameEn || draftBooking.program.nameAr || "-";
   }, [draftBooking, isArabic]);
 
-  const activeMethod = paymentMethods.find(
-    (method) => method.id === selectedMethod,
+  const selectedConfiguration = paymentConfigurations.find(
+    (configuration) =>
+      configuration._id === selectedConfigurationId,
   );
 
-  const handleSelectMethod = (methodId) => {
-    setSelectedMethod(methodId);
-    setCheckoutId("");
-    setSadadReference("");
-    setPaymentError("");
+  const handleSelectConfiguration = (configurationId) => {
+    setSelectedConfigurationId(configurationId);
+    setSelectedBankAccountId("");
   };
 
-  const handleStartPayment = async () => {
+  const handleContinuePayment = async () => {
+    if (!selectedConfiguration) {
+      toast.error(
+        isArabic
+          ? "يرجى اختيار طريقة الدفع"
+          : "Please select a payment method",
+      );
+      return;
+    }
+
+    if (
+      selectedConfiguration.configurationType ===
+        PAYMENT_CONFIGURATION_TYPES.BANK_ACCOUNT &&
+      !selectedBankAccountId
+    ) {
+      toast.error(
+        isArabic
+          ? "يرجى اختيار الحساب البنكي"
+          : "Please select a bank account",
+      );
+      return;
+    }
+
     try {
-      setIsProcessing(true);
-      setPaymentError("");
-      setCheckoutId("");
-      setSadadReference("");
+      const response = await dispatch(
+        initializePublicPayment({
+          draftId,
+          configurationId: selectedConfiguration._id,
+          sectionCode: PAYMENT_SECTION_CODES.CUSTOM_PACKAGE,
+          paymentMethodCode: selectedConfiguration.paymentMethodCode,
+          selectedBankAccountId: selectedBankAccountId || null,
+        }),
+      ).unwrap();
 
-      const { data } = await api.post("/payment/checkout-session", {
-        draftId,
-        paymentMethod: selectedMethod,
-        gateway: selectedMethod === "sadad" ? "sadad" : "hyperpay",
-      });
+      const result = response?.data || response;
 
-      const nextCheckoutId = data?.data?.checkoutId;
-      const paymentReference = data?.data?.paymentReference;
+      if (result.action === "REDIRECT") {
+        if (!result.redirectUrl) {
+          throw new Error(
+            isArabic
+              ? "لم يتم استلام رابط الدفع"
+              : "Payment redirect URL was not returned",
+          );
+        }
 
-      if (selectedMethod === "sadad") {
-        setSadadReference(paymentReference || "");
+        window.location.assign(result.redirectUrl);
         return;
       }
 
-      if (nextCheckoutId) {
-        setCheckoutId(nextCheckoutId);
+      if (result.action === "BANK_TRANSFER") {
+        navigate(
+          `/booking/payment/${draftId}/bank-transfer/${result.paymentTransactionId}`,
+        );
         return;
       }
 
-      throw new Error(
-        isArabic ? "لم يتم استلام جلسة الدفع" : "Checkout session not received",
-      );
-    } catch (err) {
-      setPaymentError(
-        err?.response?.data?.message ||
-          err?.message ||
+      if (result.action === "PENDING_APPROVAL") {
+        navigate(
+          `/booking/payment/${draftId}/pending/${result.paymentTransactionId}`,
+        );
+      }
+    } catch (paymentInitializationError) {
+      toast.error(
+        paymentInitializationError?.message ||
           (isArabic
-            ? "حدث خطأ أثناء إنشاء جلسة الدفع"
-            : "Failed to create checkout session"),
+            ? "تعذر بدء عملية الدفع"
+            : "Unable to initialize payment"),
       );
-    } finally {
-      setIsProcessing(false);
     }
   };
 
@@ -189,7 +214,6 @@ export default function PublicBookingPaymentPage() {
 />
 
         <ErrorOverlay show={Boolean(error)} message={error} />
-        <ErrorOverlay show={Boolean(paymentError)} message={paymentError} />
 
         <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-12">
           <aside className="lg:col-span-5">
@@ -262,105 +286,134 @@ export default function PublicBookingPaymentPage() {
                 {isArabic ? "اختر طريقة الدفع" : "Choose Payment Method"}
               </h2>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {paymentMethods.map((method) => {
-                  const active = selectedMethod === method.id;
+              {paymentMethodsLoading ? (
+                <div className="py-8 text-center text-slate-500">
+                  {isArabic
+                    ? "جارٍ تحميل طرق الدفع..."
+                    : "Loading payment methods..."}
+                </div>
+              ) : paymentMethodsError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
+                  {paymentMethodsError?.message || String(paymentMethodsError)}
+                </div>
+              ) : paymentConfigurations.length === 0 ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+                  {isArabic
+                    ? "لا توجد طرق دفع متاحة لهذا الحجز حاليًا."
+                    : "No payment methods are currently available for this booking."}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {paymentConfigurations.map((configuration) => {
+                    const isSelected =
+                      selectedConfigurationId === configuration._id;
+                    const title = isArabic
+                      ? configuration.displayNameAr ||
+                        configuration.paymentMethodCode
+                      : configuration.displayNameEn ||
+                        configuration.paymentMethodCode;
+                    const instructions = isArabic
+                      ? configuration.instructionsAr
+                      : configuration.instructionsEn;
 
-                  return (
-                    <button
-                      key={method.id}
-                      type="button"
-                      onClick={() => handleSelectMethod(method.id)}
-                      className={`rounded-2xl border-2 p-5 text-center transition ${
-                        active
-                          ? "border-lime-400 bg-white shadow-md"
-                          : "border-slate-200 bg-white hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="text-3xl">{method.icon}</div>
+                    return (
+                      <div
+                        key={configuration._id}
+                        className={`rounded-2xl border-2 p-5 transition ${
+                          isSelected
+                            ? "border-emerald-500 bg-emerald-50 shadow-sm"
+                            : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <label className="flex cursor-pointer items-center gap-3 font-bold text-slate-900">
+                          <input
+                            type="radio"
+                            name="paymentConfiguration"
+                            value={configuration._id}
+                            checked={isSelected}
+                            onChange={() =>
+                              handleSelectConfiguration(
+                                configuration._id,
+                              )
+                            }
+                          />
+                          <span>{title}</span>
+                        </label>
 
-                      <div className="mt-3 text-sm font-bold text-purple-900">
-                        {isArabic ? method.labelAr : method.labelEn}
+                        {instructions && (
+                          <p className="mt-2 text-sm text-slate-500">
+                            {instructions}
+                          </p>
+                        )}
+
+                        {isSelected &&
+                          configuration.configurationType ===
+                            PAYMENT_CONFIGURATION_TYPES.BANK_ACCOUNT && (
+                            <div className="mt-4 space-y-2">
+                              {(configuration.bankAccounts || []).map(
+                                (account) => (
+                                  <label
+                                    key={account._id}
+                                    className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4"
+                                  >
+                                    <input
+                                      type="radio"
+                                      name="bankAccount"
+                                      value={account._id}
+                                      checked={
+                                        selectedBankAccountId === account._id
+                                      }
+                                      onChange={() =>
+                                        setSelectedBankAccountId(account._id)
+                                      }
+                                    />
+                                    <div>
+                                      <div className="font-bold">
+                                        {isArabic
+                                          ? account.bankNameAr ||
+                                            account.bankNameEn
+                                          : account.bankNameEn ||
+                                            account.bankNameAr}
+                                      </div>
+                                      <div className="text-sm text-slate-600">
+                                        {isArabic
+                                          ? account.accountNameAr ||
+                                            account.beneficiaryName
+                                          : account.accountNameEn ||
+                                            account.beneficiaryName}
+                                      </div>
+                                      <div className="mt-1 text-sm" dir="ltr">
+                                        IBAN: {account.iban || "-"}
+                                      </div>
+                                    </div>
+                                  </label>
+                                ),
+                              )}
+                            </div>
+                          )}
                       </div>
-
-                      <div className="mt-2 text-xs leading-5 text-slate-500">
-                        {isArabic
-                          ? method.descriptionAr
-                          : method.descriptionEn}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-8 rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
-                <h3 className="text-base font-bold text-emerald-800">
-                  {isArabic ? activeMethod?.labelAr : activeMethod?.labelEn}
-                </h3>
-
-                <p className="mt-2 text-sm leading-6 text-emerald-700">
-                  {selectedMethod === "sadad"
-                    ? isArabic
-                      ? "سيتم إنشاء مرجع سداد لإتمام الدفع من تطبيق البنك."
-                      : "A SADAD reference will be created for payment."
-                    : isArabic
-                      ? "سيتم عرض نموذج الدفع الآمن الخاص ببوابة HyperPay داخل الصفحة."
-                      : "The secure HyperPay payment widget will be displayed on this page."}
-                </p>
-              </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <button
                 type="button"
-                onClick={handleStartPayment}
-                disabled={isProcessing || !draftBooking}
+                onClick={handleContinuePayment}
+                disabled={
+                  initializationLoading ||
+                  !selectedConfigurationId
+                }
                 className="mt-8 w-full rounded-2xl bg-emerald-600 px-6 py-5 text-xl font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                {isProcessing
+                {initializationLoading
                   ? isArabic
-                    ? "جاري إنشاء جلسة الدفع..."
-                    : "Creating checkout session..."
+                    ? "جارٍ تجهيز الدفع..."
+                    : "Preparing payment..."
                   : isArabic
-                    ? `المتابعة للدفع ${formatMoney(
-                        pricing.total || pricing.totalPrice,
-                        pricing.currency,
-                      )}`
-                    : `Continue to pay ${formatMoney(
-                        pricing.total || pricing.totalPrice,
-                        pricing.currency,
-                      )}`}
+                    ? "متابعة الدفع"
+                    : "Continue payment"}
               </button>
-
-              {checkoutId && selectedMethod !== "sadad" && (
-                <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
-                  <h3 className="mb-5 text-lg font-bold text-slate-900">
-                    {isArabic ? "بيانات الدفع" : "Payment Details"}
-                  </h3>
-
-                  <form
-                    action={`/booking/payment/redirect/${draftId}`}
-                    className="paymentWidgets"
-                    data-brands={activeMethod?.brands || "VISA MASTER"}
-                  />
-                </div>
-              )}
-
-              {sadadReference && selectedMethod === "sadad" && (
-                <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 p-6">
-                  <h3 className="text-lg font-bold text-blue-900">
-                    {isArabic ? "مرجع سداد" : "SADAD Reference"}
-                  </h3>
-
-                  <p className="mt-3 break-all text-sm font-bold text-blue-700">
-                    {sadadReference}
-                  </p>
-
-                  <p className="mt-3 text-sm leading-6 text-blue-700">
-                    {isArabic
-                      ? "استخدم هذا المرجع لإتمام الدفع عبر تطبيق البنك."
-                      : "Use this reference to complete payment through your bank app."}
-                  </p>
-                </div>
-              )}
 
               <p className="mt-4 text-center text-xs leading-6 text-slate-500">
                 {isArabic
