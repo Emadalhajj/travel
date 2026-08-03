@@ -15,9 +15,13 @@ import vehicleRentalReducer from "./transports/vehicleRentalSlice";
 import inventoryReducer from "./inventory/inventorySlice";
 import publicProgramReducer from "./public/programSlice";
 import publicBookingReducer from "./public/bookingSlice";
-import publicPaymentReducer from "./public/paymentSlice";
+import publicPaymentReducer from "./public/publicPaymentSlice";
 import bankAccountsReducer from "./payments/bankAccountSlice";
 import paymentMethodsReducer from "./payments/paymentMethodSlice";
+import paymentProvidersReducer from "./payments/paymentProviderSlice";
+import paymentConfigurationReducer from "./payments/paymentConfigurationSlice";
+import publicPaymentConfigurationReducer from "./public/publicPaymentConfigurationSlice";
+import paymentTransactionReducer from "./payments/paymentTransactionSlice";
 
 const store = configureStore({
   reducer: {
@@ -40,7 +44,12 @@ const store = configureStore({
     publicPayment: publicPaymentReducer,
     bankAccounts: bankAccountsReducer,
     paymentMethods: paymentMethodsReducer,
-    
+    paymentProviders: paymentProvidersReducer,
+    paymentConfigurations: paymentConfigurationReducer,
+    publicPaymentConfigurations:
+  publicPaymentConfigurationReducer,
+    paymentTransactions: paymentTransactionReducer,
+
   }, // أضف الـ reducers الخاصة بك هنا
 });
 

@@ -1,0 +1,464 @@
+/*
+=====================================================
+Complete Provider Payment Service
+=====================================================
+
+الخدمة المركزية لإكمال الدفع الإلكتروني بعد رجوع
+Callback أو Webhook من مزود الدفع.
+
+المسؤوليات:
+-----------------------------------------------------
+- العثور على PaymentTransaction.
+- التحقق من النتيجة فعليًا لدى المزود.
+- منع معالجة العملية أكثر من مرة.
+- تحويل المسودة إلى Booking بعد تأكيد الدفع.
+- ربط Booking بالمعاملة.
+- تحديث الحالة عبر PaymentTransaction Layer فقط.
+
+مهم:
+-----------------------------------------------------
+لا تثق في status أو amount القادمين من Frontend.
+ولا تحفظ Raw Provider Payload.
+=====================================================
+*/
+
+import AppError from "../../utils/AppError.js";
+import { roundPrice } from "../../utils/roundPrice.js";
+
+import {
+  convertDraftToBooking,
+} from "../draft-bookings/draft-booking-service.js";
+
+import {
+  getPaymentProviderByIdService,
+} from "./payment-provider-service.js";
+
+import {
+  findPaymentTransactionService,
+  markPaymentTransactionFailedService,
+  recordBookingConversionFailureService,
+  recordPaymentTransactionEventService,
+  updatePaymentTransactionStatusService,
+} from "./paymentTransaction-service.js";
+
+import {
+  verifyProviderPayment,
+} from "./providers/payment-provider-factory.js";
+
+import {
+  LEGACY_PAYMENT_TRANSACTION_STATUSES,
+  PAYMENT_TRANSACTION_STATUSES,
+} from "../../constants/payments/payment-transaction-statuses.js";
+
+import {
+  PAYMENT_TRANSACTION_EVENT_CODES,
+  PAYMENT_TRANSACTION_EVENT_SOURCES,
+} from "../../constants/payments/payment-transaction-events.js";
+
+const SUCCESS_STATUSES = new Set([
+  PAYMENT_TRANSACTION_STATUSES.SUCCESS,
+  LEGACY_PAYMENT_TRANSACTION_STATUSES.PAID,
+]);
+
+const PAYMENT_CONFIRMED_STATUSES = new Set([
+  PAYMENT_TRANSACTION_STATUSES.CAPTURED,
+  PAYMENT_TRANSACTION_STATUSES.PAID_PENDING_BOOKING,
+  ...SUCCESS_STATUSES,
+]);
+
+const resolveTransactionIdentifier = ({
+  transactionId,
+  paymentReference,
+  providerReference,
+  checkoutId,
+}) => {
+  if (transactionId) {
+    return { transactionId };
+  }
+
+  if (paymentReference) {
+    return { paymentReference };
+  }
+
+  if (providerReference) {
+    return { providerReference };
+  }
+
+  if (checkoutId) {
+    return { checkoutId };
+  }
+
+  throw new AppError(
+    "يجب إرسال مرجع لمعاملة الدفع",
+    400,
+    "paymentTransaction",
+  );
+};
+
+const buildProviderConfig = (provider) => ({
+  environment: provider.environment,
+  baseUrl: provider.baseUrl,
+  credentials: provider.credentials || {},
+});
+
+const validateVerifiedPayment = ({
+  transaction,
+  verification,
+}) => {
+  const verifiedAmount = Number(
+    verification.amount,
+  );
+
+  if (
+    !Number.isFinite(verifiedAmount)
+  ) {
+    throw new AppError(
+      "مزود الدفع لم يُرجع مبلغًا صالحًا للتحقق",
+      502,
+      "amount",
+    );
+  }
+
+  if (
+    roundPrice(verifiedAmount) !==
+      roundPrice(transaction.amount)
+  ) {
+    throw new AppError(
+      "مبلغ الدفع المؤكد لا يطابق مبلغ المعاملة",
+      409,
+      "amount",
+    );
+  }
+
+  if (!verification.currency) {
+    throw new AppError(
+      "مزود الدفع لم يُرجع عملة للتحقق",
+      502,
+      "currency",
+    );
+  }
+
+  if (
+    String(verification.currency).toUpperCase() !==
+      String(transaction.currency).toUpperCase()
+  ) {
+    throw new AppError(
+      "عملة الدفع المؤكدة لا تطابق عملة المعاملة",
+      409,
+      "currency",
+    );
+  }
+
+  if (!verification.merchantTransactionId) {
+    throw new AppError(
+      "مزود الدفع لم يُرجع مرجع المعاملة للتحقق",
+      502,
+      "paymentReference",
+    );
+  }
+
+  if (
+    transaction.paymentReference &&
+    verification.merchantTransactionId !==
+      transaction.paymentReference
+  ) {
+    throw new AppError(
+      "مرجع مزود الدفع لا يطابق مرجع المعاملة",
+      409,
+      "paymentReference",
+    );
+  }
+};
+
+const buildSafeResult = ({
+  transaction,
+  booking = null,
+  verificationStatus,
+  reused = false,
+}) => ({
+  transaction: {
+    id: transaction._id,
+    status: String(
+      transaction.status || "",
+    ).toUpperCase(),
+    paymentReference:
+      transaction.paymentReference || "",
+    providerReference:
+      transaction.providerReference || "",
+    amount: transaction.amount,
+    currency: transaction.currency,
+    paymentMethodCode:
+      transaction.methodCode,
+    providerCode:
+      transaction.providerCode,
+    bookingId:
+      transaction.booking ||
+      booking?._id ||
+      null,
+  },
+  booking,
+  verificationStatus,
+  reused,
+});
+
+export const completeProviderPaymentService = async ({
+  transactionId,
+  paymentReference,
+  providerReference,
+  checkoutId,
+  resourcePath = "",
+  req = null,
+}) => {
+  const identifier =
+    resolveTransactionIdentifier({
+      transactionId,
+      paymentReference,
+      providerReference,
+      checkoutId,
+    });
+
+  let transaction =
+    await findPaymentTransactionService({
+      ...identifier,
+      includeEvents: true,
+    });
+
+  /*
+  تكرار Callback بعد اكتمال العملية يعيد النتيجة
+  الحالية ولا ينشئ حجزًا آخر.
+  */
+  if (
+    SUCCESS_STATUSES.has(
+      transaction.status,
+    ) &&
+    transaction.booking
+  ) {
+    return buildSafeResult({
+      transaction,
+      booking: transaction.booking,
+      verificationStatus: "SUCCESS",
+      reused: true,
+    });
+  }
+
+  if (!transaction.paymentProvider) {
+    throw new AppError(
+      "المعاملة غير مرتبطة بمزود دفع",
+      400,
+      "providerId",
+    );
+  }
+
+  const provider =
+    await getPaymentProviderByIdService({
+      providerId:
+        transaction.paymentProvider,
+      exposeCredentials: true,
+    });
+
+  const verification =
+    await verifyProviderPayment({
+      providerCode:
+        transaction.providerCode ||
+        provider.code,
+      checkoutId:
+        transaction.checkoutId,
+      resourcePath,
+      providerConfig:
+        buildProviderConfig(provider),
+    });
+
+  validateVerifiedPayment({
+    transaction,
+    verification,
+  });
+
+  if (
+    verification.verificationStatus ===
+    "PENDING"
+  ) {
+    return buildSafeResult({
+      transaction,
+      verificationStatus: "PENDING",
+    });
+  }
+
+  if (
+    verification.verificationStatus !==
+    "SUCCESS"
+  ) {
+    transaction =
+      await markPaymentTransactionFailedService({
+        transactionId:
+          transaction._id,
+        reason:
+          verification.resultDescription ||
+          "Provider payment verification failed",
+        source:
+          PAYMENT_TRANSACTION_EVENT_SOURCES.PROVIDER,
+        providerReference:
+          verification.providerReference,
+      });
+
+    return buildSafeResult({
+      transaction,
+      verificationStatus: "FAILED",
+    });
+  }
+
+  /*
+  نجاح PA يعني أن المبلغ مفوض فقط، وليس محصلًا.
+  لا ننشئ الحجز قبل نجاح CP.
+  */
+  if (
+    String(verification.paymentType || "").toUpperCase() === "PA"
+  ) {
+    if (
+      transaction.status !== PAYMENT_TRANSACTION_STATUSES.AUTHORIZED
+    ) {
+      transaction = await updatePaymentTransactionStatusService({
+        transactionId: transaction._id,
+        toStatus: PAYMENT_TRANSACTION_STATUSES.AUTHORIZED,
+        source: PAYMENT_TRANSACTION_EVENT_SOURCES.PROVIDER,
+        eventCode: PAYMENT_TRANSACTION_EVENT_CODES.PAYMENT_AUTHORIZED,
+        message:
+          verification.resultDescription || "Provider payment authorized",
+        providerReference: verification.providerReference,
+        req,
+      });
+    }
+
+    return buildSafeResult({
+      transaction,
+      verificationStatus: "AUTHORIZED",
+    });
+  }
+
+  if (
+    !PAYMENT_CONFIRMED_STATUSES.has(
+      transaction.status,
+    )
+  ) {
+    transaction =
+      await updatePaymentTransactionStatusService({
+        transactionId:
+          transaction._id,
+        toStatus:
+          PAYMENT_TRANSACTION_STATUSES.CAPTURED,
+        source:
+          PAYMENT_TRANSACTION_EVENT_SOURCES.PROVIDER,
+        eventCode:
+          PAYMENT_TRANSACTION_EVENT_CODES.PAYMENT_CAPTURED,
+        message:
+          verification.resultDescription ||
+          "Provider payment captured",
+        providerReference:
+          verification.providerReference,
+        req,
+      });
+  }
+
+  await recordPaymentTransactionEventService({
+    transactionId: transaction._id,
+    fromStatus: transaction.status,
+    toStatus: transaction.status,
+    source:
+      PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+    eventCode:
+      PAYMENT_TRANSACTION_EVENT_CODES.BOOKING_CONVERSION_STARTED,
+    message:
+      "Draft booking conversion started",
+    providerReference:
+      transaction.providerReference,
+  });
+
+  let conversionResult;
+
+  try {
+    conversionResult =
+      await convertDraftToBooking({
+        draftId:
+          transaction.draftBooking,
+        userId:
+          transaction.user || null,
+        req,
+        paymentData: {
+          paymentMethod:
+            transaction.methodCode,
+          paidAmount:
+            transaction.amount,
+          transactionId:
+            verification.providerReference ||
+            transaction.providerReference,
+          paymentReference:
+            transaction.paymentReference,
+          gateway:
+            transaction.providerCode,
+          currency:
+            transaction.currency,
+          paymentTransactionId:
+            transaction._id,
+        },
+      });
+  } catch (error) {
+    await recordBookingConversionFailureService({
+      transactionId:
+        transaction._id,
+      reason:
+        error?.message ||
+        "Booking conversion failed",
+      source:
+        PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+    });
+
+    throw error;
+  }
+
+  const booking =
+    conversionResult?.booking ||
+    conversionResult;
+
+  if (!booking?._id) {
+    await recordBookingConversionFailureService({
+      transactionId:
+        transaction._id,
+      reason:
+        "Booking conversion returned no booking",
+      source:
+        PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+    });
+
+    throw new AppError(
+      "لم يتم إنشاء الحجز بعد تأكيد الدفع",
+      500,
+      "booking",
+    );
+  }
+
+  transaction =
+    await updatePaymentTransactionStatusService({
+      transactionId:
+        transaction._id,
+      toStatus:
+        PAYMENT_TRANSACTION_STATUSES.SUCCESS,
+      source:
+        PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+      eventCode:
+        PAYMENT_TRANSACTION_EVENT_CODES.PAYMENT_SUCCEEDED,
+      message:
+        "Payment completed and booking created",
+      providerReference:
+        verification.providerReference,
+      extraUpdates: {
+        booking: booking._id,
+      },
+    });
+
+  return buildSafeResult({
+    transaction,
+    booking,
+    verificationStatus: "SUCCESS",
+    reused:
+      Boolean(conversionResult?.reused),
+  });
+};

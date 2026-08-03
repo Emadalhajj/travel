@@ -21,7 +21,13 @@ export default function useFormInitializer({
   useEffect(() => {
     if (!show) return;
 
-    const initial = {
+    const conditionalFields =
+      Object.values(
+        config.conditionalFields ||
+          {},
+      ).flat();
+
+    let initial = {
       specs:
         initialData?.specs || {},
       attachments:
@@ -33,7 +39,8 @@ export default function useFormInitializer({
     const fields = [
       ...(config.commonFields ||
         []),
-    ];
+      ...conditionalFields,
+    ].filter(Boolean);
 
     fields.forEach((field) => {
       if (
@@ -49,13 +56,10 @@ export default function useFormInitializer({
         field.defaultValue ??
         "";
 
-      Object.assign(
+      initial = set(
         initial,
-        set(
-          initial,
-          field.name,
-          value,
-        ),
+        field.name,
+        value,
       );
     });
 

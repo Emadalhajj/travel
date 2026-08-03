@@ -308,22 +308,27 @@ export default function ArrayField({
                     ) : subField.type === "checkbox-group" ? (
                       <div className="border rounded-3 p-3 bg-light">
                         <Row className="g-2">
-                          {(subField.options || []).map((opt) => (
-                            <Col md={4} key={opt.key}>
-                              <Form.Check
-                                label={getLabel(opt)}
-                                checked={(value || []).includes(opt.key)}
-                                onChange={(e) =>
-                                  handleCheckboxGroup(
-                                    index,
-                                    subField,
-                                    opt.key,
-                                    e.target.checked,
-                                  )
-                                }
-                              />
-                            </Col>
-                          ))}
+                          {(subField.options || []).map((opt) => {
+                            const optionValue =
+                              opt.value ?? opt.key;
+
+                            return (
+                              <Col md={4} key={optionValue}>
+                                <Form.Check
+                                  label={getLabel(opt)}
+                                  checked={(value || []).includes(optionValue)}
+                                  onChange={(e) =>
+                                    handleCheckboxGroup(
+                                      index,
+                                      subField,
+                                      optionValue,
+                                      e.target.checked,
+                                    )
+                                  }
+                                />
+                              </Col>
+                            );
+                          })}
                         </Row>
                       </div>
                     ) : subField.type === "searchable-select" ? (

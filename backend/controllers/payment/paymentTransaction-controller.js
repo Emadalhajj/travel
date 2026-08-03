@@ -19,7 +19,6 @@ import asyncHandler from "express-async-handler";
 
 import Booking from "../../models/booking/booking-model.js";
 import PaymentTransaction from "../../models/payments/paymentTransaction-model.js";
-import PaymentMethod from "../../models/payments/payment-method-model.js";
 
 import { buildPagination } from "../../utils/Builders/buildPagination.js";
 import AppError from "../../utils/AppError.js";
@@ -43,11 +42,25 @@ CREATE PAYMENT TRANSACTION
 export const createPaymentTransaction = asyncHandler(async (req, res) => {
   const isArabic = isArabicRequest(req);
 
+  const data = req.body || {};
   const transaction = await createPaymentTransactionService({
-    Booking,
-    PaymentTransaction,
-    PaymentMethod,
-    data: req.body,
+    draftBooking: data.draftBooking || null,
+    booking: data.booking || null,
+    user: data.user || req.user?._id || null,
+    paymentConfigurationId: data.paymentConfigurationId || null,
+    paymentMethodId: data.paymentMethodId || data.paymentMethod || null,
+    paymentMethodCode: data.paymentMethodCode || data.methodCode || data.method,
+    providerId: data.providerId || data.paymentProvider || null,
+    bankAccountId: data.bankAccountId || data.bankAccount || null,
+    bankAccountSnapshot: data.bankAccountSnapshot || {},
+    providerCode: data.providerCode || data.gateway || "",
+    providerEnvironment: data.providerEnvironment || "",
+    amount: data.amount,
+    currency: data.currency || "SAR",
+    status: data.status,
+    paymentReference: data.paymentReference || "",
+    createdBy: req.user?._id || null,
+    eventSource: "ADMIN",
     req,
   });
 

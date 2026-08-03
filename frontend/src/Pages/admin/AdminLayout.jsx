@@ -147,7 +147,7 @@ export default function AdminLayout() {
         "/admin/payments",
       ) ||
       location.pathname.startsWith(
-        "/admin/payment-transactions",
+        "/admin/payments/payment-transactions",
       ),
   });
 
@@ -249,7 +249,7 @@ export default function AdminLayout() {
 
             {
               path:
-                "/admin/payment-transactions",
+                "/admin/payments/payment-transactions",
 
               label: isArabic
                 ? "عمليات الدفع"
@@ -454,7 +454,7 @@ export default function AdminLayout() {
         "/admin/payments",
       ) ||
       location.pathname.startsWith(
-        "/admin/payment-transactions",
+        "/admin/payments/payment-transactions",
       );
 
     if (!isPaymentPage) {

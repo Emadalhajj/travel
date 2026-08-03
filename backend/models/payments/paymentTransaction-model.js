@@ -1,39 +1,46 @@
-// models/paymentTransaction-model.js
-
 /*
 =====================================================
 Payment Transaction Model
 =====================================================
 
-هذا الموديل يسجل كل عملية دفع مرتبطة بالحجز.
+السجل المركزي لجميع محاولات الدفع، سواء كانت:
+- مزود دفع إلكتروني.
+- تحويلًا بنكيًا.
+- طريقة يدوية.
 
-لماذا نحتاجه؟
------------------------------------------------------
-لأن الحجز الواحد قد يحتوي:
-- دفعة أولى
-- دفعة ثانية
-- دفعة نهائية
-- عملية فاشلة
-- عملية استرجاع
-
-ولا يكفي تخزين paidAmount فقط داخل Booking.
+تحتفظ المعاملة بـSnapshots ومراجع الدفع، ولا تحفظ
+بيانات اعتماد المزود أو Raw Gateway Payload العام.
 =====================================================
 */
 
-// models/payments/payment-transaction-model.js
-
 import mongoose from "mongoose";
+
 import { PAYMENT_METHOD_CODE_VALUES } from "../../constants/payments/payment-method-codes.js";
+import { PAYMENT_PROVIDER_CODE_VALUES } from "../../constants/payments/payment-provider-codes.js";
+import {
+  PAYMENT_TRANSACTION_STORAGE_STATUS_VALUES,
+  PAYMENT_TRANSACTION_STATUSES,
+} from "../../constants/payments/payment-transaction-statuses.js";
+import {
+  PAYMENT_TRANSACTION_EVENT_CODE_VALUES,
+  PAYMENT_TRANSACTION_EVENT_SOURCE_VALUES,
+} from "../../constants/payments/payment-transaction-events.js";
 
 const paymentProofSchema = new mongoose.Schema(
   {
+    name: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     url: {
       type: String,
       default: "",
       trim: true,
     },
 
-    originalName: {
+    publicId: {
       type: String,
       default: "",
       trim: true,
@@ -56,11 +63,75 @@ const paymentProofSchema = new mongoose.Schema(
   },
 );
 
+/*
+=====================================================
+Payment Transaction Event
+=====================================================
+
+Timeline داخلي لكل انتقال أو حدث مهم.
+لا يوضع داخله Raw Provider Payload أو Secrets.
+=====================================================
+*/
+
+const paymentTransactionEventSchema = new mongoose.Schema(
+  {
+    fromStatus: {
+      type: String,
+      enum: [null, ...PAYMENT_TRANSACTION_STORAGE_STATUS_VALUES],
+      default: null,
+    },
+
+    toStatus: {
+      type: String,
+      enum: [null, ...PAYMENT_TRANSACTION_STORAGE_STATUS_VALUES],
+      default: null,
+    },
+
+    source: {
+      type: String,
+      enum: PAYMENT_TRANSACTION_EVENT_SOURCE_VALUES,
+      required: true,
+    },
+
+    eventCode: {
+      type: String,
+      enum: PAYMENT_TRANSACTION_EVENT_CODE_VALUES,
+      required: true,
+    },
+
+    message: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 1000,
+    },
+
+    providerReference: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+  },
+  {
+    _id: true,
+    timestamps: {
+      createdAt: true,
+      updatedAt: false,
+    },
+  },
+);
+
 const paymentTransactionSchema = new mongoose.Schema(
   {
     /*
-    قبل إتمام الدفع قد توجد المعاملة مرتبطة بالمسودة فقط.
-    بعد نجاح الدفع وتحويل المسودة إلى حجز يتم تعبئة booking.
+    قبل إتمام الدفع قد ترتبط المعاملة بالمسودة فقط.
+    بعد التحويل إلى Booking يتم تعبئة booking أيضًا.
     */
     draftBooking: {
       type: mongoose.Schema.Types.ObjectId,
@@ -83,18 +154,22 @@ const paymentTransactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    /*
-    المرجع الإداري لطريقة الدفع.
-    */
     paymentMethod: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "PaymentMethod",
       default: null,
     },
 
+    paymentConfigurationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "PaymentConfiguration",
+      default: null,
+      index: true,
+    },
+
     /*
-    Snapshot للكود حتى تبقى المعاملة مفهومة
-    حتى لو تغير اسم أو إعداد PaymentMethod لاحقًا.
+    نحتفظ باسم methodCode الحالي لتجنب كسر المشروع.
+    وهو يمثل paymentMethodCode المطلوب في طبقة الدفع.
     */
     methodCode: {
       type: String,
@@ -102,6 +177,7 @@ const paymentTransactionSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
       enum: PAYMENT_METHOD_CODE_VALUES,
+      index: true,
     },
 
     methodNameAr: {
@@ -127,31 +203,26 @@ const paymentTransactionSchema = new mongoose.Schema(
       enum: ["SAR", "USD", "EUR", "GBP", "AED", "EGP", "TRY"],
       default: "SAR",
       uppercase: true,
+      trim: true,
     },
 
     status: {
       type: String,
-      enum: [
-        "pending",
-        "pending_proof",
-        "pending_verification",
-        "processing",
-        "paid",
-        "paid_pending_booking",
-        "failed",
-        "rejected",
-        "cancelled",
-        "refunded",
-        "partially_refunded",
-        "expired",
-      ],
-      default: "pending",
+      enum: PAYMENT_TRANSACTION_STORAGE_STATUS_VALUES,
+      default: PAYMENT_TRANSACTION_STATUSES.PENDING,
       index: true,
     },
 
     /*
-    الحساب البنكي المستخدم في التحويل البنكي.
+    يمنع إنشاء معاملتين نشطتين لنفس محاولة الدفع.
+    تتم إزالته تلقائيًا عند الانتقال إلى حالة نهائية.
     */
+    idempotencyKey: {
+      type: String,
+      default: undefined,
+      trim: true,
+    },
+
     bankAccount: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "BankAccount",
@@ -159,40 +230,13 @@ const paymentTransactionSchema = new mongoose.Schema(
     },
 
     bankAccountSnapshot: {
-      bankNameAr: {
-        type: String,
-        default: "",
-      },
-
-      bankNameEn: {
-        type: String,
-        default: "",
-      },
-
-      accountNameAr: {
-        type: String,
-        default: "",
-      },
-
-      accountNameEn: {
-        type: String,
-        default: "",
-      },
-
-      beneficiaryName: {
-        type: String,
-        default: "",
-      },
-
-      iban: {
-        type: String,
-        default: "",
-      },
-
-      currency: {
-        type: String,
-        default: "",
-      },
+      bankNameAr: { type: String, default: "" },
+      bankNameEn: { type: String, default: "" },
+      accountNameAr: { type: String, default: "" },
+      accountNameEn: { type: String, default: "" },
+      beneficiaryName: { type: String, default: "" },
+      iban: { type: String, default: "" },
+      currency: { type: String, default: "" },
     },
 
     transferReference: {
@@ -206,9 +250,9 @@ const paymentTransactionSchema = new mongoose.Schema(
       default: null,
     },
 
-    proofAttachment: {
-      type: paymentProofSchema,
-      default: () => ({}),
+    proofAttachments: {
+      type: [paymentProofSchema],
+      default: [],
     },
 
     verifiedBy: {
@@ -228,9 +272,6 @@ const paymentTransactionSchema = new mongoose.Schema(
       trim: true,
     },
 
-    /*
-    مزود الدفع الإلكتروني مثل HyperPay.
-    */
     paymentProvider: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "PaymentProvider",
@@ -239,25 +280,34 @@ const paymentTransactionSchema = new mongoose.Schema(
 
     providerCode: {
       type: String,
+      enum: ["", ...PAYMENT_PROVIDER_CODE_VALUES],
       default: "",
       uppercase: true,
       trim: true,
+      index: true,
     },
 
     providerEnvironment: {
       type: String,
-      enum: ["", "test", "live"],
+      enum: ["", "TEST", "LIVE", "test", "live"],
       default: "",
+      trim: true,
     },
 
-    transactionId: {
+    /*
+    مرجع داخلي يولده النظام قبل الاتصال بالمزود.
+    */
+    paymentReference: {
       type: String,
       default: "",
       trim: true,
       index: true,
     },
 
-    gatewayReference: {
+    /*
+    المرجع الذي يعيده مزود الدفع للعملية.
+    */
+    providerReference: {
       type: String,
       default: "",
       trim: true,
@@ -269,6 +319,13 @@ const paymentTransactionSchema = new mongoose.Schema(
       default: "",
       trim: true,
       index: true,
+    },
+
+    redirectUrl: {
+      type: String,
+      default: "",
+      trim: true,
+      select: false,
     },
 
     invoiceNumber: {
@@ -283,9 +340,27 @@ const paymentTransactionSchema = new mongoose.Schema(
       default: null,
     },
 
-    gatewayResponse: {
+    failureReason: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 2000,
+    },
+
+    /*
+    Metadata داخلية منقحة فقط.
+    لا تعاد تلقائيًا عبر API ولا تحفظ Secrets.
+    */
+    metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: () => ({}),
+      select: false,
+    },
+
+    events: {
+      type: [paymentTransactionEventSchema],
+      default: [],
+      select: false,
     },
 
     notes: {
@@ -295,6 +370,12 @@ const paymentTransactionSchema = new mongoose.Schema(
     },
 
     createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
@@ -316,15 +397,36 @@ const paymentTransactionSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+
+    /*
+    حقول توافق مؤقتة مع البيانات القديمة.
+    لا تستخدم في أي كتابة جديدة ويجب نقلها لاحقًا.
+    */
+    transactionId: {
+      type: String,
+      default: "",
+      trim: true,
+      select: false,
+    },
+
+    gatewayReference: {
+      type: String,
+      default: "",
+      trim: true,
+      select: false,
+    },
+
+    gatewayResponse: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined,
+      select: false,
+    },
   },
   {
     timestamps: true,
   },
 );
 
-/*
-يجب أن ترتبط المعاملة بمسودة أو بحجز على الأقل.
-*/
 paymentTransactionSchema.pre("validate", function validatePaymentTarget(next) {
   if (!this.draftBooking && !this.booking) {
     return next(
@@ -337,19 +439,16 @@ paymentTransactionSchema.pre("validate", function validatePaymentTarget(next) {
   next();
 });
 
-paymentTransactionSchema.index({
-  booking: 1,
-  createdAt: -1,
-});
-
-paymentTransactionSchema.index({
-  draftBooking: 1,
-  createdAt: -1,
-});
-
-paymentTransactionSchema.index({
-  providerCode: 1,
-  gatewayReference: 1,
-});
+paymentTransactionSchema.index({ booking: 1, createdAt: -1 });
+paymentTransactionSchema.index({ draftBooking: 1, createdAt: -1 });
+paymentTransactionSchema.index({ providerCode: 1, providerReference: 1 });
+paymentTransactionSchema.index({ paymentConfigurationId: 1, createdAt: -1 });
+paymentTransactionSchema.index(
+  { idempotencyKey: 1 },
+  {
+    unique: true,
+    sparse: true,
+  },
+);
 
 export default mongoose.model("PaymentTransaction", paymentTransactionSchema);

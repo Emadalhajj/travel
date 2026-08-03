@@ -1,7 +1,10 @@
 // unified error handler used by thunks
-import { toast } from "react-toastify";
-import { extractFieldErrors } from "./formData/extractFieldErrors.js";
-export const handleApiError = (err, rejectWithValue, lang = "ar") => {
+export const handleApiError = (
+  err,
+  rejectWithValue,
+  lang = "ar",
+  options = {},
+) => {
   const response = err?.response?.data;
 
   const isArabic = lang === "ar";
@@ -38,13 +41,39 @@ export const handleApiError = (err, rejectWithValue, lang = "ar") => {
       formattedErrors[key] = getMessage(value);
     });
 
+    if (options.structured) {
+      return rejectWithValue({
+        message:
+          response.message ||
+          (isArabic
+            ? "تعذر تنفيذ الطلب"
+            : "Request failed"),
+        field:
+          response.field || null,
+        errors:
+          formattedErrors,
+      });
+    }
+
     return rejectWithValue(formattedErrors);
   }
 
-  return rejectWithValue(
+  const message =
     response?.message ||
-      err?.message ||
-      (isArabic ? "حدث خطأ غير متوقع" : "Unexpected error")
+    err?.message ||
+    (isArabic
+      ? "حدث خطأ غير متوقع"
+      : "Unexpected error");
+
+  return rejectWithValue(
+    options.structured
+      ? {
+          message,
+          field:
+            response?.field || null,
+          errors: {},
+        }
+      : message,
   );
 };
 

@@ -112,19 +112,6 @@ export default function DefaultField(props) {
 
         </Form.Select>
 
-        {error && (
-          <Form.Control.Feedback
-            type="invalid"
-            style={{
-              display: "block",
-            }}
-          >
-
-            {error}
-
-          </Form.Control.Feedback>
-        )}
-
       </>
     );
   }
@@ -144,19 +131,6 @@ export default function DefaultField(props) {
           className="shadow-sm"
         />
 
-        {error && (
-          <Form.Control.Feedback
-            type="invalid"
-            style={{
-              display: "block",
-            }}
-          >
-
-            {error}
-
-          </Form.Control.Feedback>
-        )}
-
       </>
     );
   }
@@ -174,6 +148,7 @@ export default function DefaultField(props) {
         }
         checked={!!value}
         onChange={handleChange}
+        isInvalid={!!error}
       />
     );
   }
@@ -192,19 +167,6 @@ export default function DefaultField(props) {
         size="lg"
         className="shadow-sm"
       />
-
-      {error && (
-        <Form.Control.Feedback
-          type="invalid"
-          style={{
-            display: "block",
-          }}
-        >
-
-          {error}
-
-        </Form.Control.Feedback>
-      )}
 
     </>
   );

@@ -19,6 +19,14 @@ import AuditLog from "../../models/audit/audit-log-model.js";
 
 import { getRequestInfo } from "../../utils/requestInfo.js";
 
+import {
+  AUDIT_ENTITIES,
+} from "../../constants/audit/audit-entities.js";
+
+import {
+  sanitizePaymentProviderForAudit,
+} from "../../utils/payments/sanitizePaymentProvider.js";
+
 /*
 =====================================================
 createAuditLog
@@ -49,13 +57,36 @@ export const createAuditLog = async ({
 }) => {
   const requestInfo = req ? getRequestInfo(req) : {};
 
+  /*
+  حماية مركزية إضافية:
+  لا تُحفظ بيانات اعتماد مزود الدفع الخام حتى لو نسي
+  أحد المستدعين تنظيف before أو after مسبقًا.
+  */
+  const shouldSanitizePaymentProvider =
+    entity ===
+    AUDIT_ENTITIES.PAYMENT_PROVIDER;
+
+  const sanitizedBefore =
+    shouldSanitizePaymentProvider
+      ? sanitizePaymentProviderForAudit(
+          before,
+        )
+      : before;
+
+  const sanitizedAfter =
+    shouldSanitizePaymentProvider
+      ? sanitizePaymentProviderForAudit(
+          after,
+        )
+      : after;
+
   const auditLog = await AuditLog.create({
     action,
     entity,
     entityId,
     user: req?.user?._id || null,
-    before,
-    after,
+    before: sanitizedBefore,
+    after: sanitizedAfter,
     metadata,
     ...requestInfo,
   });

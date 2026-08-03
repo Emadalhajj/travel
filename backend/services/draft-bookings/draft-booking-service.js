@@ -32,11 +32,26 @@ Models
 
 import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import Booking from "../../models/booking/booking-model.js";
-import PaymentTransaction from "../../models/payments/paymentTransaction-model.js";
 import BookingLog from "../../models/bookingLog-model.js";
 import Inventory from "../../models/inventory-model.js";
 import Notification from "../../models/notification-model.js";
 import { Counter } from "../../models/counterModel.js";
+
+import {
+  attachBookingToPaymentTransactionService,
+  createPaymentTransactionService,
+  detachBookingFromPaymentTransactionService,
+  findPaymentTransactionService,
+  markPaymentTransactionFailedService,
+} from "../payment/paymentTransaction-service.js";
+
+import {
+  PAYMENT_TRANSACTION_STATUSES,
+} from "../../constants/payments/payment-transaction-statuses.js";
+
+import {
+  PAYMENT_TRANSACTION_EVENT_SOURCES,
+} from "../../constants/payments/payment-transaction-events.js";
 
 /*
 =====================================================
@@ -1168,9 +1183,6 @@ const createPaymentTransactionFromDraft = async ({
   userId,
   paymentData = null,
 }) => {
-  /*
-  لا توجد دفعة فعلية.
-  */
   const paidAmount = Number(
     payment?.paidAmount || 0,
   );
@@ -1184,135 +1196,77 @@ const createPaymentTransactionFromDraft = async ({
 
   /*
   =====================================================
-  الحالة الأولى:
-  توجد PaymentTransaction تم إنشاؤها مسبقًا
-  عند إنشاء Checkout Session.
+  معاملة موجودة مسبقًا من Checkout أو Bank Transfer
   =====================================================
+
+  لا نحدث MongoDB مباشرة هنا.
+  يتم ربط الحجز من خلال PaymentTransaction Layer فقط.
   */
 
   if (paymentData?.paymentTransactionId) {
-    const updateData = {
-      booking: booking._id,
-    };
+    const transaction =
+      await findPaymentTransactionService({
+        transactionId:
+          paymentData.paymentTransactionId,
+      });
 
-    if (paymentData.transactionId) {
-      updateData.transactionId =
-        paymentData.transactionId;
-    }
+    await attachBookingToPaymentTransactionService({
+      transactionId: transaction._id,
+      bookingId: booking._id,
+      updatedBy:
+        userId || booking.user || draft.user || null,
+      source:
+        PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+      message:
+        "Booking attached during draft conversion",
+    });
 
-    if (paymentData.paymentReference) {
-      updateData.gatewayReference =
-        paymentData.paymentReference;
-    }
-
-    if (paymentData.gateway) {
-      updateData.providerCode = String(
-        paymentData.gateway,
-      ).toUpperCase();
-    }
-
-    const existingTransaction =
-      await PaymentTransaction.findOneAndUpdate(
-        {
-          _id: paymentData.paymentTransactionId,
-          isDeleted: false,
-        },
-        {
-          $set: updateData,
-        },
-        {
-          new: true,
-          runValidators: true,
-        },
-      );
-
-    if (!existingTransaction) {
-      throw new Error(
-        "Existing payment transaction not found",
-      );
-    }
-
-    return existingTransaction;
+    return findPaymentTransactionService({
+      transactionId: transaction._id,
+    });
   }
 
   /*
   =====================================================
-  الحالة الثانية:
-  لا توجد معاملة سابقة.
-
-  تستخدم مثلًا عند تسجيل دفعة نقدية أو تحويل
-  من لوحة الإدارة، أو عند إكمال الحجز بدون Checkout.
+  دفعة إدارية أو يدوية بدون معاملة سابقة
   =====================================================
+
+  يتم إنشاؤها عبر الخدمة المركزية ولا يتم استخدام
+  PaymentTransaction.create() داخل Draft Service.
   */
 
-  const methodCode = String(
-    paymentData?.paymentMethod ||
+  return createPaymentTransactionService({
+    draftBooking: draft._id,
+    booking: booking._id,
+    user:
+      booking.user || draft.user || userId || null,
+    paymentMethodCode:
+      paymentData?.paymentMethod ||
       payment?.paymentMethod ||
       "CASH",
-  ).toUpperCase();
-
-  const providerCode = String(
-    paymentData?.gateway ||
+    providerCode:
+      paymentData?.gateway ||
       payment?.gateway ||
       "",
-  ).toUpperCase();
-
-  const currency = String(
-    paymentData?.currency ||
+    amount: paidAmount,
+    currency:
+      paymentData?.currency ||
       payment?.currency ||
       booking.pricing?.currency ||
       draft.pricing?.currency ||
       "SAR",
-  ).toUpperCase();
-
-  const transaction =
-    await PaymentTransaction.create({
-      draftBooking: draft._id,
-
-      booking: booking._id,
-
-      user:
-        booking.user ||
-        draft.user ||
-        userId ||
-        null,
-
-      amount: paidAmount,
-
-      currency,
-
-      methodCode,
-
-      /*
-      المعاملة نفسها مدفوعة.
-      أما الحجز فقد يكون partial إذا كان المبلغ
-      أقل من الإجمالي.
-      */
-      status: "paid",
-
-      transactionId:
-        paymentData?.transactionId ||
-        payment?.transactionId ||
-        "",
-
-      providerCode,
-
-      gatewayReference:
-        paymentData?.paymentReference ||
-        payment?.paymentReference ||
-        "",
-
-      notes:
-        "Payment created automatically from draft booking completion",
-
-      createdBy:
-        userId ||
-        booking.user ||
-        draft.user ||
-        null,
-    });
-
-  return transaction;
+    status:
+      PAYMENT_TRANSACTION_STATUSES.SUCCESS,
+    paymentReference:
+      paymentData?.paymentReference ||
+      payment?.paymentReference ||
+      "",
+    createdBy:
+      userId || booking.user || draft.user || null,
+    reuseExisting: true,
+    eventSource:
+      PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+  });
 };
 // =======================
 
@@ -1524,6 +1478,41 @@ export const convertDraftToBooking = async ({
 
   if (!draft) {
     throw new Error("Draft booking not found");
+  }
+
+  /*
+  تكرار Webhook أو Callback لا ينشئ حجزًا جديدًا.
+  إذا اكتمل التحويل سابقًا نعيد الحجز الموجود.
+  */
+  if (
+    draft.status === DRAFT_BOOKING_STATUS.COMPLETED &&
+    draft.finalBooking
+  ) {
+    const existingBooking =
+      await Booking.findOne({
+        _id: draft.finalBooking,
+        isDeleted: false,
+      });
+
+    if (existingBooking) {
+      const existingPaymentTransaction =
+        paymentData?.paymentTransactionId
+          ? await findPaymentTransactionService({
+              transactionId:
+                paymentData.paymentTransactionId,
+            })
+          : null;
+
+      return {
+        draft,
+        booking: existingBooking,
+        paymentTransaction:
+          existingPaymentTransaction,
+        inventoryReservations: [],
+        voucher: null,
+        reused: true,
+      };
+    }
   }
 
   if (draft.status !== DRAFT_BOOKING_STATUS.DRAFT) {
@@ -1788,14 +1777,17 @@ export const convertDraftToBooking = async ({
       booking?._id
     ) {
       try {
-        await PaymentTransaction.findByIdAndUpdate(
-          paymentData.paymentTransactionId,
-          {
-            $set: {
-              booking: null,
-            },
-          },
-        );
+        await detachBookingFromPaymentTransactionService({
+          transactionId:
+            paymentData.paymentTransactionId,
+          bookingId: booking._id,
+          updatedBy:
+            userId || draft.user || null,
+          source:
+            PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+          message:
+            "Booking detached because draft conversion rolled back",
+        });
       } catch (paymentRollbackError) {
         console.error(
           "Payment transaction rollback failed:",
@@ -1813,13 +1805,20 @@ export const convertDraftToBooking = async ({
       !paymentData?.paymentTransactionId
     ) {
       try {
-        await PaymentTransaction.findByIdAndDelete(
-          paymentTransaction._id,
-        );
-      } catch (paymentDeleteError) {
+        await markPaymentTransactionFailedService({
+          transactionId:
+            paymentTransaction._id,
+          reason:
+            "Booking creation rolled back",
+          source:
+            PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+          updatedBy:
+            userId || draft.user || null,
+        });
+      } catch (paymentFailureError) {
         console.error(
-          "Created payment transaction rollback failed:",
-          paymentDeleteError,
+          "Created payment transaction status update failed:",
+          paymentFailureError,
         );
       }
     }

@@ -31,6 +31,7 @@ import React, {
   useState,
   useMemo,
   useEffect,
+  useRef,
   forwardRef,
   useImperativeHandle,
 } from "react";
@@ -63,6 +64,11 @@ import useComputedFields from "./hooks/useComputedFields";
 import useFieldHelpers from "./hooks/useFieldHelpers";
 
 import { useLocationSelect } from "../../hooks/useLocationSelect";
+
+import {
+  get,
+  set,
+} from "./utils/objectPath";
 
 /*
 =============================================================================
@@ -271,6 +277,9 @@ const UniversalForm = forwardRef(
 
     */
 
+    const previousConditionValueRef =
+      useRef();
+
     const activeFields = useMemo(() => {
       return (
         [
@@ -334,8 +343,14 @@ const UniversalForm = forwardRef(
           ),
         );
 
+      const conditionChanged =
+        previousConditionValueRef.current !==
+          undefined &&
+        previousConditionValueRef.current !==
+          conditionValue;
+
       setFormState((previous) => {
-        const next = {
+        let next = {
           ...previous,
         };
 
@@ -357,16 +372,27 @@ const UniversalForm = forwardRef(
           (field) => {
             if (
               field.defaultValue !==
-              undefined
+                undefined &&
+              (conditionChanged ||
+                get(
+                  next,
+                  field.name,
+                ) === undefined)
             ) {
-              next[field.name] =
-                field.defaultValue;
+              next = set(
+                next,
+                field.name,
+                field.defaultValue,
+              );
             }
           },
         );
 
         return next;
       });
+
+      previousConditionValueRef.current =
+        conditionValue;
     }, [
       config,
       conditionValue,

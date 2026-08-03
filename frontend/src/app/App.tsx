@@ -84,6 +84,10 @@ const PublicBookingPaymentPage = lazy(
   () => import("../Pages/public/booking/PublicBookingPaymentPage"),
 );
 
+const PublicBankTransferProofPage = lazy(
+  () => import("../Pages/public/payment/PublicBankTransferProofPage"),
+);
+
 const PublicPaymentRedirectPage = lazy(
   () => import("../Pages/public/booking/PublicPaymentRedirectPage"),
 );
@@ -116,6 +120,15 @@ const AdminPaymentProvidersPage = lazy(
 const AdminPaymentConfigurationsPage = lazy(
   () => import("../Pages/admin/payments/AdminPaymentConfigurationsPage"),
 )
+const AdminPaymentTransactionsPage = lazy(
+  () => import("../Pages/admin/payments/AdminPaymentTransactionsPage"),
+);
+const AdminPaymentTransactionDetailsPage = lazy(
+  () => import("../Pages/admin/payments/AdminPaymentTransactionDetailsPage"),
+);
+const PublicPaymentResultPage = lazy(
+  () => import("../Pages/public/payment/PublicPaymentResultPage"),
+);
 
 
 
@@ -211,8 +224,16 @@ function App() {
           element={<PublicBookingPaymentPage />}
         />
         <Route
+          path="/booking/payment/:draftId/bank-transfer/:transactionId"
+          element={<PublicBankTransferProofPage />}
+        />
+        <Route
           path="/booking/payment/redirect/:draftId"
           element={<PublicPaymentRedirectPage />}
+        />
+        <Route
+          path="/booking/payment/:draftId/result"
+          element={<PublicPaymentResultPage />}
         />
 
         <Route
@@ -309,6 +330,14 @@ function App() {
           <Route
             path="payments/configurations"
             element={<AdminPaymentConfigurationsPage />}
+          />
+          <Route
+            path="payments/payment-transactions"
+            element={<AdminPaymentTransactionsPage />}
+          />
+          <Route
+            path="payments/payment-transactions/:transactionId"
+            element={<AdminPaymentTransactionDetailsPage />}
           />
 
 
