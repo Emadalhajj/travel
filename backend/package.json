@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test": "node --test tests/payment/hyperpay-provider-operations.test.js",
+    "test": "node --test tests/payment/*.test.js",
     "seed:payment-methods": "node seeders/run-payment-method-seeder.js"
   },
   "keywords": [],
@@ -30,7 +30,7 @@
     "passport-google-oauth20": "^2.0.0",
     "pdfkit": "^0.18.0",
     "qs": "^6.14.1",
-    "slugify": "^1.6.6"
+    "slugify": "^6.6.6"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
