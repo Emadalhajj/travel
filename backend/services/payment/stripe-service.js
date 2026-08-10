@@ -76,6 +76,19 @@ const resolvePaymentIntent = (session) => {
     : null;
 };
 
+/*
+=============================================================================
+Create Embedded Stripe Checkout Session
+=============================================================================
+
+Stripe تستقبل بيانات البطاقة داخل iframe آمن داخل نفس الصفحة.
+لا تمر بيانات البطاقة أو CVV عبر Backend الخاص بالمشروع.
+
+manual capture يحافظ على التدفق الحالي:
+AUTHORIZED -> CAPTURED -> BOOKING -> SUCCESS.
+=============================================================================
+*/
+
 export const createStripeCheckoutSession = async ({
   amount,
   currency = "SAR",
@@ -101,52 +114,66 @@ export const createStripeCheckoutSession = async ({
   const normalizedCurrency = String(currency || "SAR").toLowerCase();
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: normalizedCurrency,
-            unit_amount: toMinorAmount(amount, currency),
-            product_data: {
-              name: `Booking payment ${merchantTransactionId}`,
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        ui_mode: "embedded",
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: normalizedCurrency,
+              unit_amount: toMinorAmount(amount, currency),
+              product_data: {
+                name: `Booking payment ${merchantTransactionId}`,
+              },
             },
           },
+        ],
+        payment_intent_data: {
+          capture_method: "manual",
+          metadata: {
+            paymentReference: String(merchantTransactionId || ""),
+            draftId: String(draftId || ""),
+            paymentConfigurationId: String(paymentConfigurationId || ""),
+            paymentMethodCode: normalizedMethod,
+          },
         },
-      ],
-      payment_intent_data: {
-        capture_method: "manual",
         metadata: {
           paymentReference: String(merchantTransactionId || ""),
           draftId: String(draftId || ""),
           paymentConfigurationId: String(paymentConfigurationId || ""),
           paymentMethodCode: normalizedMethod,
         },
+        customer_email: customer.email || undefined,
+        return_url: returnUrl,
       },
-      metadata: {
-        paymentReference: String(merchantTransactionId || ""),
-        draftId: String(draftId || ""),
-        paymentConfigurationId: String(paymentConfigurationId || ""),
-        paymentMethodCode: normalizedMethod,
+      {
+        idempotencyKey: String(merchantTransactionId || ""),
       },
-      customer_email: customer.email || undefined,
-      success_url: returnUrl,
-      cancel_url: returnUrl,
-    });
+    );
+
+    if (!session.client_secret) {
+      throw new AppError(
+        "لم تُرجع Stripe مفتاح الجلسة المضمنة",
+        502,
+        "stripe.clientSecret",
+      );
+    }
 
     return {
       id: session.id,
       checkoutId: session.id,
       providerReference: session.id,
-      redirectUrl: session.url || "",
+      clientSecret: session.client_secret,
+      redirectUrl: "",
       expiresAt: session.expires_at
         ? new Date(session.expires_at * 1000)
         : null,
       result: {
-        code: "CHECKOUT_SESSION_CREATED",
-        description: "Stripe Checkout Session created",
+        code: "EMBEDDED_CHECKOUT_SESSION_CREATED",
+        description: "Stripe Embedded Checkout Session created",
       },
     };
   } catch (error) {
@@ -188,14 +215,16 @@ export const verifyStripePayment = async ({
     const currency = String(
       paymentIntent?.currency || session.currency || "",
     ).toUpperCase();
-    const minorAmount =
-      paymentIntent?.amount ?? session.amount_total ?? 0;
+    const minorAmount = paymentIntent?.amount ?? session.amount_total ?? 0;
 
     return {
       verificationStatus,
       resultCode: intentStatus || session.status || "",
       resultDescription:
-        paymentIntent?.last_payment_error?.message || intentStatus || session.status || "",
+        paymentIntent?.last_payment_error?.message ||
+        intentStatus ||
+        session.status ||
+        "",
       providerReference: paymentIntent?.id || session.id,
       merchantTransactionId:
         paymentIntent?.metadata?.paymentReference ||
@@ -221,11 +250,12 @@ export const captureStripePayment = async ({
 
   try {
     const current = await stripe.paymentIntents.retrieve(referencedPaymentId);
-    const paymentIntent = current.status === "requires_capture"
-      ? await stripe.paymentIntents.capture(referencedPaymentId, {
-          amount_to_capture: toMinorAmount(amount, currency),
-        })
-      : current;
+    const paymentIntent =
+      current.status === "requires_capture"
+        ? await stripe.paymentIntents.capture(referencedPaymentId, {
+            amount_to_capture: toMinorAmount(amount, currency),
+          })
+        : current;
 
     if (paymentIntent.status !== "succeeded") {
       throw new AppError(
@@ -312,9 +342,10 @@ export const cancelStripePayment = async ({
           : session.payment_intent?.id || "";
 
       if (!paymentIntentId) {
-        const expiredSession = session.status === "open"
-          ? await stripe.checkout.sessions.expire(referencedPaymentId)
-          : session;
+        const expiredSession =
+          session.status === "open"
+            ? await stripe.checkout.sessions.expire(referencedPaymentId)
+            : session;
 
         return {
           operationStatus: "SUCCESS",
@@ -370,11 +401,19 @@ export const constructStripeWebhookEvent = ({
   ).trim();
 
   if (!secret) {
-    throw new AppError("Webhook Secret الخاص بـStripe غير معد", 500, "webhookSecret");
+    throw new AppError(
+      "Webhook Secret الخاص بـStripe غير معد",
+      500,
+      "webhookSecret",
+    );
   }
 
   if (!signature) {
-    throw new AppError("توقيع Stripe مفقود", 400, "stripe-signature");
+    throw new AppError(
+      "توقيع Stripe مفقود",
+      400,
+      "stripe-signature",
+    );
   }
 
   try {
@@ -384,6 +423,10 @@ export const constructStripeWebhookEvent = ({
       secret,
     );
   } catch {
-    throw new AppError("توقيع Stripe غير صالح", 400, "stripe-signature");
+    throw new AppError(
+      "توقيع Stripe غير صالح",
+      400,
+      "stripe-signature",
+    );
   }
 };
