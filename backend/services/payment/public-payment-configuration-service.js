@@ -1,5 +1,9 @@
 import PaymentConfiguration from "../../models/payments/payment-configuration-model.js";
 
+import {
+  isPaymentProviderAdapterSupported,
+} from "./providers/payment-provider-factory.js";
+
 const createServiceError = (message, statusCode = 400) => {
   const error = new Error(message);
 
@@ -152,6 +156,33 @@ const serializeBankAccount = (account) => ({
 
 /*
 =============================================================================
+Public Instructions Sanitizer
+=============================================================================
+
+لا نعرض استجابة API أو رسالة خطأ مخزنة بالخطأ داخل حقل التعليمات.
+هذا لا يغني عن إصلاح السجل، لكنه يمنع تسريب تفاصيل الخطأ إلى صفحة العميل.
+=============================================================================
+*/
+
+const sanitizePublicInstructions = (value) => {
+  const instructions = String(value || "").trim();
+
+  if (!instructions) {
+    return "";
+  }
+
+  if (
+    (instructions.startsWith("{") || instructions.startsWith("[")) &&
+    /"(?:success|message|field|errors)"\s*:/.test(instructions)
+  ) {
+    return "";
+  }
+
+  return instructions;
+};
+
+/*
+=============================================================================
 Public Configuration Serializer
 =============================================================================
 */
@@ -177,9 +208,9 @@ const serializeConfiguration = (configuration) => {
 
     displayNameEn: data.displayNameEn,
 
-    instructionsAr: data.instructionsAr,
+    instructionsAr: sanitizePublicInstructions(data.instructionsAr),
 
-    instructionsEn: data.instructionsEn,
+    instructionsEn: sanitizePublicInstructions(data.instructionsEn),
 
     requiresAttachment: Boolean(data.requiresAttachment),
 
@@ -260,14 +291,16 @@ export const getPublicPaymentConfigurationsService = async ({
 
       createdAt: 1,
     });
-
   return configurations
     .filter((configuration) => isAmountAllowed(configuration, amount))
     .filter((configuration) => {
       if (configuration.configurationType === "PROVIDER") {
         return (
           configuration.providerId &&
-          configuration.providerId.isActive !== false
+          configuration.providerId.isActive !== false &&
+          isPaymentProviderAdapterSupported(
+            configuration.providerId.code,
+          )
         );
       }
 

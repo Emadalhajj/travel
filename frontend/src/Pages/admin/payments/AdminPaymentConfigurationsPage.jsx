@@ -468,7 +468,10 @@ export default function AdminPaymentConfigurationsPage() {
 
       availableUntil: formState.availableUntil || null,
 
-      isActive: Boolean(formState.isActive),
+      // إعدادات الدفع الجديدة تكون مفعلة افتراضيًا؛
+      // false الصريحة فقط هي التي تعطل السجل.
+      isActive:
+        formState.isActive !== false,
 
       requiresAttachment: Boolean(formState.requiresAttachment),
 

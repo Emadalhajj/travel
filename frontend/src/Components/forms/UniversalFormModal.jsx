@@ -148,6 +148,7 @@ export default function UniversalFormModal({
       <Modal.Body>
         <UniversalForm
         ref={formRef}
+          show={show}
           /*
           form config
           */

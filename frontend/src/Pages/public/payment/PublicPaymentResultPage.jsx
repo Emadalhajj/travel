@@ -43,23 +43,28 @@ import {
   fetchPaymentStatus,
 } from "../../../redux/public/publicPaymentSlice";
 
+import BookingProgressTimeline, {
+  bookingSteps,
+} from "../../../Components/shared/booking/BookingProgressTimeline";
+
 /*
 =========================================================
 Transaction Status Groups
 =========================================================
 */
 
-const PROCESSING_STATUSES =
+/*
+الحالات التي تتغير آليًا خلال ثوانٍ، مثل رجوع مزود الدفع
+أو وصول Webhook. حالات التحويل البنكي لا توضع هنا لأنها
+تنتظر مراجعة بشرية، ويكفي طلب واحد عند فتح الصفحة.
+*/
+const POLLING_STATUSES =
   new Set([
     "INITIATED",
     "PENDING",
-    "PENDING_PROOF",
-    "PENDING_APPROVAL",
-    "PENDING_VERIFICATION",
-    "PENDING_REVIEW",
     "PROCESSING",
-    "AUTHORIZED",
     "CAPTURED",
+    "PAID_PENDING_BOOKING",
   ]);
 
 const FAILED_STATUSES =
@@ -152,6 +157,20 @@ export default function PublicPaymentResultPage() {
       "",
     ).toUpperCase();
 
+  const isBankTransferSubmitted =
+    paymentStatus?.paymentMethodCode === "BANK_TRANSFER" &&
+    ["PENDING_VERIFICATION", "PENDING_REVIEW"].includes(normalizedStatus);
+
+  const bankTransferSubmittedSteps = bookingSteps.map((step) =>
+    step.key === "success"
+      ? {
+          ...step,
+          labelAr: "تم التحويل",
+          labelEn: "Transfer submitted",
+        }
+      : step,
+  );
+
   /*
   =======================================================
   Fetch And Poll Payment Status
@@ -203,7 +222,7 @@ export default function PublicPaymentResultPage() {
           */
 
           if (
-            PROCESSING_STATUSES.has(
+            POLLING_STATUSES.has(
               status,
             )
           ) {
@@ -345,6 +364,54 @@ export default function PublicPaymentResultPage() {
               : "Back to payment"}
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  /*
+  =======================================================
+  Bank Transfer Proof Submitted
+  =======================================================
+
+  الوصول لهذه المرحلة يعني استلام إثبات التحويل ووضعه
+  في المراجعة، وليس اعتماد المبلغ ماليًا قبل مراجعة الإدارة.
+  =======================================================
+  */
+
+  if (isBankTransferSubmitted) {
+    return (
+      <div className="container py-5" dir={isArabic ? "rtl" : "ltr"}>
+        <BookingProgressTimeline
+          currentStep="success"
+          isArabic={isArabic}
+          steps={bankTransferSubmittedSteps}
+        />
+
+        <Alert variant="success">
+          <div className="fw-bold">
+            {isArabic
+              ? "تم إرسال التحويل للمراجعة"
+              : "The transfer was submitted for review"}
+          </div>
+
+          <div className="mt-2">
+            {isArabic
+              ? "استلمنا بيانات الحوالة وإثبات الدفع، وسيتم تأكيد الحجز بعد اعتماد التحويل من الإدارة."
+              : "We received the transfer details and proof. The booking will be confirmed after administrative review."}
+          </div>
+        </Alert>
+
+        <div className="text-muted mb-3">
+          {isArabic ? "الحالة الحالية:" : "Current status:"}{" "}
+          <strong>{normalizedStatus}</strong>
+        </div>
+
+        <Button
+          variant="outline-primary"
+          onClick={() => navigate(`/draft-booking/${draftId}`)}
+        >
+          {isArabic ? "عرض بيانات المسودة" : "View draft details"}
+        </Button>
       </div>
     );
   }

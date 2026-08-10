@@ -40,6 +40,9 @@ import paymentProviderRoutes from "./routes/payment/payment-provider-routes.js";
 import paymentConfigurationRoutes from "./routes/payment/payment-configuration-routes.js";
 import publicPaymentConfigurationRoutes from "./routes/payment/public-payment-configuration-routes.js";
 import publicPaymentRoutes from "./routes/payment/public-payment-routes.js";
+import {
+  handleStripeWebhook,
+} from "./controllers/payment/stripe-webhook-controller.js";
 
 //use packages
 dotenv.config();
@@ -49,6 +52,17 @@ const port = process.env.PORT || 3000;
 
 // 1️⃣ CORS أول شيء
 app.use(cors()); // للسماح بالوصول من دومينات مختلفة
+
+/*
+Stripe يحتاج Raw Body للتحقق من Stripe-Signature.
+يجب تسجيل هذا المسار قبل express.json().
+*/
+app.post(
+  "/api/payment/webhooks/stripe",
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook,
+);
+
 // قراءة البيانات المتداخلة
 app.use(express.urlencoded({ extended: true })); // ✅ هذا هو المهم
 

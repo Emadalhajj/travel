@@ -12,6 +12,7 @@ import {
   useSelector,
 } from "react-redux";
 import { useParams } from "react-router-dom";
+import { toast } from "react-toastify";
 
 import {
   approveBankTransfer,
@@ -28,6 +29,18 @@ const ACTIONS = {
   CAPTURE: "CAPTURE",
   REFUND: "REFUND",
   CANCEL: "CANCEL",
+};
+
+const getOperationErrorMessage = (error) => {
+  if (typeof error === "string") {
+    return error;
+  }
+
+  return (
+    error?.message ||
+    error?.errors?.[error?.field] ||
+    "تعذر تنفيذ عملية الدفع"
+  );
 };
 
 export default function AdminPaymentTransactionDetailsPage() {
@@ -73,28 +86,36 @@ export default function AdminPaymentTransactionDetailsPage() {
   const executeAction = async () => {
     const payload = { transactionId };
 
-    if (dialog === ACTIONS.APPROVE) {
-      payload.notes = reason;
-      await dispatch(approveBankTransfer(payload)).unwrap();
-    } else if (dialog === ACTIONS.REJECT) {
-      payload.reason = reason;
-      await dispatch(rejectBankTransfer(payload)).unwrap();
-    } else if (dialog === ACTIONS.CAPTURE) {
-      payload.notes = reason;
-      await dispatch(capturePaymentTransaction(payload)).unwrap();
-    } else if (dialog === ACTIONS.REFUND) {
-      payload.reason = reason;
-      await dispatch(refundPaymentTransaction(payload)).unwrap();
-    } else if (dialog === ACTIONS.CANCEL) {
-      payload.reason = reason;
-      await dispatch(cancelPaymentTransaction(payload)).unwrap();
-    }
+    try {
+      if (dialog === ACTIONS.APPROVE) {
+        payload.notes = reason;
+        await dispatch(approveBankTransfer(payload)).unwrap();
+      } else if (dialog === ACTIONS.REJECT) {
+        payload.reason = reason;
+        await dispatch(rejectBankTransfer(payload)).unwrap();
+      } else if (dialog === ACTIONS.CAPTURE) {
+        payload.notes = reason;
+        await dispatch(capturePaymentTransaction(payload)).unwrap();
+      } else if (dialog === ACTIONS.REFUND) {
+        payload.reason = reason;
+        await dispatch(refundPaymentTransaction(payload)).unwrap();
+      } else if (dialog === ACTIONS.CANCEL) {
+        payload.reason = reason;
+        await dispatch(cancelPaymentTransaction(payload)).unwrap();
+      }
 
-    setDialog(null);
-    setReason("");
-    await dispatch(
-      fetchPaymentTransactionDetails(transactionId),
-    ).unwrap();
+      setDialog(null);
+      setReason("");
+      toast.success("تم تنفيذ عملية الدفع بنجاح");
+
+      await dispatch(
+        fetchPaymentTransactionDetails(transactionId),
+      ).unwrap();
+    } catch (operationError) {
+      toast.error(
+        getOperationErrorMessage(operationError),
+      );
+    }
   };
 
   if (detailsLoading && !transaction) {

@@ -367,7 +367,7 @@ export default function PublicBookingPaymentPage() {
                                         setSelectedBankAccountId(account._id)
                                       }
                                     />
-                                    <div>
+                                    <div className="min-w-0 flex-1">
                                       <div className="font-bold">
                                         {isArabic
                                           ? account.bankNameAr ||
@@ -382,8 +382,38 @@ export default function PublicBookingPaymentPage() {
                                           : account.accountNameEn ||
                                             account.beneficiaryName}
                                       </div>
-                                      <div className="mt-1 text-sm" dir="ltr">
+
+                                      <div className="mt-2 space-y-1 text-sm text-slate-600">
+                                        <div>
+                                          {isArabic
+                                            ? "اسم المستفيد"
+                                            : "Beneficiary"}
+                                          : {" "}
+                                          {account.beneficiaryName || "-"}
+                                        </div>
+
+                                        <div dir="ltr">
                                         IBAN: {account.iban || "-"}
+                                        </div>
+
+                                        <div dir="ltr">
+                                          {isArabic
+                                            ? "رقم الحساب"
+                                            : "Account Number"}
+                                          : {account.accountNumber || "-"}
+                                        </div>
+
+                                        {account.swiftCode && (
+                                          <div dir="ltr">
+                                            SWIFT: {account.swiftCode}
+                                          </div>
+                                        )}
+
+                                        <div>
+                                          {isArabic ? "العملة" : "Currency"}
+                                          : {" "}
+                                          {account.currency || "SAR"}
+                                        </div>
                                       </div>
                                     </div>
                                   </label>

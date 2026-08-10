@@ -28,6 +28,10 @@ import mongoose from "mongoose";
 import PaymentProvider from "../../models/payments/payment-provider-model.js";
 
 import {
+  isPaymentProviderAdapterSupported,
+} from "./providers/payment-provider-factory.js";
+
+import {
   createPaymentProviderSchema,
   updatePaymentProviderSchema,
   updatePaymentProviderStatusSchema,
@@ -1087,6 +1091,26 @@ export const updatePaymentProviderStatusService =
 
         virtuals: false,
       });
+
+    if (validatedData.isActive) {
+      if (!isPaymentProviderAdapterSupported(provider.code)) {
+        throw createServiceError({
+          message: `مزود الدفع ${provider.code} غير مدعوم تشغيليًا`,
+          statusCode: 400,
+          field: "isActive",
+          errors: {
+            isActive: "لا يمكن تفعيل مزود لا يملك Adapter مسجلًا",
+          },
+        });
+      }
+
+      validateCompletePaymentProviderCredentials(
+        provider.toObject({
+          getters: false,
+          virtuals: false,
+        }),
+      );
+    }
 
     provider.isActive =
       validatedData.isActive;

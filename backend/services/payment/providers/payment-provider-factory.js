@@ -8,6 +8,24 @@ import {
   verifyHyperPayPayment,
 } from "../hyperpay-service.js";
 
+import {
+  cancelStripePayment,
+  captureStripePayment,
+  createStripeCheckoutSession,
+  refundStripePayment,
+  verifyStripePayment,
+} from "../stripe-service.js";
+
+export const SUPPORTED_PAYMENT_PROVIDER_CODES = Object.freeze([
+  "HYPERPAY",
+  "STRIPE",
+]);
+
+export const isPaymentProviderAdapterSupported = (providerCode) =>
+  SUPPORTED_PAYMENT_PROVIDER_CODES.includes(
+    String(providerCode || "").trim().toUpperCase(),
+  );
+
 export const createProviderCheckout = async ({
   providerCode,
   amount,
@@ -27,6 +45,19 @@ export const createProviderCheckout = async ({
   switch (normalizedProviderCode) {
     case "HYPERPAY":
       return createHyperPayCheckout({
+        amount,
+        currency,
+        paymentMethodCode,
+        merchantTransactionId,
+        customer,
+        draftId,
+        paymentConfigurationId,
+        returnUrl,
+        providerConfig,
+      });
+
+    case "STRIPE":
+      return createStripeCheckoutSession({
         amount,
         currency,
         paymentMethodCode,
@@ -76,6 +107,12 @@ export const verifyProviderPayment = async ({
         providerConfig,
       });
 
+    case "STRIPE":
+      return verifyStripePayment({
+        checkoutId,
+        providerConfig,
+      });
+
     default:
       throw new AppError(
         `مزود الدفع ${normalizedProviderCode} غير مدعوم`,
@@ -91,17 +128,24 @@ const executeProviderOperation = async ({
   ...payload
 }) => {
   const code = String(providerCode || "").toUpperCase();
-  if (code !== "HYPERPAY") {
+  if (!isPaymentProviderAdapterSupported(code)) {
     throw new AppError(`مزود الدفع ${code} غير مدعوم`, 400, "providerCode");
   }
 
   const operations = {
-    capture: captureHyperPayPayment,
-    refund: refundHyperPayPayment,
-    cancel: cancelHyperPayPayment,
+    HYPERPAY: {
+      capture: captureHyperPayPayment,
+      refund: refundHyperPayPayment,
+      cancel: cancelHyperPayPayment,
+    },
+    STRIPE: {
+      capture: captureStripePayment,
+      refund: refundStripePayment,
+      cancel: cancelStripePayment,
+    },
   };
 
-  return operations[operation](payload);
+  return operations[code][operation](payload);
 };
 
 export const captureProviderPayment = (payload) =>

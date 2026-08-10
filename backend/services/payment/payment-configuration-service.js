@@ -36,6 +36,10 @@ import PaymentMethod from "../../models/payments/payment-method-model.js";
 
 import BankAccount from "../../models/payments/bank-account-model.js";
 
+import {
+  isPaymentProviderAdapterSupported,
+} from "./providers/payment-provider-factory.js";
+
 import { PAYMENT_CONFIGURATION_TYPES } from "../../constants/payments/payment-configuration-types.js";
 
 import {
@@ -261,7 +265,9 @@ const getActivePaymentMethod = async (paymentMethodCode) => {
 
     isActive: true,
 
-    isDeleted: false,
+    isDeleted: {
+      $ne: true,
+    },
   }).lean();
 
   if (!paymentMethod) {
@@ -315,9 +321,9 @@ const validateProviderRelation = async ({ providerId, paymentMethodCode }) => {
   const provider = await PaymentProvider.findOne({
     _id: providerId,
 
-    isActive: true,
-
-    isDeleted: false,
+    isDeleted: {
+      $ne: true,
+    },
   })
     .select(
       "_id code nameAr nameEn supportedPaymentMethods environment isActive",
@@ -326,14 +332,37 @@ const validateProviderRelation = async ({ providerId, paymentMethodCode }) => {
 
   if (!provider) {
     throw createServiceError({
-      message: "مزود الدفع غير موجود أو غير مفعّل",
+      message: "مزود الدفع غير موجود",
 
       statusCode: 404,
 
       field: "providerId",
 
       errors: {
-        providerId: "مزود الدفع المحدد غير متاح",
+        providerId: "مزود الدفع المحدد غير موجود أو محذوف",
+      },
+    });
+  }
+
+  if (!provider.isActive) {
+    throw createServiceError({
+      message: "مزود الدفع غير مفعّل",
+      statusCode: 400,
+      field: "providerId",
+      errors: {
+        providerId:
+          "فعّل المزود بعد استكمال بيانات الاعتماد وWebhook Secret ثم أعد المحاولة",
+      },
+    });
+  }
+
+  if (!isPaymentProviderAdapterSupported(provider.code)) {
+    throw createServiceError({
+      message: `مزود الدفع ${provider.code} غير مدعوم تشغيليًا`,
+      statusCode: 400,
+      field: "providerId",
+      errors: {
+        providerId: "لا يوجد Adapter مسجل لهذا المزود داخل النظام",
       },
     });
   }
@@ -402,7 +431,9 @@ const validateBankAccountRelations = async (bankAccountIds) => {
 
     isActive: true,
 
-    isDeleted: false,
+    isDeleted: {
+      $ne: true,
+    },
   })
     .select(
       "_id bankNameAr bankNameEn accountNameAr accountNameEn beneficiaryName iban isActive",
@@ -513,7 +544,9 @@ const ensureUniqueConfiguration = async ({
 
     paymentMethodCode,
 
-    isDeleted: false,
+    isDeleted: {
+      $ne: true,
+    },
   };
 
   if (excludeId) {

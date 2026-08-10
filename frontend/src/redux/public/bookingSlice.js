@@ -111,12 +111,22 @@ export const fetchPublicMyDraftBookings = createAsyncThunk(
 
 export const cancelPublicDraftBooking = createAsyncThunk(
   "publicBooking/cancelDraft",
-  async ({ draftId }, { rejectWithValue }) => {
+  async (payload, { rejectWithValue }) => {
     try {
+      const draftId =
+        typeof payload === "string"
+          ? payload
+          : payload?.draftId;
+
+      if (!draftId) {
+        throw new Error("معرف المسودة مطلوب");
+      }
+
       return await apiCancelDraftBooking(draftId);
     } catch (error) {
       return rejectWithValue(
         error?.response?.data?.message ||
+          error?.message ||
           "حدث خطأ أثناء إلغاء المسودة",
       );
     }

@@ -9,9 +9,22 @@ dotenv.config();
 
 const run = async () => {
   try {
-    await mongoose.connect(
-      process.env.MONGO_URI,
-    );
+    const databaseUrl =
+      process.env.DB_URL ||
+      process.env.MONGO_URI ||
+      process.env.MONGODB_URI;
+
+    if (!databaseUrl) {
+      throw new Error(
+        "MongoDB connection URI is missing",
+      );
+    }
+
+    await mongoose.connect(databaseUrl, {
+      dbName:
+        process.env.DB_NAME ||
+        "umrahDB",
+    });
 
     console.log("MongoDB connected");
 

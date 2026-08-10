@@ -58,6 +58,26 @@ export default function DefaultField(props) {
       updated = set(updated, "itemId", "");
     }
 
+    /*
+    يسمح للـConfig بتنظيف أو اشتقاق حقول مرتبطة عند
+    تغيير قيمة حقل محدد، دون وضع Business Logic داخل
+    UniversalForm.
+    */
+    if (typeof field.onValueChange === "function") {
+      const transformed = field.onValueChange({
+        value: newValue,
+        previous: prev,
+        next: updated,
+      });
+
+      if (
+        transformed &&
+        typeof transformed === "object"
+      ) {
+        updated = transformed;
+      }
+    }
+
     return updated;
   });
 
