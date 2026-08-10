@@ -12,6 +12,19 @@ import { toast } from "react-toastify";
 
 import { submitBankTransferProof } from "../../../redux/public/publicPaymentSlice";
 
+const sanitizeInstructions = (value) => {
+  const instructions = String(value || "").trim();
+
+  if (
+    (instructions.startsWith("{") || instructions.startsWith("[")) &&
+    /"(?:success|message|field|errors)"\s*:/.test(instructions)
+  ) {
+    return "";
+  }
+
+  return instructions;
+};
+
 export default function PublicBankTransferProofPage() {
   const { draftId, transactionId } = useParams();
 
@@ -48,9 +61,11 @@ export default function PublicBankTransferProofPage() {
 
   const requiresAttachment = Boolean(initializationResult?.requiresAttachment);
 
-  const instructions = isArabic
-    ? initializationResult?.instructionsAr
-    : initializationResult?.instructionsEn;
+  const instructions = sanitizeInstructions(
+    isArabic
+      ? initializationResult?.instructionsAr
+      : initializationResult?.instructionsEn,
+  );
 
   const canSubmit = useMemo(() => {
     if (requiresReference && !transferReference.trim()) {
@@ -103,9 +118,14 @@ export default function PublicBankTransferProofPage() {
           : "Transfer proof submitted for review",
       );
 
-      navigate(`/draft-booking/${draftId}`, {
+      navigate(
+        `/booking/payment/${draftId}/result?transactionId=${encodeURIComponent(
+          transactionId,
+        )}`,
+        {
         replace: true,
-      });
+        },
+      );
     } catch (error) {
       toast.error(
         error?.message ||

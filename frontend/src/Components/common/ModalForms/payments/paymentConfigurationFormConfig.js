@@ -32,33 +32,25 @@ const HIDDEN_CONFIGURATION_METHOD_CODES =
     "ONLINE_PAYMENT",
   ]);
 
+/*
+هذه الطرق الأساسية ينشئها Payment Method Seeder.
+تستخدم فقط قبل وصول أي بيانات من Redux، ولا تضاف فوق
+قائمة Backend حتى لا يظهر خيار محذوف أو غير مفعّل.
+*/
 const REQUIRED_PROVIDER_METHODS = [
-  {
-    code: "MADA",
-    nameAr: "مدى",
-    nameEn: "Mada",
-  },
-  {
-    code: "VISA",
-    nameAr: "فيزا",
-    nameEn: "Visa",
-  },
-  {
-    code: "MASTERCARD",
-    nameAr: "ماستركارد",
-    nameEn: "Mastercard",
-  },
-  {
-    code: "APPLE_PAY",
-    nameAr: "Apple Pay",
-    nameEn: "Apple Pay",
-  },
-].map((method) => ({
-  ...method,
+  ["MADA", "مدى", "Mada"],
+  ["VISA", "فيزا", "Visa"],
+  ["MASTERCARD", "ماستركارد", "Mastercard"],
+  ["APPLE_PAY", "Apple Pay", "Apple Pay"],
+].map(([code, nameAr, nameEn]) => ({
+  code,
+  nameAr,
+  nameEn,
   type: "online",
   requiresBankAccount: false,
   requiresPaymentProvider: true,
   isActive: true,
+  isDeleted: false,
 }));
 
 const buildConfigurationPaymentMethods = (
@@ -89,16 +81,11 @@ const buildConfigurationPaymentMethods = (
     });
   });
 
-  REQUIRED_PROVIDER_METHODS.forEach(
-    (method) => {
-      if (!methodsByCode.has(method.code)) {
-        methodsByCode.set(
-          method.code,
-          method,
-        );
-      }
-    },
-  );
+  if (!paymentMethods.length) {
+    REQUIRED_PROVIDER_METHODS.forEach((method) => {
+      methodsByCode.set(method.code, method);
+    });
+  }
 
   return Array.from(
     methodsByCode.values(),
@@ -255,6 +242,45 @@ const buildCommonFields = ({ paymentMethods, sectionOptions }) => [
     order: 2,
 
     col: 6,
+
+    onValueChange: ({
+      value,
+      next,
+    }) => {
+      const method =
+        paymentMethods.find(
+          (item) =>
+            String(
+              item?.code || "",
+            ).toUpperCase() ===
+            String(value || "").toUpperCase(),
+        );
+
+      const configurationType =
+        getPaymentMethodConfigurationType(
+          method,
+        );
+
+      return {
+        ...next,
+        paymentMethodCode: value,
+        configurationType,
+        providerId: "",
+        bankAccountIds: [],
+        displayNameAr:
+          method?.nameAr || "",
+        displayNameEn:
+          method?.nameEn || "",
+        instructionsAr: "",
+        instructionsEn: "",
+        requiresAttachment: Boolean(
+          method?.requiresProofUpload,
+        ),
+        requiresReference:
+          String(value).toUpperCase() ===
+          "BANK_TRANSFER",
+      };
+    },
   },
 
   {

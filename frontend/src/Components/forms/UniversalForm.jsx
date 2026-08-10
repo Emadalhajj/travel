@@ -97,6 +97,9 @@ const UniversalForm = forwardRef(
 
       config = {},
 
+      /* حالة الحاوية، لإعادة التهيئة عند فتح Modal */
+      show = true,
+
       /*
       بيانات التعديل
 
@@ -206,7 +209,7 @@ const UniversalForm = forwardRef(
     */
 
     useFormInitializer({
-      show: true,
+      show,
 
       config,
 

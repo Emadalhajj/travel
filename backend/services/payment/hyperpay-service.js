@@ -1,6 +1,61 @@
 import AppError from "../../utils/AppError.js";
 import { hyperpayConfig } from "../../config/hyperpay.js";
 
+const parseHyperPayResponse = async (response) => {
+  if (typeof response?.text !== "function") {
+    if (typeof response?.json === "function") {
+      return response.json();
+    }
+
+    throw new AppError(
+      "تعذر قراءة استجابة مزود الدفع",
+      502,
+      "hyperpay",
+    );
+  }
+
+  const responseText = await response.text();
+
+  if (!responseText.trim()) {
+    throw new AppError(
+      "مزود الدفع أعاد استجابة فارغة",
+      502,
+      "hyperpay",
+    );
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    throw new AppError(
+      "استجابة مزود الدفع غير صالحة. تحقق من عنوان HyperPay وإعدادات البيئة",
+      502,
+      "hyperpay",
+    );
+  }
+};
+
+const getHyperPayErrorMessage = (
+  data,
+  fallback,
+) => {
+  const providerMessage = String(
+    data?.result?.description ||
+      data?.message ||
+      "",
+  ).trim();
+
+  if (
+    /invalid authentication|authentication information|unauthori[sz]ed/i.test(
+      providerMessage,
+    )
+  ) {
+    return "بيانات اعتماد HyperPay غير صحيحة أو لا تتوافق مع البيئة المحددة. تحقق من Entity ID وAccess Token";
+  }
+
+  return providerMessage || fallback;
+};
+
 export const createHyperPayCheckout = async ({
   amount,
   currency = "SAR",
@@ -119,12 +174,14 @@ export const createHyperPayCheckout = async ({
     body: params.toString(),
   });
 
-  const data = await response.json();
+  const data = await parseHyperPayResponse(response);
 
   if (!response.ok || !data?.id) {
     throw new AppError(
-      data?.result?.description ||
-        "Failed to create HyperPay checkout",
+      getHyperPayErrorMessage(
+        data,
+        "تعذر إنشاء جلسة الدفع لدى HyperPay",
+      ),
       400,
       "hyperpay",
     );
@@ -297,12 +354,14 @@ export const verifyHyperPayPayment = async ({
     },
   );
 
-  const data = await response.json();
+  const data = await parseHyperPayResponse(response);
 
   if (!response.ok) {
     throw new AppError(
-      data?.result?.description ||
-        "Failed to verify HyperPay payment",
+      getHyperPayErrorMessage(
+        data,
+        "تعذر التحقق من عملية الدفع لدى HyperPay",
+      ),
       response.status >= 500 ? 502 : 400,
       "hyperpay",
     );
@@ -406,13 +465,16 @@ const executeHyperPayReferencedPayment = async ({
     },
   );
 
-  const data = await response.json();
+  const data = await parseHyperPayResponse(response);
   const resultCode = data?.result?.code || "";
   const operationStatus = classifyHyperPayResultCode(resultCode);
 
   if (!response.ok || operationStatus !== "SUCCESS") {
     throw new AppError(
-      data?.result?.description || `HyperPay ${paymentType} operation failed`,
+      getHyperPayErrorMessage(
+        data,
+        `تعذر تنفيذ عملية ${paymentType} لدى HyperPay`,
+      ),
       response.status >= 500 ? 502 : 409,
       "providerOperation",
     );

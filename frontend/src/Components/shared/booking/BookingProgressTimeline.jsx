@@ -1,6 +1,6 @@
 import { Check, CreditCard, FileText, PackageCheck, User, Users, CalendarDays } from "lucide-react";
 
-const defaultSteps = [
+export const bookingSteps = [
   { key: "customer_info", labelAr: "بيانات العميل", labelEn: "Customer", icon: User },
   { key: "travelers", labelAr: "المعتمرون", labelEn: "Travelers", icon: Users },
   { key: "services", labelAr: "الخدمات", labelEn: "Services", icon: PackageCheck },
@@ -20,10 +20,20 @@ export const customPackageSteps = [
 export default function BookingProgressTimeline({
   currentStep = "customer_info",
   isArabic = true,
-  steps = defaultSteps,
+  steps = bookingSteps,
 }) {
   const stepOrder = steps.map((step) => step.key);
-  const currentIndex = Math.max(0, stepOrder.indexOf(currentStep));
+  const stepAliases = {
+    pilgrims: "travelers",
+    customer: "customer_info",
+    customerInfo: "customer_info",
+  };
+  const normalizedCurrentStep =
+    stepAliases[currentStep] || currentStep;
+  const resolvedIndex = stepOrder.indexOf(
+    normalizedCurrentStep,
+  );
+  const currentIndex = resolvedIndex >= 0 ? resolvedIndex : 0;
 
   return (
     <section className="mb-8 rounded-3xl border border-slate-200 bg-white px-4 py-6 shadow-sm">

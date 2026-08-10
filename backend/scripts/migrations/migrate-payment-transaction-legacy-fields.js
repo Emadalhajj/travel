@@ -18,6 +18,7 @@ import mongoose from "mongoose";
 import "dotenv/config";
 
 const uri =
+  process.env.DB_URL ||
   process.env.MONGO_URI ||
   process.env.MONGODB_URI;
 
@@ -28,7 +29,11 @@ if (!uri) {
 const apply =
   process.env.APPLY_PAYMENT_TX_MIGRATION === "true";
 
-await mongoose.connect(uri);
+await mongoose.connect(uri, {
+  dbName:
+    process.env.DB_NAME ||
+    "umrahDB",
+});
 
 const db = mongoose.connection.db;
 const transactions = db.collection("paymenttransactions");

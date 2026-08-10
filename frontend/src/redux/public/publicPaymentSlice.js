@@ -99,6 +99,7 @@ const publicPaymentSlice = createSlice({
     builder
       .addCase(initializePublicPayment.pending, (state) => {
         state.initializationLoading = true;
+        state.initializationResult = null;
         state.initializationError = null;
       })
       .addCase(initializePublicPayment.fulfilled, (state, action) => {

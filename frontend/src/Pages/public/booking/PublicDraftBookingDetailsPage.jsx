@@ -32,7 +32,10 @@ import DraftSelectedProductsCard from "../../../Components/shared/draft-bookings
 
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
 
-import { calculateBookingPricing } from "../../../Components/shared/booking-wizard/bookingPricing";
+import {
+  calculateBookingPricing,
+  getProgramUnitPrice,
+} from "../../../Components/shared/booking-wizard/bookingPricing";
 
 /*
 =====================================================
@@ -370,13 +373,42 @@ export default function PublicDraftBookingDetailsPage() {
   const hasTravelers = travelers.length > 0;
   const hasSelectedProducts = selectedProductsList.length > 0;
 
+  /*
+  الباقة الجاهزة تحتوي خدمات مشمولة في سعر البرنامج،
+  لذلك لا نشترط وجود إضافات داخل selectedProducts.
+  */
+  const packageType = String(
+    draftBooking?.data?.packageType ||
+      draftBooking?.data?.bookingMode ||
+      draftBooking?.data?.bookingType ||
+      "",
+  ).toUpperCase();
+
+  const hasPackageReference = Boolean(
+    selectedPackage?._id ||
+      selectedPackage?.id ||
+      selectedPackage?.refId ||
+      selectedPackage?.programId ||
+      draftBooking?.program?.programId,
+  );
+
+  const hasReadyPackage =
+    (hasPackageReference &&
+      (getProgramUnitPrice(selectedPackage) > 0 ||
+        pricingSummary.total > 0)) ||
+    packageType === "READY_PACKAGE" ||
+    packageType === "PREDEFINED_PACKAGE";
+
+  const hasRequiredServices =
+    hasSelectedProducts || hasReadyPackage;
+
   const isDraft = draftBooking?.status === "draft";
 
   const isReadyForPayment =
     isDraft &&
     hasCustomerData &&
     hasTravelers &&
-    hasSelectedProducts &&
+    hasRequiredServices &&
     pricingSummary.total > 0;
 
   /*
@@ -680,7 +712,7 @@ export default function PublicDraftBookingDetailsPage() {
               </p>
             )}
 
-            {!hasSelectedProducts && (
+            {!hasRequiredServices && (
               <p>
                 •{" "}
                 {t(

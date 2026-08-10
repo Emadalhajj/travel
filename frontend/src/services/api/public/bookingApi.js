@@ -37,7 +37,9 @@ export const apiGetDraftBookingById = async (draftId) => {
 
 // إلغاء Draft Booking
 export const apiCancelDraftBooking = async (draftId) => {
-  const response = await api.post(`${DRAFT_BOOKING_BASE_URL}/${draftId}/cancel`);
+  const response = await api.patch(
+    `${DRAFT_BOOKING_BASE_URL}/${draftId}/cancel`,
+  );
   return response.data;
 };
 

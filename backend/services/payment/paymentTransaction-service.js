@@ -146,7 +146,9 @@ export const findReusablePaymentTransactionService = async ({
     if (methodCode) filter.methodCode = normalizeCode(methodCode);
   }
 
-  return PaymentTransaction.findOne(filter).sort({ createdAt: -1 });
+  return PaymentTransaction.findOne(filter)
+    .select("+events")
+    .sort({ createdAt: -1 });
 };
 
 /*
@@ -272,6 +274,44 @@ export const createPaymentTransactionService = async ({
     });
 
     if (existing) {
+      /*
+      إعدادات BANK_TRANSFER القديمة كانت تُنشئ المعاملة كدفع يدوي
+      بحالة pending_approval وبدون حساب بنكي. بعد تصحيح الإعداد إلى
+      BANK_ACCOUNT يجب تجهيز نفس المعاملة بدل إرجاعها بحالة لا تقبل
+      رفع الإثبات، حفاظًا على Idempotency وعدم إنشاء معاملة مكررة.
+      */
+      const shouldRepairLegacyBankTransfer =
+        normalizedMethodCode === "BANK_TRANSFER" &&
+        status === PAYMENT_TRANSACTION_STATUSES.PENDING_PROOF &&
+        existing.status === PAYMENT_TRANSACTION_STATUSES.PENDING_APPROVAL &&
+        bankAccountId;
+
+      if (shouldRepairLegacyBankTransfer) {
+        const fromStatus = existing.status;
+
+        existing.status = PAYMENT_TRANSACTION_STATUSES.PENDING_PROOF;
+        existing.bankAccount = bankAccountId;
+        existing.bankAccountSnapshot =
+          bankAccountSnapshot && typeof bankAccountSnapshot === "object"
+            ? bankAccountSnapshot
+            : {};
+        existing.updatedBy = createdBy || existing.updatedBy || null;
+
+        await recordPaymentTransactionEventService({
+          transaction: existing,
+          fromStatus,
+          toStatus: PAYMENT_TRANSACTION_STATUSES.PENDING_PROOF,
+          source: eventSource,
+          eventCode: PAYMENT_TRANSACTION_EVENT_CODES.STATUS_CHANGED,
+          message:
+            "Legacy bank transfer transaction prepared for proof submission",
+          createdBy,
+          save: false,
+        });
+
+        await existing.save();
+      }
+
       return existing;
     }
   }
@@ -450,15 +490,22 @@ export const updatePaymentTransactionStatusService = async ({
     return transaction;
   }
 
-  transaction.status = toStatus;
-  transaction.updatedBy = updatedBy || null;
+  const setUpdates = {
+    status: toStatus,
+    updatedBy: updatedBy || null,
+  };
+
+  const effectiveProviderReference =
+    providerReference !== undefined
+      ? String(providerReference || "").trim()
+      : transaction.providerReference;
 
   if (providerReference !== undefined) {
-    transaction.providerReference = String(providerReference || "").trim();
+    setUpdates.providerReference = effectiveProviderReference;
   }
 
   if (failureReason !== undefined) {
-    transaction.failureReason = String(failureReason || "").trim();
+    setUpdates.failureReason = String(failureReason || "").trim();
   }
 
   const allowedExtraFields = [
@@ -474,41 +521,143 @@ export const updatePaymentTransactionStatusService = async ({
 
   allowedExtraFields.forEach((field) => {
     if (extraUpdates[field] !== undefined) {
-      transaction[field] = extraUpdates[field];
+      setUpdates[field] = extraUpdates[field];
     }
   });
 
+  /*
+  تحديث الحالة والـTimeline في عملية ذرية واحدة.
+
+  شرط status يمنع Webhooks المتزامنة من تسجيل الانتقال
+  نفسه مرتين بعد أن تقرأ كلتاهما الحالة القديمة.
+  */
+  const atomicUpdate = {
+    $set: setUpdates,
+    $push: {
+      events: {
+        fromStatus,
+        toStatus,
+        source,
+        eventCode,
+        message: String(message || "").trim(),
+        providerReference: String(
+          effectiveProviderReference || "",
+        ).trim(),
+        createdBy: updatedBy || null,
+      },
+    },
+  };
+
   if (TERMINAL_STATUSES.has(toStatus)) {
-    transaction.idempotencyKey = undefined;
+    atomicUpdate.$unset = {
+      idempotencyKey: 1,
+    };
   }
 
-  await recordPaymentTransactionEventService({
-    transaction,
-    fromStatus,
-    toStatus,
-    source,
-    eventCode,
-    message,
-    providerReference: transaction.providerReference,
-    createdBy: updatedBy,
-    save: false,
-  });
+  const updatedTransaction =
+    await PaymentTransaction.findOneAndUpdate(
+      {
+        _id: transactionId,
+        isDeleted: false,
+        status: fromStatus,
+      },
+      atomicUpdate,
+      {
+        new: true,
+        runValidators: true,
+      },
+    ).select("+events +metadata");
 
-  await transaction.save();
+  if (!updatedTransaction) {
+    const currentTransaction =
+      await PaymentTransaction.findOne({
+        _id: transactionId,
+        isDeleted: false,
+      }).select("+events +metadata");
+
+    if (
+      currentTransaction?.status ===
+      toStatus
+    ) {
+      return currentTransaction;
+    }
+
+    throw new AppError(
+      "تغيرت حالة معاملة الدفع أثناء تنفيذ العملية؛ يرجى إعادة المحاولة",
+      409,
+      "status",
+    );
+  }
 
   await recordPaymentTransactionAuditService({
     req,
     action: auditAction,
-    transaction,
+    transaction: updatedTransaction,
     before,
     providerResult,
   });
 
-  if (transaction.booking) {
-    await applyPaymentSummaryToBooking({ bookingId: transaction.booking });
+  if (updatedTransaction.booking) {
+    await applyPaymentSummaryToBooking({
+      bookingId: updatedTransaction.booking,
+    });
   }
 
-  return transaction;
+  return updatedTransaction;
+};
+
+/*
+=====================================================
+Booking Conversion Lock
+=====================================================
+
+قفل ذري قصير يمنع Webhook وطلب Capture متزامنين من
+تحويل المسودة نفسها إلى حجز مرتين. يُعد القفل منتهيًا
+بعد خمس دقائق للتعافي من توقف العملية.
+=====================================================
+*/
+
+export const acquirePaymentBookingConversionLockService = async ({
+  transactionId,
+}) => {
+  validateObjectId(transactionId, "transactionId");
+
+  const staleBefore = new Date(Date.now() - 5 * 60 * 1000);
+
+  return PaymentTransaction.findOneAndUpdate(
+    {
+      _id: transactionId,
+      isDeleted: false,
+      booking: null,
+      $or: [
+        { "metadata.bookingConversionInProgress": { $ne: true } },
+        { "metadata.bookingConversionLockedAt": { $lte: staleBefore } },
+      ],
+    },
+    {
+      $set: {
+        "metadata.bookingConversionInProgress": true,
+        "metadata.bookingConversionLockedAt": new Date(),
+      },
+    },
+    { new: true },
+  ).select("+metadata +events");
+};
+
+export const releasePaymentBookingConversionLockService = async ({
+  transactionId,
+}) => {
+  validateObjectId(transactionId, "transactionId");
+
+  await PaymentTransaction.updateOne(
+    { _id: transactionId },
+    {
+      $unset: {
+        "metadata.bookingConversionInProgress": 1,
+        "metadata.bookingConversionLockedAt": 1,
+      },
+    },
+  );
 };
 
 /*

@@ -211,6 +211,19 @@ const buildBankAccountSnapshot = (account) => ({
   currency: account.currency || "",
 });
 
+const sanitizePublicInstructions = (value) => {
+  const instructions = String(value || "").trim();
+
+  if (
+    (instructions.startsWith("{") || instructions.startsWith("[")) &&
+    /"(?:success|message|field|errors)"\s*:/.test(instructions)
+  ) {
+    return "";
+  }
+
+  return instructions;
+};
+
 const initializeBankTransfer = async ({
   draft,
   configuration,
@@ -244,8 +257,8 @@ const initializeBankTransfer = async ({
     status: "PENDING_PROOF",
     requiresAttachment: Boolean(configuration.requiresAttachment),
     requiresReference: Boolean(configuration.requiresReference),
-    instructionsAr: configuration.instructionsAr || "",
-    instructionsEn: configuration.instructionsEn || "",
+    instructionsAr: sanitizePublicInstructions(configuration.instructionsAr),
+    instructionsEn: sanitizePublicInstructions(configuration.instructionsEn),
     bankAccounts: [
       {
         _id: selectedAccount._id,
@@ -289,8 +302,8 @@ const initializeManualPayment = async ({
     paymentMethodCode: configuration.paymentMethodCode,
     requiresAttachment: Boolean(configuration.requiresAttachment),
     requiresReference: Boolean(configuration.requiresReference),
-    instructionsAr: configuration.instructionsAr || "",
-    instructionsEn: configuration.instructionsEn || "",
+    instructionsAr: sanitizePublicInstructions(configuration.instructionsAr),
+    instructionsEn: sanitizePublicInstructions(configuration.instructionsEn),
   };
 };
 

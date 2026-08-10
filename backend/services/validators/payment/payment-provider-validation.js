@@ -314,9 +314,9 @@ const providerCredentialRequirements =
     ],
 
     STRIPE: [
-      "publishableKey",
-
       "secretKey",
+
+      "webhookSecret",
     ],
   };
 
@@ -376,25 +376,95 @@ const validateProviderCredentials =
         },
       );
 
+    const invalidFields = {};
+
     if (
+      providerCode === "HYPERPAY" &&
       missingFields.length === 0
+    ) {
+      const entityId = String(
+        credentials.entityId || "",
+      ).trim();
+
+      const accessToken = String(
+        credentials.accessToken || "",
+      ).trim();
+
+      if (entityId.length < 20) {
+        invalidFields["credentials.entityId"] =
+          "Entity ID غير صالح. أدخل القيمة الحقيقية من لوحة HyperPay";
+      }
+
+      if (
+        accessToken.length < 20 ||
+        /^Bearer\s+/i.test(accessToken)
+      ) {
+        invalidFields["credentials.accessToken"] =
+          "Access Token غير صالح. أدخل التوكن الحقيقي دون كلمة Bearer";
+      }
+    }
+
+    if (
+      providerCode === "STRIPE" &&
+      missingFields.length === 0
+    ) {
+      const secretKey = String(
+        credentials.secretKey || "",
+      ).trim();
+      const webhookSecret = String(
+        credentials.webhookSecret || "",
+      ).trim();
+      const environment = String(
+        data.environment || "TEST",
+      ).toUpperCase();
+
+      if (!/^sk_(test|live)_/.test(secretKey)) {
+        invalidFields["credentials.secretKey"] =
+          "Secret Key غير صالح؛ يجب أن يبدأ بـ sk_test_ أو sk_live_";
+      } else if (
+        environment === "TEST" &&
+        !secretKey.startsWith("sk_test_")
+      ) {
+        invalidFields["credentials.secretKey"] =
+          "بيئة TEST تتطلب مفتاحًا يبدأ بـ sk_test_";
+      } else if (
+        environment === "LIVE" &&
+        !secretKey.startsWith("sk_live_")
+      ) {
+        invalidFields["credentials.secretKey"] =
+          "بيئة LIVE تتطلب مفتاحًا يبدأ بـ sk_live_";
+      }
+
+      if (!webhookSecret.startsWith("whsec_")) {
+        invalidFields["credentials.webhookSecret"] =
+          "Webhook Secret غير صالح؛ يجب أن يبدأ بـ whsec_";
+      }
+    }
+
+    if (
+      missingFields.length === 0 &&
+      Object.keys(invalidFields).length === 0
     ) {
       return;
     }
 
     const validationError =
       new Error(
-        `بيانات الاتصال التالية مطلوبة لمزود ${providerCode}: ${missingFields.join(", ")}`,
+        missingFields.length
+          ? `بيانات الاتصال التالية مطلوبة لمزود ${providerCode}: ${missingFields.join(", ")}`
+          : `بيانات اعتماد ${providerCode} غير صالحة`,
       );
 
     validationError.statusCode =
       400;
 
     validationError.field =
-      `credentials.${missingFields[0]}`;
+      missingFields.length
+        ? `credentials.${missingFields[0]}`
+        : Object.keys(invalidFields)[0];
 
-    validationError.errors =
-      missingFields.reduce(
+    validationError.errors = {
+      ...missingFields.reduce(
         (
           result,
           field,
@@ -407,7 +477,9 @@ const validateProviderCredentials =
           return result;
         },
         {},
-      );
+      ),
+      ...invalidFields,
+    };
 
     throw validationError;
   };

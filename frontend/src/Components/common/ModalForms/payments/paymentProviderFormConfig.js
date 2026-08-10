@@ -546,7 +546,7 @@ const stripeFields = ({ mode, credentialStatus }) => [
 
     mode,
 
-    required: true,
+    required: false,
 
     type: "text",
 
@@ -579,6 +579,8 @@ const stripeFields = ({ mode, credentialStatus }) => [
     credentialStatus,
 
     mode,
+
+    required: true,
 
     order: 62,
   }),

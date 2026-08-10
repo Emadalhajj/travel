@@ -4,9 +4,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import {
+  CalendarDays,
   Check,
   CreditCard,
   FileText,
+  PackageCheck,
   User,
   Users,
 } from "lucide-react";
@@ -56,6 +58,18 @@ const customerFields = [
 ];
 
 const customBookingSteps = [
+  {
+    key: "dates",
+    labelAr: "التواريخ",
+    labelEn: "Dates",
+    icon: CalendarDays,
+  },
+  {
+    key: "services",
+    labelAr: "الخدمات",
+    labelEn: "Services",
+    icon: PackageCheck,
+  },
   {
     key: "customer_info",
     labelAr: "بيانات العميل",

@@ -34,10 +34,12 @@ import {
 } from "./payment-provider-service.js";
 
 import {
+  acquirePaymentBookingConversionLockService,
   findPaymentTransactionService,
   markPaymentTransactionFailedService,
   recordBookingConversionFailureService,
   recordPaymentTransactionEventService,
+  releasePaymentBookingConversionLockService,
   updatePaymentTransactionStatusService,
 } from "./paymentTransaction-service.js";
 
@@ -358,6 +360,36 @@ export const completeProviderPaymentService = async ({
       });
   }
 
+  const conversionLock =
+    await acquirePaymentBookingConversionLockService({
+      transactionId: transaction._id,
+    });
+
+  if (!conversionLock) {
+    const currentTransaction =
+      await findPaymentTransactionService({
+        transactionId: transaction._id,
+      });
+
+    if (
+      SUCCESS_STATUSES.has(currentTransaction.status) &&
+      currentTransaction.booking
+    ) {
+      return buildSafeResult({
+        transaction: currentTransaction,
+        booking: currentTransaction.booking,
+        verificationStatus: "SUCCESS",
+        reused: true,
+      });
+    }
+
+    return buildSafeResult({
+      transaction: currentTransaction,
+      verificationStatus: "PROCESSING",
+      reused: true,
+    });
+  }
+
   await recordPaymentTransactionEventService({
     transactionId: transaction._id,
     fromStatus: transaction.status,
@@ -401,6 +433,10 @@ export const completeProviderPaymentService = async ({
         },
       });
   } catch (error) {
+    await releasePaymentBookingConversionLockService({
+      transactionId: transaction._id,
+    });
+
     await recordBookingConversionFailureService({
       transactionId:
         transaction._id,
@@ -419,6 +455,10 @@ export const completeProviderPaymentService = async ({
     conversionResult;
 
   if (!booking?._id) {
+    await releasePaymentBookingConversionLockService({
+      transactionId: transaction._id,
+    });
+
     await recordBookingConversionFailureService({
       transactionId:
         transaction._id,
@@ -453,6 +493,10 @@ export const completeProviderPaymentService = async ({
         booking: booking._id,
       },
     });
+
+  await releasePaymentBookingConversionLockService({
+    transactionId: transaction._id,
+  });
 
   return buildSafeResult({
     transaction,
