@@ -44,11 +44,10 @@ const toMinorAmount = (amount, currency) => {
     throw new AppError("مبلغ الدفع غير صحيح", 400, "amount");
   }
 
-  const multiplier = ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency)
-    ? 1
-    : 100;
-
-  return Math.round(numericAmount * multiplier);
+  return Math.round(
+    numericAmount *
+      (ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency) ? 1 : 100),
+  );
 };
 
 const fromMinorAmount = (amount, currency) => {
@@ -81,11 +80,15 @@ const resolvePaymentIntent = (session) => {
 Create Embedded Stripe Checkout Session
 =============================================================================
 
-Stripe تستقبل بيانات البطاقة داخل iframe آمن داخل نفس الصفحة.
+Stripe تستقبل بيانات البطاقة داخل iframe آمن داخل نفس صفحة الدفع.
 لا تمر بيانات البطاقة أو CVV عبر Backend الخاص بالمشروع.
 
-manual capture يحافظ على التدفق الحالي:
+manual capture يحافظ على التدفق:
 AUTHORIZED -> CAPTURED -> BOOKING -> SUCCESS.
+
+redirect_on_completion = if_required يمنع الانتقال إلى صفحة أخرى
+للدفع بالبطاقات، مع إبقاء return_url متاحًا فقط إذا احتاجت
+طريقة دفع مستقبلية إلى Redirect خارجي.
 =============================================================================
 */
 
@@ -118,6 +121,7 @@ export const createStripeCheckoutSession = async ({
       {
         mode: "payment",
         ui_mode: "embedded",
+        redirect_on_completion: "if_required",
         payment_method_types: ["card"],
         line_items: [
           {
@@ -356,9 +360,7 @@ export const cancelStripePayment = async ({
       }
     }
 
-    const paymentIntent = await stripe.paymentIntents.retrieve(
-      paymentIntentId,
-    );
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status === "succeeded") {
       throw new AppError(
@@ -409,11 +411,7 @@ export const constructStripeWebhookEvent = ({
   }
 
   if (!signature) {
-    throw new AppError(
-      "توقيع Stripe مفقود",
-      400,
-      "stripe-signature",
-    );
+    throw new AppError("توقيع Stripe مفقود", 400, "stripe-signature");
   }
 
   try {
@@ -423,10 +421,6 @@ export const constructStripeWebhookEvent = ({
       secret,
     );
   } catch {
-    throw new AppError(
-      "توقيع Stripe غير صالح",
-      400,
-      "stripe-signature",
-    );
+    throw new AppError("توقيع Stripe غير صالح", 400, "stripe-signature");
   }
 };
