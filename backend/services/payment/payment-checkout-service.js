@@ -76,9 +76,8 @@ const extractCheckoutResult = (checkout = {}) => ({
     checkout.reference ||
     "",
   redirectUrl:
-    checkout.redirectUrl ||
-    checkout.redirect?.url ||
-    "",
+    checkout.redirectUrl || checkout.redirect?.url || "",
+  clientSecret: checkout.clientSecret || "",
   expiresAt: checkout.expiresAt || null,
   clientSecret: checkout.clientSecret || "",
   publishableKey: checkout.publishableKey || "",
@@ -87,9 +86,7 @@ const extractCheckoutResult = (checkout = {}) => ({
 });
 
 const getExistingCheckoutResult = async (transaction) => {
-  if (!transaction?.checkoutId) {
-    return null;
-  }
+  if (!transaction?.checkoutId) return null;
 
   const storedTransaction = await findPaymentTransactionService({
     transactionId: transaction._id,
@@ -99,6 +96,64 @@ const getExistingCheckoutResult = async (transaction) => {
   return {
     checkoutId: storedTransaction.checkoutId || "",
     redirectUrl: storedTransaction.redirectUrl || "",
+  };
+};
+
+const buildCheckoutResponse = ({
+  transaction,
+  provider,
+  paymentMethodCode,
+  checkoutResult,
+}) => {
+  const providerCode = String(provider.code || "").toUpperCase();
+
+  if (providerCode === "STRIPE") {
+    const publishableKey = String(
+      provider.credentials?.publishableKey || "",
+    ).trim();
+
+    if (!publishableKey) {
+      throw new AppError(
+        "المفتاح العام لـStripe غير معد",
+        500,
+        "credentials.publishableKey",
+      );
+    }
+
+    if (!checkoutResult.clientSecret) {
+      throw new AppError(
+        "لم يتم استلام مفتاح جلسة Stripe المضمنة",
+        502,
+        "stripe.clientSecret",
+      );
+    }
+
+    return {
+      action: "EMBEDDED_CHECKOUT",
+      paymentTransactionId: transaction._id,
+      status: String(transaction.status).toUpperCase(),
+      provider: {
+        code: provider.code,
+        environment: provider.environment,
+      },
+      paymentMethodCode,
+      checkoutId: checkoutResult.checkoutId,
+      clientSecret: checkoutResult.clientSecret,
+      publishableKey,
+    };
+  }
+
+  return {
+    action: "REDIRECT",
+    paymentTransactionId: transaction._id,
+    status: String(transaction.status).toUpperCase(),
+    provider: {
+      code: provider.code,
+      environment: provider.environment,
+    },
+    paymentMethodCode,
+    checkoutId: checkoutResult.checkoutId,
+    redirectUrl: checkoutResult.redirectUrl,
   };
 };
 
@@ -153,11 +208,7 @@ export const createPaymentCheckoutSessionService = async ({
   const currency = pricing.currency || draft.currency || "SAR";
 
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new AppError(
-      "مبلغ الدفع غير صحيح",
-      400,
-      "payment",
-    );
+    throw new AppError("مبلغ الدفع غير صحيح", 400, "payment");
   }
 
   const paymentMethodCode = String(
@@ -178,30 +229,20 @@ export const createPaymentCheckoutSessionService = async ({
   const providerId = providerReference?._id || providerReference;
 
   if (!providerId) {
-    throw new AppError(
-      "مزود الدفع غير محدد",
-      400,
-      "providerId",
-    );
+    throw new AppError("مزود الدفع غير محدد", 400, "providerId");
   }
 
   const provider = await PaymentProvider.findOne({
     _id: providerId,
     isActive: true,
-    isDeleted: false,
+    isDeleted: { $ne: true },
   }).select(PAYMENT_PROVIDER_CREDENTIAL_SELECT);
 
   if (!provider) {
-    throw new AppError(
-      "مزود الدفع غير متاح",
-      400,
-      "providerId",
-    );
+    throw new AppError("مزود الدفع غير متاح", 400, "providerId");
   }
 
-  const supportedMethods = Array.isArray(
-    provider.supportedPaymentMethods,
-  )
+  const supportedMethods = Array.isArray(provider.supportedPaymentMethods)
     ? provider.supportedPaymentMethods
     : [];
 
@@ -235,7 +276,9 @@ export const createPaymentCheckoutSessionService = async ({
   });
 
   const existingCheckout = await getExistingCheckoutResult(transaction);
+  const providerCode = String(provider.code || "").toUpperCase();
 
+<<<<<<< HEAD
   if (existingCheckout) {
     const presentation =
       await getProviderCheckoutPresentation({
@@ -251,6 +294,9 @@ export const createPaymentCheckoutSessionService = async ({
       presentation.presentationMode ===
       "EMBEDDED";
 
+=======
+  if (existingCheckout && providerCode !== "STRIPE") {
+>>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
     return {
       action: embedded
         ? "EMBEDDED_CHECKOUT"
@@ -270,22 +316,14 @@ export const createPaymentCheckoutSessionService = async ({
   const normalizedReturnUrl = String(
     returnUrl ||
       `${String(
-        process.env.FRONTEND_URL ||
-          "http://localhost:3000",
-      ).replace(/\/$/, "")}` +
-        `/booking/payment/${draft._id}/result`,
+        process.env.FRONTEND_URL || "http://localhost:3000",
+      ).replace(/\/$/, "")}/booking/payment/${draft._id}/result`,
   ).trim();
 
-  const separator =
-    normalizedReturnUrl.includes("?")
-      ? "&"
-      : "?";
-
+  const separator = normalizedReturnUrl.includes("?") ? "&" : "?";
   const providerReturnUrl =
     `${normalizedReturnUrl}${separator}` +
-    `transactionId=${encodeURIComponent(
-      transaction._id,
-    )}`;
+    `transactionId=${encodeURIComponent(transaction._id)}`;
 
   try {
     const checkout = await createProviderCheckout({
@@ -312,6 +350,20 @@ export const createPaymentCheckoutSessionService = async ({
       );
     }
 
+    /*
+    Stripe تستخدم Idempotency Key بنفس paymentReference.
+    عند إعادة فتح الدفع نسترجع الجلسة نفسها دون تسجيل
+    CHECKOUT_CREATED أو STATUS_CHANGED مرة أخرى.
+    */
+    if (existingCheckout && providerCode === "STRIPE") {
+      return buildCheckoutResponse({
+        transaction,
+        provider,
+        paymentMethodCode,
+        checkoutResult,
+      });
+    }
+
     await attachProviderCheckoutService({
       transactionId: transaction._id,
       ...checkoutResult,
@@ -324,17 +376,17 @@ export const createPaymentCheckoutSessionService = async ({
       source: PAYMENT_TRANSACTION_EVENT_SOURCES.PROVIDER,
     });
 
-    const updatedTransaction =
-      await updatePaymentTransactionStatusService({
-        transactionId: transaction._id,
-        toStatus: PAYMENT_TRANSACTION_STATUSES.PROCESSING,
-        source: PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
-        eventCode: PAYMENT_TRANSACTION_EVENT_CODES.STATUS_CHANGED,
-        message: "Provider checkout is ready",
-        providerReference: checkoutResult.providerReference,
-        updatedBy: actorId,
-      });
+    const updatedTransaction = await updatePaymentTransactionStatusService({
+      transactionId: transaction._id,
+      toStatus: PAYMENT_TRANSACTION_STATUSES.PROCESSING,
+      source: PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+      eventCode: PAYMENT_TRANSACTION_EVENT_CODES.STATUS_CHANGED,
+      message: "Provider checkout is ready",
+      providerReference: checkoutResult.providerReference,
+      updatedBy: actorId,
+    });
 
+<<<<<<< HEAD
     const embedded =
       checkoutResult.presentationMode ===
       "EMBEDDED";
@@ -361,12 +413,19 @@ export const createPaymentCheckoutSessionService = async ({
           }
         : {}),
     };
+=======
+    return buildCheckoutResponse({
+      transaction: updatedTransaction,
+      provider,
+      paymentMethodCode,
+      checkoutResult,
+    });
+>>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
   } catch (checkoutError) {
     await markPaymentTransactionFailedService({
       transactionId: transaction._id,
       reason:
-        checkoutError?.message ||
-        "Provider checkout creation failed",
+        checkoutError?.message || "Provider checkout creation failed",
       source: PAYMENT_TRANSACTION_EVENT_SOURCES.PROVIDER,
       updatedBy: actorId,
     });

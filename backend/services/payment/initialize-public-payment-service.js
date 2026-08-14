@@ -37,11 +37,7 @@ import { PAYMENT_TRANSACTION_EVENT_SOURCES } from "../../constants/payments/paym
 
 const validateObjectId = (value, field) => {
   if (!mongoose.Types.ObjectId.isValid(value)) {
-    throw new AppError(
-      "المعرف المرسل غير صالح",
-      400,
-      field,
-    );
+    throw new AppError("المعرف المرسل غير صالح", 400, field);
   }
 };
 
@@ -125,11 +121,7 @@ const validateAmountRules = ({ configuration, amount }) => {
   const numericAmount = Number(amount);
 
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-    throw new AppError(
-      "مبلغ الدفع غير صالح",
-      400,
-      "amount",
-    );
+    throw new AppError("مبلغ الدفع غير صالح", 400, "amount");
   }
 
   if (
@@ -178,8 +170,7 @@ const resolveSelectedBankAccount = ({
 
   if (selectedBankAccountId) {
     const selectedAccount = activeAccounts.find(
-      (account) =>
-        String(account._id) === String(selectedBankAccountId),
+      (account) => String(account._id) === String(selectedBankAccountId),
     );
 
     if (!selectedAccount) {
@@ -193,9 +184,7 @@ const resolveSelectedBankAccount = ({
     return selectedAccount;
   }
 
-  if (activeAccounts.length === 1) {
-    return activeAccounts[0];
-  }
+  if (activeAccounts.length === 1) return activeAccounts[0];
 
   throw new AppError(
     "يرجى اختيار الحساب البنكي",
@@ -348,14 +337,6 @@ export const initializePublicPaymentService = async ({
     currency,
   });
 
-  if (["CASH", "CREDIT"].includes(configuration.paymentMethodCode)) {
-    throw new AppError(
-      "طريقة الدفع غير متاحة للحجز العام",
-      403,
-      "paymentMethodCode",
-    );
-  }
-
   validateAmountRules({
     configuration,
     amount: pricing.totalPrice,
@@ -392,8 +373,7 @@ export const initializePublicPaymentService = async ({
         lastName: draft.customer?.lastName,
         phone: draft.customer?.phone,
       },
-      returnUrl:
-        `${frontendUrl}/booking/payment/${draft._id}/result`,
+      returnUrl: `${frontendUrl}/booking/payment/${draft._id}/result`,
       req,
     });
   }
