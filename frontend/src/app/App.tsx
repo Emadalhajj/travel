@@ -97,10 +97,6 @@ const PublicCustomBookingCustomerPage = lazy(
     import("../Pages/public/custom-package/PublicCustomBookingCustomerPage"),
 );
 
-const PublicCustomBookingTravelersPage = lazy(
-  () =>
-    import("../Pages/public/custom-package/PublicCustomBookingTravelersPage"),
-);
 // طرق الدفع
 const AdminBankAccountsPage = lazy(
   () => import("../Pages/admin/payments/AdminBankAccountsPage"),
@@ -243,7 +239,7 @@ function App() {
 
         <Route
           path="/booking/custom/:draftId/travelers"
-          element={<PublicCustomBookingTravelersPage />}
+          element={<PublicCustomBookingCustomerPage />}
         />
 
         {/* Admin Routes توحيد المسارات تحت /admin/... */}

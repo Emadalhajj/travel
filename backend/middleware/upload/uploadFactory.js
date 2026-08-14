@@ -10,7 +10,7 @@ import path from "path";
 import fs from "fs";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 
-export const createUploader = ({ folder, fieldRules = {} }) => {
+export const createUploader = ({ folder, fieldRules = {}, maxSizeMB = 10 }) => {
   const uploadDir = `uploads/${folder}`;
   
 
@@ -26,9 +26,7 @@ export const createUploader = ({ folder, fieldRules = {} }) => {
     },
 
     filename: (req, file, cb) => {
-      const ext = path.extname(
-        file.originalname
-      );
+      const ext = path.extname(file.originalname).toLowerCase();
 
       cb(
         null,
@@ -50,18 +48,17 @@ export const createUploader = ({ folder, fieldRules = {} }) => {
       );
     }
 
-    // لو الامتداد غير مسموح
-    if (!rules.test(file.originalname)) {
+    if (rules.extensions && !rules.extensions.test(file.originalname)) {
       return cb(
         new Error(
-          file.fieldname === "images"
-            ? isArabic
-              ? "صيغة الصورة غير مدعومة"
-              : "Unsupported image format"
-            : isArabic
-              ? "صيغة الملف غير مدعومة"
-              : "Unsupported file format",
+          isArabic ? "صيغة الملف غير مدعومة" : "Unsupported file format",
         ),
+      );
+    }
+
+    if (Array.isArray(rules.mimeTypes) && !rules.mimeTypes.includes(file.mimetype)) {
+      return cb(
+        new Error(isArabic ? "نوع الملف غير مسموح" : "Unsupported file type"),
       );
     }
 
@@ -71,5 +68,6 @@ export const createUploader = ({ folder, fieldRules = {} }) => {
   return multer({
     storage,
     fileFilter,
+    limits: { fileSize: maxSizeMB * 1024 * 1024 },
   });
 };

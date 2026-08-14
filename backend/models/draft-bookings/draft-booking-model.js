@@ -69,6 +69,20 @@ const draftTransportSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const draftHostSchema = new mongoose.Schema(
+  {
+    hostId: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    nationalId: { type: String, required: true, trim: true },
+    phone: { type: String, required: true, trim: true },
+    birthDate: { type: Date, required: true },
+    nationalAddress: { type: String, required: true, trim: true },
+    idImage: { type: String, trim: true, default: "" },
+    nationalAddressImage: { type: String, trim: true, default: "" },
+  },
+  { _id: false },
+);
+
 const draftBookingSchema = new mongoose.Schema(
   {
     /*
@@ -137,8 +151,18 @@ const draftBookingSchema = new mongoose.Schema(
           type: String,
           enum: ["male", "female"],
         },
+
+        passportImage: {
+          type: String,
+          trim: true,
+          default: "",
+        },
+
+        hostId: { type: String, trim: true, default: "" },
       },
     ],
+
+    hosts: { type: [draftHostSchema], default: [] },
 
     /*
     بيانات البرنامج أو الباقة المختارة.

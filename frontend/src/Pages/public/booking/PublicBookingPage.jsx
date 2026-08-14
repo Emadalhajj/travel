@@ -8,8 +8,7 @@
 7. عرض صفحة النجاح
 */
 
-import { useEffect, useMemo } from "react";
-import { Row } from "react-bootstrap";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -25,12 +24,12 @@ import {
   resetPublicBooking,
 } from "../../../redux/public/bookingSlice";
 
-import { publicBookingFormConfig } from "../../../config/public-booking/publicBookingFormConfig";
 import usePublicBookingForm from "../../../hooks/public-booking/usePublicBookingForm";
 
-import ConfigFieldsRenderer from "../../../Components/shared/forms/ConfigFieldsRenderer";
-import FieldRenderer from "../../../Components/shared/forms/FieldRenderer";
 import { getProgramAvailableSeats } from "../../../Components/shared/booking-wizard/bookingPricing";
+import BookingProgressTimeline from "../../../Components/shared/booking/BookingProgressTimeline";
+import BookingPartyDetailsForm from "../../../Components/shared/booking/BookingPartyDetailsForm";
+import { apiUploadDraftDocument } from "../../../services/api/public/bookingApi";
 
 export default function PublicBookingPage() {
   const { programId } = useParams();
@@ -50,8 +49,7 @@ export default function PublicBookingPage() {
   const {
     formData,
     pricing,
-    getValue,
-    handleFieldChange,
+    handleCustomerChange,
     handleTravelerChange,
     addTraveler,
     removeTraveler,
@@ -61,7 +59,9 @@ export default function PublicBookingPage() {
     selectedProgram,
   });
 
-  const config = publicBookingFormConfig();
+  const [validationErrors, setValidationErrors] = useState({});
+  const [submissionError, setSubmissionError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     dispatch(resetPublicBooking());
@@ -96,26 +96,79 @@ export default function PublicBookingPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const createResult = await dispatch(
-      createPublicDraftBooking(buildDraftCreatePayload()),
-    );
+    const nextErrors = validatePartyDetails(formData, isArabic);
+    setValidationErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
 
-    const draftId =
-      createResult.payload?.data?._id || createResult.payload?._id;
+    setSubmissionError("");
+    setIsSubmitting(true);
 
-    if (!draftId) return;
+    try {
+      const createResult = await dispatch(
+        createPublicDraftBooking(buildDraftCreatePayload()),
+      ).unwrap();
 
-    const updateResult = await dispatch(
-      updatePublicDraftBooking({
-        draftId,
-        data: buildDraftUpdatePayload(),
-      }),
-    );
+      const draftId =
+        createResult?.data?._id ||
+        createResult?._id;
 
-    const updatedDraftId =
-      updateResult.payload?.data?._id || updateResult.payload?._id || draftId;
+      if (!draftId) {
+        throw new Error(
+          isArabic
+            ? "لم يتم استلام معرف المسودة بعد إنشائها"
+            : "Draft ID was not returned after creation",
+        );
+      }
 
-    navigate(`/draft-booking/${updatedDraftId}`);
+      const travelersWithPassports = [];
+
+      for (const traveler of formData.travelers) {
+        const selectedFile = (traveler.passportFiles || []).find(
+          (file) => file instanceof File,
+        );
+
+        let passportImage = traveler.passportImage || "";
+
+        if (selectedFile) {
+          const uploaded = await apiUploadDraftDocument({
+            draftId,
+            file: selectedFile,
+          });
+          passportImage = uploaded?.data?.url || "";
+        }
+
+        const { passportFiles, ...travelerData } = traveler;
+        travelersWithPassports.push({ ...travelerData, passportImage });
+      }
+
+      const updateResult = await dispatch(
+        updatePublicDraftBooking({
+          draftId,
+          data: {
+            ...buildDraftUpdatePayload(),
+            travelers: travelersWithPassports,
+          },
+        }),
+      ).unwrap();
+
+      const updatedDraftId =
+        updateResult?.data?._id ||
+        updateResult?._id ||
+        draftId;
+
+      navigate(`/draft-booking/${updatedDraftId}`);
+    } catch (submitError) {
+      setSubmissionError(
+        submitError?.response?.data?.message ||
+          submitError?.message ||
+          (typeof submitError === "string" ? submitError : "") ||
+          (isArabic
+            ? "تعذر إنشاء مسودة الحجز"
+            : "Unable to create the booking draft"),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (detailsLoading) {
@@ -146,9 +199,20 @@ export default function PublicBookingPage() {
           </p>
         </div>
 
+        <BookingProgressTimeline
+          currentStep="customer_info"
+          isArabic={isArabic}
+        />
+
         {error && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
+          </div>
+        )}
+
+        {submissionError && (
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {submissionError}
           </div>
         )}
 
@@ -157,86 +221,23 @@ export default function PublicBookingPage() {
             onSubmit={handleSubmit}
             className="lg:col-span-2 rounded-2xl bg-white p-6 shadow-sm border border-slate-100"
           >
-            <SectionTitle
-              title={t("customerInfo", "بيانات العميل")}
-              subtitle={t("customerInfoDesc", "بيانات الشخص المسؤول عن الحجز")}
-            />
-
-            <ConfigFieldsRenderer
-              fields={config.customerFields}
+            <BookingPartyDetailsForm
+              customer={formData.customer}
+              travelers={formData.travelers}
+              onCustomerChange={(name, value) => {
+                handleCustomerChange(name, value);
+                setValidationErrors((previous) => ({ ...previous, [`customer.${name}`]: "" }));
+              }}
+              onTravelerChange={(index, name, value) => {
+                handleTravelerChange(index, name, value);
+                setValidationErrors((previous) => ({ ...previous, [`travelers.${index}.${name}`]: "" }));
+              }}
+              onAddTraveler={addTraveler}
+              onRemoveTraveler={removeTraveler}
+              canAddTraveler={!inventoryLoading && !reachedAvailableSeats}
+              errors={validationErrors}
               isArabic={isArabic}
-              getValue={getValue}
-              onChange={handleFieldChange}
             />
-
-            <div className="my-8 border-t border-slate-100" />
-
-            <SectionTitle
-              title={t("travelers", "المعتمرون")}
-              subtitle={t(
-                "travelersDesc",
-                "أضف بيانات كل معتمر داخل مسودة الحجز",
-              )}
-            />
-
-            <div className="space-y-4">
-              {formData.travelers.map((traveler, index) => (
-                <div
-                  key={index}
-                  className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
-                >
-                  <div className="mb-4 flex items-center justify-between">
-                    <h3 className="font-bold text-slate-900">
-                      {t("traveler", "معتمر")} {index + 1}
-                    </h3>
-
-                    {formData.travelers.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeTraveler(index)}
-                        className="text-sm font-semibold text-red-600 hover:text-red-700"
-                      >
-                        {t("remove", "حذف")}
-                      </button>
-                    )}
-                  </div>
-
-                  <Row className="g-4">
-                    {[...config.travelerFields]
-                      .sort((a, b) => (a.order || 0) - (b.order || 0))
-                      .map((field) => (
-                        <FieldRenderer
-                          key={field.name}
-                          field={field}
-                          isArabic={isArabic}
-                          value={traveler[field.name]}
-                          onChange={(value) =>
-                            handleTravelerChange(index, field.name, value)
-                          }
-                        />
-                      ))}
-                  </Row>
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={addTraveler}
-              disabled={
-                inventoryLoading ||
-                reachedAvailableSeats
-              }
-              className={`mt-4 rounded-xl border px-4 py-2 text-sm font-semibold transition
-    ${
-      inventoryLoading ||
-      reachedAvailableSeats
-        ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
-        : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-    }`}
-            >
-              + {t("addTraveler", "إضافة معتمر")}
-            </button>
             {reachedAvailableSeats && (
               <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3">
                 <p className="text-sm font-semibold text-red-700">
@@ -254,10 +255,10 @@ export default function PublicBookingPage() {
             <div className="mt-8 flex flex-col md:flex-row gap-3">
               <button
                 type="submit"
-                disabled={submitLoading}
+                disabled={submitLoading || isSubmitting}
                 className="flex-1 rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white hover:bg-emerald-800 disabled:bg-slate-400"
               >
-                {submitLoading
+                {submitLoading || isSubmitting
                   ? t("saving", "جاري الحفظ...")
                   : t("createDraftBooking", "إنشاء مسودة الحجز")}
               </button>
@@ -307,16 +308,6 @@ export default function PublicBookingPage() {
   );
 }
 
-function SectionTitle({ title, subtitle }) {
-  return (
-    <div className="mb-5">
-      <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-
-      {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
-    </div>
-  );
-}
-
 function SummaryRow({ label, value }) {
   return (
     <div className="flex items-center justify-between gap-4">
@@ -324,4 +315,40 @@ function SummaryRow({ label, value }) {
       <strong className="text-end text-slate-900">{value}</strong>
     </div>
   );
+}
+
+function validatePartyDetails(formData, isArabic) {
+  const errors = {};
+  const required = isArabic ? "هذا الحقل مطلوب" : "This field is required";
+
+  ["name", "phone", "email", "nationality"].forEach((field) => {
+    if (!String(formData.customer?.[field] || "").trim()) {
+      errors[`customer.${field}`] = required;
+    }
+  });
+
+  if (
+    formData.customer?.phone &&
+    !/^\+?\d{7,15}$/.test(formData.customer.phone)
+  ) {
+    errors["customer.phone"] = isArabic
+      ? "رقم الجوال يجب أن يتكون من 7 إلى 15 رقمًا دون حروف"
+      : "Phone number must contain 7 to 15 digits without letters";
+  }
+
+  (formData.travelers || []).forEach((traveler, index) => {
+    ["fullName", "passportNumber", "nationality", "birthDate"].forEach((field) => {
+      if (!String(traveler?.[field] || "").trim()) {
+        errors[`travelers.${index}.${field}`] = required;
+      }
+    });
+
+    if (!traveler.passportImage && !(traveler.passportFiles || []).length) {
+      errors[`travelers.${index}.passportFiles`] = isArabic
+        ? "صورة الجواز مطلوبة"
+        : "Passport copy is required";
+    }
+  });
+
+  return errors;
 }

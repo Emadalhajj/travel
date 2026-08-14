@@ -13,6 +13,21 @@ const travelerSchema = Joi.object({
   nationality: Joi.string().allow("", null),
   birthDate: Joi.date().allow(null),
   gender: Joi.string().valid("male", "female").allow(null),
+  passportImage: Joi.string().allow("", null),
+  mobile: Joi.string().allow("", null),
+  whatsapp: Joi.string().allow("", null),
+  hostId: Joi.string().allow("", null),
+});
+
+const hostSchema = Joi.object({
+  hostId: Joi.string().trim().required(),
+  name: Joi.string().trim().required(),
+  nationalId: Joi.string().trim().required(),
+  phone: Joi.string().trim().pattern(/^\+?\d{7,15}$/).required(),
+  birthDate: Joi.date().max("now").required(),
+  nationalAddress: Joi.string().trim().required(),
+  idImage: Joi.string().allow("", null),
+  nationalAddressImage: Joi.string().allow("", null),
 });
 
 const programSchema = Joi.object({
@@ -51,6 +66,8 @@ const draftPayloadSchema = Joi.object({
   customer: customerSchema.optional(),
 
   travelers: Joi.array().items(travelerSchema).optional(),
+
+  hosts: Joi.array().items(hostSchema).default([]),
 
   program: programSchema.allow(null).optional(),
 

@@ -36,11 +36,14 @@ import BookingLog from "../../models/bookingLog-model.js";
 import Inventory from "../../models/inventory-model.js";
 import Notification from "../../models/notification-model.js";
 import { Counter } from "../../models/counterModel.js";
+import AppError from "../../utils/AppError.js";
+import { deleteLocalUpload } from "../../utils/deleteLocalUpload.js";
 
 import {
   attachBookingToPaymentTransactionService,
   createPaymentTransactionService,
   detachBookingFromPaymentTransactionService,
+  findPublicPaymentReviewTransactionsService,
   findPaymentTransactionService,
   markPaymentTransactionFailedService,
 } from "../payment/paymentTransaction-service.js";
@@ -148,6 +151,7 @@ const normalizeDraftData = (data = {}) => {
   return {
     customer: data.customer || {},
     travelers: Array.isArray(data.travelers) ? data.travelers : [],
+    hosts: Array.isArray(data.hosts) ? data.hosts : [],
     program: data.program || null,
     hotel: data.hotel || null,
     transport: data.transport || null,
@@ -171,6 +175,88 @@ const buildPilgrimNameParts = (fullName = "") => {
   };
 };
 
+const validateCustomerPhone = (phone) => {
+  const normalizedPhone = String(phone || "").trim();
+
+  // يسمح بإنشاء مسودة أولية فارغة، لكن أي رقم مرسل يجب أن يكون صالحًا.
+  if (normalizedPhone && !/^\+?\d{7,15}$/.test(normalizedPhone)) {
+    throw new AppError(
+      "رقم الجوال يجب أن يتكون من 7 إلى 15 رقمًا دون حروف",
+      400,
+      "customer.phone",
+    );
+  }
+};
+
+const validateHostAssignments = ({ hosts = [], travelers = [] }) => {
+  const hostIds = new Set();
+  const nationalIds = new Set();
+
+  for (const host of Array.isArray(hosts) ? hosts : []) {
+    const hostId = String(host?.hostId || "").trim();
+    const nationalId = String(host?.nationalId || "").trim();
+    if (!hostId) throw new AppError("معرف المستضيف مطلوب", 400, "hosts");
+    if (hostIds.has(hostId)) throw new AppError("يوجد مستضيف مكرر في الحجز", 400, "hosts");
+    if (nationalId && nationalIds.has(nationalId)) throw new AppError("لا يمكن إضافة نفس المستضيف أكثر من مرة", 400, "hosts");
+    hostIds.add(hostId);
+    if (nationalId) nationalIds.add(nationalId);
+  }
+
+  const assignments = new Map();
+  for (const traveler of Array.isArray(travelers) ? travelers : []) {
+    const hostId = String(traveler?.hostId || "").trim();
+    if (!hostId) continue;
+    if (!hostIds.has(hostId)) throw new AppError("المستضيف المرتبط بالمعتمر غير موجود في الحجز", 400, "travelers");
+    const count = (assignments.get(hostId) || 0) + 1;
+    if (count > 5) throw new AppError("لا يمكن ربط أكثر من 5 معتمرين بالمستضيف الواحد", 400, "travelers");
+    assignments.set(hostId, count);
+  }
+};
+
+const collectDraftDocumentPaths = (draft = {}) => {
+  const paths = new Set();
+  const addPath = (value) => {
+    const normalized = String(value || "").trim();
+    if (normalized) paths.add(normalized);
+  };
+
+  const travelers = Array.isArray(draft.travelers) ? draft.travelers : [];
+  for (const traveler of travelers) addPath(traveler?.passportImage);
+
+  const hosts = Array.isArray(draft.hosts) ? draft.hosts : [];
+  for (const host of hosts) {
+    addPath(host?.idImage);
+    addPath(host?.nationalAddressImage);
+  }
+
+  return paths;
+};
+
+const getRemovedDraftDocumentPaths = ({ previousPaths, currentPaths }) =>
+  [...previousPaths].filter((filePath) => !currentPaths.has(filePath));
+
+const cleanupRemovedDraftDocuments = async (filePaths = []) => {
+  if (!filePaths.length) return;
+
+  const results = await Promise.allSettled(
+    filePaths.map((filePath) =>
+      deleteLocalUpload({
+        filePath,
+        allowedFolder: "uploads/draft-bookings",
+      }),
+    ),
+  );
+
+  results.forEach((result, index) => {
+    if (result.status === "rejected") {
+      console.error("Draft document cleanup failed:", {
+        filePath: filePaths[index],
+        message: result.reason?.message || result.reason,
+      });
+    }
+  });
+};
+
 const mapDraftTravelersToBookingPilgrims = (travelers = [], customer = {}) => {
   return travelers.map((traveler, index) => {
     const nameParts = buildPilgrimNameParts(traveler.fullName || customer.name);
@@ -191,6 +277,8 @@ const mapDraftTravelersToBookingPilgrims = (travelers = [], customer = {}) => {
       nationality: traveler.nationality || customer.nationality || "غير محدد",
       gender: traveler.gender || "male",
       birthDate: traveler.birthDate || new Date("1990-01-01"),
+      passportImage: traveler.passportImage || "",
+      hostId: traveler.hostId || "",
 
       mobile: traveler.mobile || customer.phone || "",
       whatsapp: traveler.whatsapp || customer.phone || "",
@@ -1004,12 +1092,15 @@ export const buildBookingPaymentFromDraft = (
 
 export const createDraftBooking = async ({ data = {}, userId }) => {
   const normalized = normalizeDraftData(data);
+  validateCustomerPhone(normalized.customer?.phone);
+  validateHostAssignments({ hosts: normalized.hosts, travelers: normalized.travelers });
 
   const draft = await DraftBooking.create({
     user: userId || null,
 
     customer: normalized.customer,
     travelers: normalized.travelers,
+    hosts: normalized.hosts,
     program: normalized.program,
     hotel: normalized.hotel,
     transport: normalized.transport,
@@ -1025,30 +1116,44 @@ export const createDraftBooking = async ({ data = {}, userId }) => {
   return draft;
 };
 
-export const updateDraftBooking = async ({ draftId, data }) => {
+export const updateDraftBooking = async ({ draftId, data, userId }) => {
   const draft = await DraftBooking.findOne({
     _id: draftId,
     isDeleted: false,
   });
 
   if (!draft) {
-    throw new Error("Draft booking not found");
+    throw new AppError("Draft booking not found", 404);
+  }
+
+  if (userId && String(draft.user || "") !== String(userId)) {
+    throw new AppError("غير مصرح بتعديل هذه المسودة", 403);
   }
 
   if (draft.status !== DRAFT_BOOKING_STATUS.DRAFT) {
-    throw new Error("Only draft bookings can be updated");
+    throw new AppError("Only draft bookings can be updated", 400);
   }
 
+  const previousDocumentPaths = collectDraftDocumentPaths(draft);
+
   if (data.customer) {
+    validateCustomerPhone(data.customer.phone);
+
     draft.customer = {
       ...draft.customer,
       ...data.customer,
     };
   }
 
+  const nextTravelers = Array.isArray(data.travelers) ? data.travelers : draft.travelers;
+  const nextHosts = Array.isArray(data.hosts) ? data.hosts : draft.hosts;
+  validateHostAssignments({ hosts: nextHosts, travelers: nextTravelers });
+
   if (Array.isArray(data.travelers)) {
     draft.travelers = data.travelers;
   }
+
+  if (Array.isArray(data.hosts)) draft.hosts = data.hosts;
 
   if (data.program !== undefined) {
     draft.program = data.program;
@@ -1080,7 +1185,15 @@ export const updateDraftBooking = async ({ draftId, data }) => {
     };
   }
 
+  const currentDocumentPaths = collectDraftDocumentPaths(draft);
+  const removedDocumentPaths = getRemovedDraftDocumentPaths({
+    previousPaths: previousDocumentPaths,
+    currentPaths: currentDocumentPaths,
+  });
+
   await draft.save();
+
+  await cleanupRemovedDraftDocuments(removedDocumentPaths);
 
   return draft;
 };
@@ -1100,22 +1213,128 @@ export const getDraftBookingById = async (draftId) => {
   return draft;
 };
 
-export const getMyDraftBookings = async ({ userId, page = 1, limit = 10 }) => {
+/*
+=====================================================
+Draft Payment Review Status
+=====================================================
+*/
+
+export const markDraftPendingPaymentReviewService = async ({ draftId }) => {
+  const draft = await DraftBooking.findOne({
+    _id: draftId,
+    isDeleted: false,
+    status: {
+      $in: [
+        DRAFT_BOOKING_STATUS.DRAFT,
+        DRAFT_BOOKING_STATUS.PENDING_REVIEW,
+      ],
+    },
+  });
+
+  if (!draft) {
+    throw new Error("Draft booking is not available for payment review");
+  }
+
+  draft.status = DRAFT_BOOKING_STATUS.PENDING_REVIEW;
+  draft.currentStep = "payment";
+  draft.expiresAt = null;
+  await draft.save();
+
+  return draft;
+};
+
+export const restoreDraftAfterPaymentRejectionService = async ({ draftId }) => {
+  const draft = await DraftBooking.findOne({
+    _id: draftId,
+    isDeleted: false,
+    status: DRAFT_BOOKING_STATUS.PENDING_REVIEW,
+  });
+
+  if (!draft) return null;
+
+  draft.status = DRAFT_BOOKING_STATUS.DRAFT;
+  draft.currentStep = "payment";
+  draft.expiresAt = buildDraftExpiryDate(24);
+  await draft.save();
+
+  return draft;
+};
+
+export const getMyDraftBookings = async ({
+  userId,
+  page = 1,
+  limit = 10,
+  status = DRAFT_BOOKING_STATUS.DRAFT,
+}) => {
   const skip = (page - 1) * limit;
+
+  /*
+  بعض معاملات الدفع القديمة لا تحتوي user، لذلك نعتمد كذلك
+  على ملكية المسودة عند تجميع طلبات الدفع قيد المراجعة.
+  */
+  const ownedDraftIds = await DraftBooking.find({
+    user: userId,
+    isDeleted: false,
+  }).distinct("_id");
+
+  const reviewTransactions =
+    await findPublicPaymentReviewTransactionsService({
+      userId,
+      draftBookingIds: ownedDraftIds,
+    });
+
+  const reviewByDraftId = new Map(
+    reviewTransactions.map((transaction) => [
+      String(transaction.draftBooking),
+      transaction,
+    ]),
+  );
+
+  const reviewDraftIds = [...reviewByDraftId.keys()];
 
   const filter = {
     user: userId,
     isDeleted: false,
   };
 
+  if (status === DRAFT_BOOKING_STATUS.PENDING_REVIEW) {
+    filter.$or = [
+      { status: DRAFT_BOOKING_STATUS.PENDING_REVIEW },
+      { _id: { $in: reviewDraftIds } },
+    ];
+  } else {
+    filter.status = DRAFT_BOOKING_STATUS.DRAFT;
+
+    if (reviewDraftIds.length) {
+      filter._id = { $nin: reviewDraftIds };
+    }
+  }
+
   const [items, total] = await Promise.all([
-    DraftBooking.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+    DraftBooking.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
 
     DraftBooking.countDocuments(filter),
   ]);
 
   return {
-    items,
+    items: items.map((draft) => {
+      const reviewTransaction = reviewByDraftId.get(String(draft._id));
+
+      if (!reviewTransaction) return draft;
+
+      return {
+        ...draft,
+        status: DRAFT_BOOKING_STATUS.PENDING_REVIEW,
+        paymentTransactionId: reviewTransaction._id,
+        paymentStatus: String(reviewTransaction.status || "").toUpperCase(),
+        paymentMethodCode: reviewTransaction.methodCode || "",
+        paymentReference: reviewTransaction.paymentReference || "",
+      };
+    }),
     total,
     page,
     pages: Math.ceil(total / limit),
@@ -1515,7 +1734,12 @@ export const convertDraftToBooking = async ({
     }
   }
 
-  if (draft.status !== DRAFT_BOOKING_STATUS.DRAFT) {
+  if (
+    ![
+      DRAFT_BOOKING_STATUS.DRAFT,
+      DRAFT_BOOKING_STATUS.PENDING_REVIEW,
+    ].includes(draft.status)
+  ) {
     throw new Error("Only draft bookings can be converted");
   }
 
@@ -1526,6 +1750,8 @@ export const convertDraftToBooking = async ({
   if (!draft.travelers?.length) {
     throw new Error("At least one traveler is required");
   }
+
+  validateHostAssignments({ hosts: draft.hosts, travelers: draft.travelers });
 
   /*
   =====================================================
@@ -1583,6 +1809,10 @@ export const convertDraftToBooking = async ({
     4) إنشاء الحجز Booking
     =====================================================
     */
+    const isFullyPaid =
+      payment.paymentStatus === "paid" &&
+      Number(payment.remainingAmount || 0) <= 0;
+
     booking = await Booking.create({
       bookingNumber,
 
@@ -1605,6 +1835,8 @@ export const convertDraftToBooking = async ({
 
       pilgrims,
 
+      hosts: Array.isArray(draft.hosts) ? draft.hosts : [],
+
       hotel: bookingItems.room?.hotelId || undefined,
       roomType: bookingItems.room?.roomTypeId || undefined,
       visa: bookingItems.visa?.visaId || undefined,
@@ -1622,7 +1854,10 @@ export const convertDraftToBooking = async ({
 
       bookingType: BOOKING_TYPES.UMRAH_PACKAGE,
       currentStep: BOOKING_STEPS.PAYMENT,
-      bookingStatus: BOOKING_STATUS.PENDING,
+      bookingStatus: isFullyPaid
+        ? BOOKING_STATUS.CONFIRMED
+        : BOOKING_STATUS.PENDING,
+      confirmedAt: isFullyPaid ? new Date() : null,
 
       notes: draft.data?.notes || "",
       attachments: draft.data?.attachments || [],

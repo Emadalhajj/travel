@@ -31,7 +31,6 @@ import React, {
   useState,
   useMemo,
   useEffect,
-  useRef,
   forwardRef,
   useImperativeHandle,
 } from "react";
@@ -280,9 +279,6 @@ const UniversalForm = forwardRef(
 
     */
 
-    const previousConditionValueRef =
-      useRef();
-
     const activeFields = useMemo(() => {
       return (
         [
@@ -346,12 +342,6 @@ const UniversalForm = forwardRef(
           ),
         );
 
-      const conditionChanged =
-        previousConditionValueRef.current !==
-          undefined &&
-        previousConditionValueRef.current !==
-          conditionValue;
-
       setFormState((previous) => {
         let next = {
           ...previous,
@@ -373,14 +363,20 @@ const UniversalForm = forwardRef(
 
         activeConditionalFields.forEach(
           (field) => {
+            const currentValue = get(
+              next,
+              field.name,
+            );
+
+            const hasCurrentValue =
+              currentValue !== undefined &&
+              currentValue !== null &&
+              currentValue !== "";
+
             if (
               field.defaultValue !==
                 undefined &&
-              (conditionChanged ||
-                get(
-                  next,
-                  field.name,
-                ) === undefined)
+              !hasCurrentValue
             ) {
               next = set(
                 next,
@@ -394,8 +390,6 @@ const UniversalForm = forwardRef(
         return next;
       });
 
-      previousConditionValueRef.current =
-        conditionValue;
     }, [
       config,
       conditionValue,

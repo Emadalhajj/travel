@@ -24,6 +24,7 @@ Draft Booking Status Constants
 
 export const DRAFT_BOOKING_STATUS = {
   DRAFT: "draft",
+  PENDING_REVIEW: "pending_review",
   COMPLETED: "completed",
   EXPIRED: "expired",
   CANCELLED: "cancelled",

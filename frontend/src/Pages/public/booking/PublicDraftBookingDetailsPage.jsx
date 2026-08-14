@@ -31,6 +31,7 @@ import DraftBookingSummaryCard from "../../../Components/shared/draft-bookings/D
 import DraftSelectedProductsCard from "../../../Components/shared/draft-bookings/DraftSelectedProductsCard";
 
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
+import { getNationalityLabel } from "../../../Utils/nationality";
 
 import {
   calculateBookingPricing,
@@ -266,7 +267,10 @@ export default function PublicDraftBookingDetailsPage() {
     },
     {
       label: t("nationality", "الجنسية"),
-      value: draftBooking?.customer?.nationality || "-",
+      value: getNationalityLabel(
+        draftBooking?.customer?.nationality,
+        isArabic,
+      ),
     },
   ];
 
@@ -919,7 +923,7 @@ function TravelerReviewCard({
     },
     {
       label: t("nationality", "الجنسية"),
-      value: traveler.nationality || "-",
+      value: getNationalityLabel(traveler.nationality, isArabic),
     },
     {
       label: t("birthDate", "تاريخ الميلاد"),

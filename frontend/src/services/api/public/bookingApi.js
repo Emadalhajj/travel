@@ -43,6 +43,18 @@ export const apiCancelDraftBooking = async (draftId) => {
   return response.data;
 };
 
+export const apiUploadDraftDocument = async ({ draftId, file }) => {
+  const body = new FormData();
+  body.append("document", file);
+
+  const response = await api.post(
+    `${DRAFT_BOOKING_BASE_URL}/${draftId}/documents`,
+    body,
+  );
+
+  return response.data;
+};
+
 // تحويل Draft إلى Booking نهائي
 export const apiCompleteDraftBooking = async (draftId) => {
   const response = await api.post(`${DRAFT_BOOKING_BASE_URL}/${draftId}/complete`);

@@ -16,6 +16,10 @@ import {
   attachBankTransferProofService,
 } from "./paymentTransaction-service.js";
 
+import {
+  markDraftPendingPaymentReviewService,
+} from "../draft-bookings/draft-booking-service.js";
+
 /*
 =============================================================================
 Normalize Uploaded Attachments
@@ -73,6 +77,12 @@ export const submitBankTransferProofService =
         proofAttachments,
         submittedBy: userId,
       });
+
+    if (transaction.draftBooking) {
+      await markDraftPendingPaymentReviewService({
+        draftId: transaction.draftBooking,
+      });
+    }
 
     return {
       transactionId:

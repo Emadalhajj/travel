@@ -586,6 +586,21 @@ export const capturePaymentTransactionAdminService =
       return transaction;
     }
 
+    /*
+    معاملات المزود لا تُحصّل قبل أن يؤكد التحقق الخارجي
+    أنها AUTHORIZED. PROCESSING تعني أن التحقق لم يكتمل بعد.
+    */
+    if (
+      hasExternalProvider(transaction) &&
+      transaction.status !== PAYMENT_TRANSACTION_STATUSES.AUTHORIZED
+    ) {
+      throw new AppError(
+        "لا يمكن تأكيد التحصيل قبل اكتمال تفويض الدفع لدى المزود",
+        409,
+        "status",
+      );
+    }
+
     const providerResult = await executeExternalProviderOperation({
       transaction,
       operation: "capture",

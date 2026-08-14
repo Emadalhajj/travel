@@ -7,6 +7,8 @@ const emptyTraveler = {
   nationality: "",
   birthDate: "",
   gender: "male",
+  passportImage: "",
+  passportFiles: [],
 };
 
 const initialFormData = {
@@ -76,6 +78,10 @@ export default function usePublicBookingForm({ selectedProgram }) {
     });
   };
 
+  const handleCustomerChange = (name, value) => {
+    handleFieldChange(`customer.${name}`, value);
+  };
+
   const addTraveler = () => {
     setFormData((prev) => ({
       ...prev,
@@ -132,6 +138,7 @@ export default function usePublicBookingForm({ selectedProgram }) {
     getValue: (name) => getNestedValue(formData, name),
 
     handleFieldChange,
+    handleCustomerChange,
     handleTravelerChange,
 
     addTraveler,

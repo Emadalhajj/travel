@@ -261,7 +261,9 @@ export default function AdminPaymentConfigurationsPage() {
   */
 
   const loadConfigurations = useCallback(() => {
-    dispatch(fetchPaymentConfigurations(query));
+    return dispatch(
+      fetchPaymentConfigurations(query),
+    );
   }, [dispatch, query]);
 
   useEffect(() => {
@@ -438,7 +440,10 @@ export default function AdminPaymentConfigurationsPage() {
     const payload = {
       ...formState,
 
-      providerId: formState.providerId || null,
+      providerId:
+        normalizeRelationId(
+          formState.providerId,
+        ) || null,
 
       bankAccountIds: Array.isArray(formState.bankAccountIds)
         ? formState.bankAccountIds
@@ -511,11 +516,11 @@ export default function AdminPaymentConfigurationsPage() {
         await dispatch(createPaymentConfiguration(payload)).unwrap();
       }
 
+      await loadConfigurations().unwrap();
+
       setShowFormModal(false);
 
       setSelectedConfiguration(null);
-
-      loadConfigurations();
     } catch (saveError) {
       toast.error(
         saveError?.message ||
@@ -649,6 +654,48 @@ export default function AdminPaymentConfigurationsPage() {
     return labels[configurationType] || configurationType || "—";
   };
 
+  const getProviderLabel = (
+    configuration,
+  ) => {
+    const provider =
+      configuration?.providerId;
+
+    if (!provider) {
+      return "—";
+    }
+
+    if (typeof provider === "string") {
+      const matchedProvider =
+        paymentProviders.find(
+          (item) =>
+            String(item?._id) ===
+            String(provider),
+        );
+
+      if (!matchedProvider) {
+        return provider;
+      }
+
+      return isArabic
+        ? matchedProvider.nameAr ||
+            matchedProvider.nameEn ||
+            matchedProvider.code
+        : matchedProvider.nameEn ||
+            matchedProvider.nameAr ||
+            matchedProvider.code;
+    }
+
+    return isArabic
+      ? provider.nameAr ||
+          provider.nameEn ||
+          provider.code ||
+          "—"
+      : provider.nameEn ||
+          provider.nameAr ||
+          provider.code ||
+          "—";
+  };
+
   const columns = [
     {
       header: "#",
@@ -704,6 +751,23 @@ export default function AdminPaymentConfigurationsPage() {
             row.configurationType,
           )}
         </Badge>
+      ),
+    },
+    {
+      header: isArabic
+        ? "مزود الدفع"
+        : "Payment Provider",
+      render: (row) => (
+        <div>
+          <div className="fw-semibold">
+            {getProviderLabel(row)}
+          </div>
+          {row.providerId?.code && (
+            <small className="text-muted">
+              {row.providerId.code}
+            </small>
+          )}
+        </div>
       ),
     },
     {
@@ -1066,6 +1130,15 @@ export default function AdminPaymentConfigurationsPage() {
                   value:
                     getConfigurationTypeLabel(
                       detailsConfiguration.configurationType,
+                    ),
+                },
+                {
+                  label: isArabic
+                    ? "مزود الدفع"
+                    : "Payment Provider",
+                  value:
+                    getProviderLabel(
+                      detailsConfiguration,
                     ),
                 },
                 {

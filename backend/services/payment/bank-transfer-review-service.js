@@ -12,6 +12,7 @@ import AppError from "../../utils/AppError.js";
 
 import {
   convertDraftToBooking,
+  restoreDraftAfterPaymentRejectionService,
 } from "../draft-bookings/draft-booking-service.js";
 
 import {
@@ -248,7 +249,7 @@ export const rejectBankTransferService =
       );
     }
 
-    return updatePaymentTransactionStatusService({
+    const rejectedTransaction = await updatePaymentTransactionStatusService({
       transactionId:
         transaction._id,
       toStatus:
@@ -275,4 +276,12 @@ export const rejectBankTransferService =
       auditAction:
         AUDIT_ACTIONS.BANK_TRANSFER_REJECT,
     });
+
+    if (rejectedTransaction.draftBooking) {
+      await restoreDraftAfterPaymentRejectionService({
+        draftId: rejectedTransaction.draftBooking,
+      });
+    }
+
+    return rejectedTransaction;
   };

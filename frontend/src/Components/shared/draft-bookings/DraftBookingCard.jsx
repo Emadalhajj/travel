@@ -17,7 +17,10 @@ export default function DraftBookingCard({
               {draft.customer?.name || draft._id}
             </h2>
 
-            <StatusBadge value={draft.status || "draft"} />
+            <StatusBadge
+              value={draft.status || "draft"}
+              isArabic={isArabic}
+            />
           </div>
 
           <p className="mt-2 text-sm text-slate-500">
