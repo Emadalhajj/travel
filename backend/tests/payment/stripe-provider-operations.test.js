@@ -9,13 +9,17 @@ import {
   verifyStripePayment,
 } from "../../services/payment/stripe-service.js";
 
-test("Stripe Checkout uses manual capture", async () => {
+test("Stripe Embedded Checkout uses manual capture", async () => {
   let receivedPayload;
+  let receivedRequestOptions;
+
   const stripeClient = {
     checkout: {
       sessions: {
-        create: async (payload) => {
+        create: async (payload, requestOptions) => {
           receivedPayload = payload;
+          receivedRequestOptions = requestOptions;
+
           return {
             id: "cs_test_1",
             client_secret: "cs_test_1_secret_test",
@@ -42,6 +46,7 @@ test("Stripe Checkout uses manual capture", async () => {
     },
   });
 
+  assert.equal(receivedPayload.ui_mode, "embedded");
   assert.equal(receivedPayload.payment_intent_data.capture_method, "manual");
   assert.equal(receivedPayload.ui_mode, "embedded_page");
   assert.equal(receivedPayload.redirect_on_completion, "if_required");
@@ -51,11 +56,17 @@ test("Stripe Checkout uses manual capture", async () => {
   );
   assert.equal(receivedPayload.success_url, undefined);
   assert.equal(receivedPayload.line_items[0].price_data.unit_amount, 10050);
+  assert.equal(receivedRequestOptions.idempotencyKey, "PAY-1");
   assert.equal(result.checkoutId, "cs_test_1");
+<<<<<<< HEAD
   assert.equal(result.presentationMode, "EMBEDDED");
   assert.equal(result.redirectUrl, "");
   assert.equal(result.clientSecret, "cs_test_1_secret_test");
   assert.equal(result.publishableKey, "pk_test_123");
+=======
+  assert.equal(result.clientSecret, "cs_test_1_secret_test");
+  assert.equal(result.redirectUrl, "");
+>>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
 });
 
 test("Stripe requires_capture normalizes to PA authorization", async () => {
@@ -136,8 +147,15 @@ test("Stripe capture, refund and smart cancel use PaymentIntent APIs", async () 
     providerConfig: { stripeClient },
   });
 
-  assert.deepEqual(calls[1], ["capture", "pi_capture", { amount_to_capture: 1000 }]);
-  assert.deepEqual(calls[3], ["refund", { payment_intent: "pi_refund", amount: 1000 }]);
+  assert.deepEqual(calls[1], [
+    "capture",
+    "pi_capture",
+    { amount_to_capture: 1000 },
+  ]);
+  assert.deepEqual(calls[3], [
+    "refund",
+    { payment_intent: "pi_refund", amount: 1000 },
+  ]);
   assert.deepEqual(calls.at(-1), ["cancel", "pi_cancel"]);
 });
 

@@ -44,11 +44,10 @@ const toMinorAmount = (amount, currency) => {
     throw new AppError("مبلغ الدفع غير صحيح", 400, "amount");
   }
 
-  const multiplier = ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency)
-    ? 1
-    : 100;
-
-  return Math.round(numericAmount * multiplier);
+  return Math.round(
+    numericAmount *
+      (ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency) ? 1 : 100),
+  );
 };
 
 const fromMinorAmount = (amount, currency) => {
@@ -76,6 +75,23 @@ const resolvePaymentIntent = (session) => {
     : null;
 };
 
+/*
+=============================================================================
+Create Embedded Stripe Checkout Session
+=============================================================================
+
+Stripe تستقبل بيانات البطاقة داخل iframe آمن داخل نفس صفحة الدفع.
+لا تمر بيانات البطاقة أو CVV عبر Backend الخاص بالمشروع.
+
+manual capture يحافظ على التدفق:
+AUTHORIZED -> CAPTURED -> BOOKING -> SUCCESS.
+
+redirect_on_completion = if_required يمنع الانتقال إلى صفحة أخرى
+للدفع بالبطاقات، مع إبقاء return_url متاحًا فقط إذا احتاجت
+طريقة دفع مستقبلية إلى Redirect خارجي.
+=============================================================================
+*/
+
 export const createStripeCheckoutSession = async ({
   amount,
   currency = "SAR",
@@ -101,6 +117,7 @@ export const createStripeCheckoutSession = async ({
   const normalizedCurrency = String(currency || "SAR").toLowerCase();
 
   try {
+<<<<<<< HEAD
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       ui_mode: "embedded_page",
@@ -114,28 +131,62 @@ export const createStripeCheckoutSession = async ({
             unit_amount: toMinorAmount(amount, currency),
             product_data: {
               name: `Booking payment ${merchantTransactionId}`,
+=======
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        ui_mode: "embedded",
+        redirect_on_completion: "if_required",
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: normalizedCurrency,
+              unit_amount: toMinorAmount(amount, currency),
+              product_data: {
+                name: `Booking payment ${merchantTransactionId}`,
+              },
+>>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
             },
           },
+        ],
+        payment_intent_data: {
+          capture_method: "manual",
+          metadata: {
+            paymentReference: String(merchantTransactionId || ""),
+            draftId: String(draftId || ""),
+            paymentConfigurationId: String(paymentConfigurationId || ""),
+            paymentMethodCode: normalizedMethod,
+          },
         },
-      ],
-      payment_intent_data: {
-        capture_method: "manual",
         metadata: {
           paymentReference: String(merchantTransactionId || ""),
           draftId: String(draftId || ""),
           paymentConfigurationId: String(paymentConfigurationId || ""),
           paymentMethodCode: normalizedMethod,
         },
+        customer_email: customer.email || undefined,
+        return_url: returnUrl,
       },
-      metadata: {
-        paymentReference: String(merchantTransactionId || ""),
-        draftId: String(draftId || ""),
-        paymentConfigurationId: String(paymentConfigurationId || ""),
-        paymentMethodCode: normalizedMethod,
+      {
+        idempotencyKey: String(merchantTransactionId || ""),
       },
+<<<<<<< HEAD
       customer_email: customer.email || undefined,
       return_url: returnUrl,
     });
+=======
+    );
+
+    if (!session.client_secret) {
+      throw new AppError(
+        "لم تُرجع Stripe مفتاح الجلسة المضمنة",
+        502,
+        "stripe.clientSecret",
+      );
+    }
+>>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
 
     const publishableKey = String(
       providerConfig.publishableKey ||
@@ -155,16 +206,21 @@ export const createStripeCheckoutSession = async ({
       id: session.id,
       checkoutId: session.id,
       providerReference: session.id,
+<<<<<<< HEAD
       redirectUrl: "",
       clientSecret: session.client_secret,
       publishableKey,
       presentationMode: "EMBEDDED",
+=======
+      clientSecret: session.client_secret,
+      redirectUrl: "",
+>>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
       expiresAt: session.expires_at
         ? new Date(session.expires_at * 1000)
         : null,
       result: {
-        code: "CHECKOUT_SESSION_CREATED",
-        description: "Stripe Checkout Session created",
+        code: "EMBEDDED_CHECKOUT_SESSION_CREATED",
+        description: "Stripe Embedded Checkout Session created",
       },
     };
   } catch (error) {
@@ -275,14 +331,16 @@ export const verifyStripePayment = async ({
     const currency = String(
       paymentIntent?.currency || session.currency || "",
     ).toUpperCase();
-    const minorAmount =
-      paymentIntent?.amount ?? session.amount_total ?? 0;
+    const minorAmount = paymentIntent?.amount ?? session.amount_total ?? 0;
 
     return {
       verificationStatus,
       resultCode: intentStatus || session.status || "",
       resultDescription:
-        paymentIntent?.last_payment_error?.message || intentStatus || session.status || "",
+        paymentIntent?.last_payment_error?.message ||
+        intentStatus ||
+        session.status ||
+        "",
       providerReference: paymentIntent?.id || session.id,
       merchantTransactionId:
         paymentIntent?.metadata?.paymentReference ||
@@ -307,6 +365,7 @@ export const captureStripePayment = async ({
   const stripe = getStripeClient(providerConfig);
 
   try {
+<<<<<<< HEAD
     let paymentIntentId = referencedPaymentId;
 
     /*
@@ -339,6 +398,15 @@ export const captureStripePayment = async ({
           amount_to_capture: toMinorAmount(amount, currency),
         })
       : current;
+=======
+    const current = await stripe.paymentIntents.retrieve(referencedPaymentId);
+    const paymentIntent =
+      current.status === "requires_capture"
+        ? await stripe.paymentIntents.capture(referencedPaymentId, {
+            amount_to_capture: toMinorAmount(amount, currency),
+          })
+        : current;
+>>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
 
     if (paymentIntent.status !== "succeeded") {
       throw new AppError(
@@ -425,9 +493,10 @@ export const cancelStripePayment = async ({
           : session.payment_intent?.id || "";
 
       if (!paymentIntentId) {
-        const expiredSession = session.status === "open"
-          ? await stripe.checkout.sessions.expire(referencedPaymentId)
-          : session;
+        const expiredSession =
+          session.status === "open"
+            ? await stripe.checkout.sessions.expire(referencedPaymentId)
+            : session;
 
         return {
           operationStatus: "SUCCESS",
@@ -438,9 +507,7 @@ export const cancelStripePayment = async ({
       }
     }
 
-    const paymentIntent = await stripe.paymentIntents.retrieve(
-      paymentIntentId,
-    );
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status === "succeeded") {
       throw new AppError(
@@ -483,7 +550,11 @@ export const constructStripeWebhookEvent = ({
   ).trim();
 
   if (!secret) {
-    throw new AppError("Webhook Secret الخاص بـStripe غير معد", 500, "webhookSecret");
+    throw new AppError(
+      "Webhook Secret الخاص بـStripe غير معد",
+      500,
+      "webhookSecret",
+    );
   }
 
   if (!signature) {
