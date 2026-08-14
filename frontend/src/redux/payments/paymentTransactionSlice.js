@@ -9,6 +9,7 @@ import {
   apiApproveBankTransfer,
   apiRejectBankTransfer,
   apiCapturePaymentTransaction,
+  apiVerifyProviderPaymentTransaction,
   apiRefundPaymentTransaction,
   apiCancelPaymentTransaction,
 } from "../../services/api/admin/paymentTransactions";
@@ -83,6 +84,11 @@ export const capturePaymentTransaction =
     "capture",
     apiCapturePaymentTransaction,
   );
+export const verifyProviderPaymentTransaction =
+  createOperationThunk(
+    "verifyProviderPayment",
+    apiVerifyProviderPaymentTransaction,
+  );
 export const refundPaymentTransaction =
   createOperationThunk(
     "refund",
@@ -98,6 +104,7 @@ const operationThunks = [
   approveBankTransfer,
   rejectBankTransfer,
   capturePaymentTransaction,
+  verifyProviderPaymentTransaction,
   refundPaymentTransaction,
   cancelPaymentTransaction,
 ];

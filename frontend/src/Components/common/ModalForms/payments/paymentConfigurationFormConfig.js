@@ -28,7 +28,6 @@ Payment Method Options
 
 const HIDDEN_CONFIGURATION_METHOD_CODES =
   new Set([
-    "CARD",
     "ONLINE_PAYMENT",
   ]);
 
@@ -37,18 +36,30 @@ const HIDDEN_CONFIGURATION_METHOD_CODES =
 تستخدم فقط قبل وصول أي بيانات من Redux، ولا تضاف فوق
 قائمة Backend حتى لا يظهر خيار محذوف أو غير مفعّل.
 */
-const REQUIRED_PROVIDER_METHODS = [
-  ["MADA", "مدى", "Mada"],
-  ["VISA", "فيزا", "Visa"],
-  ["MASTERCARD", "ماستركارد", "Mastercard"],
-  ["APPLE_PAY", "Apple Pay", "Apple Pay"],
+const REQUIRED_CONFIGURATION_METHODS = [
+  ["BANK_TRANSFER", "تحويل بنكي", "Bank Transfer", "offline"],
+  ["SADAD", "سداد", "SADAD", "invoice"],
+  ["CARD", "الدفع الإلكتروني", "Online Payment", "online"],
+  ["CREDIT", "آجل", "Credit", "credit"],
+  ["CASH", "نقداً", "Cash", "cash"],
 ].map(([code, nameAr, nameEn]) => ({
   code,
   nameAr,
   nameEn,
-  type: "online",
-  requiresBankAccount: false,
-  requiresPaymentProvider: true,
+  type:
+    code === "BANK_TRANSFER"
+      ? "offline"
+      : code === "SADAD"
+        ? "invoice"
+        : code === "CARD"
+          ? "online"
+          : code.toLowerCase(),
+  requiresBankAccount:
+    code === "BANK_TRANSFER",
+  requiresPaymentProvider:
+    ["SADAD", "CARD"].includes(code),
+  requiresProofUpload:
+    code === "BANK_TRANSFER",
   isActive: true,
   isDeleted: false,
 }));
@@ -82,7 +93,7 @@ const buildConfigurationPaymentMethods = (
   });
 
   if (!paymentMethods.length) {
-    REQUIRED_PROVIDER_METHODS.forEach((method) => {
+    REQUIRED_CONFIGURATION_METHODS.forEach((method) => {
       methodsByCode.set(method.code, method);
     });
   }
@@ -514,8 +525,10 @@ const buildConditionalFields = ({
 }) =>
   paymentMethods.reduce((conditionalFields, paymentMethod) => {
     if (
-      !isPaymentMethodAvailableForConfiguration(
-        paymentMethod,
+      !paymentMethod?.code ||
+      paymentMethod.isActive === false ||
+      HIDDEN_CONFIGURATION_METHOD_CODES.has(
+        String(paymentMethod.code).toUpperCase(),
       )
     ) {
       return conditionalFields;

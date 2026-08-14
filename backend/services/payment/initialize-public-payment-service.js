@@ -25,7 +25,10 @@ import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import PaymentConfiguration from "../../models/payments/payment-configuration-model.js";
 
 import { createProviderCheckoutService } from "./payment-checkout-service.js";
-import { createPaymentTransactionService } from "./paymentTransaction-service.js";
+import {
+  createPaymentTransactionService,
+  findBlockingPublicPaymentForDraftService,
+} from "./paymentTransaction-service.js";
 import { buildBookingPricingFromDraft } from "../draft-bookings/draft-booking-service.js";
 
 import { PAYMENT_CONFIGURATION_TYPES } from "../../constants/payments/payment-configuration-types.js";
@@ -317,6 +320,24 @@ export const initializePublicPaymentService = async ({
   req,
 }) => {
   const draft = await getDraftBooking(draftId);
+
+  const existingPayment =
+    await findBlockingPublicPaymentForDraftService({
+      draftBookingId: draft._id,
+    });
+
+  if (existingPayment) {
+    return {
+      action: "EXISTING_PAYMENT",
+      paymentTransactionId: existingPayment._id,
+      status: String(existingPayment.status || "").toUpperCase(),
+      paymentMethodCode: existingPayment.methodCode || "",
+      providerCode: existingPayment.providerCode || "",
+      bookingId: existingPayment.booking || null,
+      reused: true,
+    };
+  }
+
   const pricing = await buildBookingPricingFromDraft(draft);
   const currency = pricing.currency || draft.currency || "SAR";
 

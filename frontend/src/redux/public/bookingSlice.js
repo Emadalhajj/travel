@@ -109,6 +109,22 @@ export const fetchPublicMyDraftBookings = createAsyncThunk(
   }
 );
 
+export const fetchPublicPendingBookingReviews = createAsyncThunk(
+  "publicBooking/fetchPendingBookingReviews",
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      return await apiGetMyDraftBookings({
+        ...params,
+        status: "pending_review",
+      });
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "تعذر جلب الحجوزات قيد المراجعة",
+      );
+    }
+  },
+);
+
 export const cancelPublicDraftBooking = createAsyncThunk(
   "publicBooking/cancelDraft",
   async (payload, { rejectWithValue }) => {
@@ -161,6 +177,9 @@ const initialState = {
   finalBooking: null,
   myBookings: [],
   myDraftBookings: [],
+  pendingBookingReviews: [],
+  pendingReviewsLoading: false,
+  pendingReviewsError: null,
   
 draftPagination: null,
   pagination: null,
@@ -289,6 +308,19 @@ const publicBookingSlice = createSlice({
 .addCase(fetchPublicMyDraftBookings.rejected, (state, action) => {
   state.loading = false;
   state.error = action.payload;
+})
+.addCase(fetchPublicPendingBookingReviews.pending, (state) => {
+  state.pendingReviewsLoading = true;
+  state.pendingReviewsError = null;
+})
+.addCase(fetchPublicPendingBookingReviews.fulfilled, (state, action) => {
+  state.pendingReviewsLoading = false;
+  state.pendingBookingReviews =
+    action.payload?.data || action.payload?.items || [];
+})
+.addCase(fetchPublicPendingBookingReviews.rejected, (state, action) => {
+  state.pendingReviewsLoading = false;
+  state.pendingReviewsError = action.payload;
 })
 .addCase(cancelPublicDraftBooking.pending, (state) => {
   state.submitLoading = true;

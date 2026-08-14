@@ -28,6 +28,26 @@ export const apiInitializePublicPayment = async (
   return response.data;
 };
 
+/*
+بعد اكتمال Embedded Checkout نطلب من Backend التحقق
+Server-to-Server من Stripe. لا يتم الوثوق بحالة مرسلة
+من المتصفح، ويظل Webhook هو المسار الأساسي في الإنتاج.
+*/
+export const apiVerifyPublicProviderPayment = async (
+  transactionId,
+) => {
+  if (!transactionId) {
+    throw new Error("Payment transaction ID is required");
+  }
+
+  const response = await api.post(
+    "/payment/callback",
+    { transactionId },
+  );
+
+  return response.data;
+};
+
 export const apiGetPaymentStatus = async (
   transactionId,
 ) => {

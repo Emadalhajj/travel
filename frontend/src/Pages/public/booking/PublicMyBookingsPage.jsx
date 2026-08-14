@@ -3,7 +3,10 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { fetchPublicMyBookings } from "../../../redux/public/bookingSlice";
+import {
+  fetchPublicMyBookings,
+  fetchPublicPendingBookingReviews,
+} from "../../../redux/public/bookingSlice";
 
 import BookingCard from "../../../Components/shared/booking-cards/BookingCard";
 import EmptyState from "../../../Components/shared/common/EmptyState";
@@ -11,6 +14,7 @@ import PaginationComponent from "../../../Components/common/Pagination";
 import PageHeader from "../../../Components/layout/PageHeader";
 import Loader from "../../../Components/common/Loader";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
+import PendingBookingReviewCard from "../../../Components/shared/booking-cards/PendingBookingReviewCard";
 
 export default function PublicMyBookingsPage() {
   const dispatch = useDispatch();
@@ -19,7 +23,15 @@ export default function PublicMyBookingsPage() {
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
 
-  const { myBookings, pagination, loading, error } = useSelector(
+  const {
+    myBookings,
+    pagination,
+    loading,
+    error,
+    pendingBookingReviews,
+    pendingReviewsLoading,
+    pendingReviewsError,
+  } = useSelector(
     (state) => state.publicBooking,
   );
 
@@ -34,6 +46,7 @@ export default function PublicMyBookingsPage() {
 
   useEffect(() => {
     dispatch(fetchPublicMyBookings({ page: 1, limit: 10 }));
+    dispatch(fetchPublicPendingBookingReviews({ page: 1, limit: 50 }));
   }, [dispatch]);
 
   const handlePageChange = (page) => {
@@ -69,8 +82,37 @@ export default function PublicMyBookingsPage() {
       {loading && <Loader />}
 
       <ErrorOverlay show={!loading && Boolean(error)} message={error} />
+      <ErrorOverlay
+        show={!pendingReviewsLoading && Boolean(pendingReviewsError)}
+        message={pendingReviewsError}
+      />
 
-      {!loading && !error && myBookings.length === 0 && (
+      {!pendingReviewsLoading && pendingBookingReviews.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-4 text-xl font-extrabold text-slate-900">
+            {isArabic ? "حجوزات قيد مراجعة الدفع" : "Bookings Pending Payment Review"}
+          </h2>
+          <div className="space-y-4">
+            {pendingBookingReviews.map((request) => (
+              <PendingBookingReviewCard
+                key={request._id}
+                request={request}
+                isArabic={isArabic}
+                onView={(item) =>
+                  navigate(
+                    `/booking/payment/${item._id}/result?transactionId=${encodeURIComponent(
+                      item.paymentTransactionId,
+                    )}`,
+                  )
+                }
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!loading && !pendingReviewsLoading && !error &&
+        myBookings.length === 0 && pendingBookingReviews.length === 0 && (
         <EmptyState
           icon="📄"
           title={t("noBookingsFound", "لا توجد حجوزات")}

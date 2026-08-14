@@ -43,7 +43,11 @@ import {
   completeDraft,
   expireDrafts,
   deleteDraft,
+  uploadDraftDocument,
 } from "../../controllers/draft-bookings/draft-booking-controller.js";
+import {
+  uploadDraftDocument as uploadDraftDocumentMiddleware,
+} from "../../middleware/upload/index.js";
 
 const DraftBookingRoute = express.Router();
 
@@ -75,6 +79,13 @@ DraftBookingRoute.get(
   "/draft-bookings/my",
   protect,
   getMyDrafts,
+);
+
+DraftBookingRoute.post(
+  "/draft-bookings/:id/documents",
+  protect,
+  uploadDraftDocumentMiddleware.single("document"),
+  uploadDraftDocument,
 );
 
 /*

@@ -103,6 +103,8 @@ export const createStripeCheckoutSession = async ({
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
+      ui_mode: "embedded_page",
+      redirect_on_completion: "if_required",
       payment_method_types: ["card"],
       line_items: [
         {
@@ -132,15 +134,31 @@ export const createStripeCheckoutSession = async ({
         paymentMethodCode: normalizedMethod,
       },
       customer_email: customer.email || undefined,
-      success_url: returnUrl,
-      cancel_url: returnUrl,
+      return_url: returnUrl,
     });
+
+    const publishableKey = String(
+      providerConfig.publishableKey ||
+        providerConfig.credentials?.publishableKey ||
+        "",
+    ).trim();
+
+    if (!session.client_secret || !publishableKey) {
+      throw new AppError(
+        "بيانات جلسة Stripe المضمنة غير مكتملة",
+        502,
+        "stripe",
+      );
+    }
 
     return {
       id: session.id,
       checkoutId: session.id,
       providerReference: session.id,
-      redirectUrl: session.url || "",
+      redirectUrl: "",
+      clientSecret: session.client_secret,
+      publishableKey,
+      presentationMode: "EMBEDDED",
       expiresAt: session.expires_at
         ? new Date(session.expires_at * 1000)
         : null,
@@ -151,6 +169,75 @@ export const createStripeCheckoutSession = async ({
     };
   } catch (error) {
     throw normalizeStripeError(error, "تعذر إنشاء جلسة Stripe");
+  }
+};
+
+/*
+=====================================================
+Get Stripe Embedded Checkout Presentation
+=====================================================
+
+تستخدم عند إعادة استعمال PaymentTransaction موجودة.
+لا نخزن client_secret داخل MongoDB؛ نسترجعه من Stripe
+باستخدام Secret Key على الخادم ثم نعيده للعميل.
+=====================================================
+*/
+
+export const getStripeEmbeddedCheckoutPresentation = async ({
+  checkoutId,
+  providerConfig = {},
+}) => {
+  if (!checkoutId) {
+    throw new AppError(
+      "معرف جلسة Stripe مطلوب",
+      400,
+      "checkoutId",
+    );
+  }
+
+  const stripe = getStripeClient(providerConfig);
+
+  try {
+    const session =
+      await stripe.checkout.sessions.retrieve(
+        checkoutId,
+      );
+
+    const publishableKey = String(
+      providerConfig.publishableKey ||
+        providerConfig.credentials?.publishableKey ||
+        "",
+    ).trim();
+
+    /*
+    دعم الجلسات القديمة التي أُنشئت بنمط hosted قبل
+    تفعيل Embedded Checkout.
+    */
+    if (!session?.client_secret && session?.url) {
+      return {
+        presentationMode: "REDIRECT",
+        redirectUrl: session.url,
+      };
+    }
+
+    if (!session?.client_secret || !publishableKey) {
+      throw new AppError(
+        "بيانات جلسة Stripe المضمنة غير مكتملة",
+        502,
+        "stripe",
+      );
+    }
+
+    return {
+      clientSecret: session.client_secret,
+      publishableKey,
+      presentationMode: "EMBEDDED",
+    };
+  } catch (error) {
+    throw normalizeStripeError(
+      error,
+      "تعذر استرجاع جلسة Stripe المضمنة",
+    );
   }
 };
 
@@ -220,9 +307,35 @@ export const captureStripePayment = async ({
   const stripe = getStripeClient(providerConfig);
 
   try {
-    const current = await stripe.paymentIntents.retrieve(referencedPaymentId);
+    let paymentIntentId = referencedPaymentId;
+
+    /*
+    السجلات التي لم يكتمل تحققها قد تحمل Checkout Session
+    كمرجع مؤقت. نستخرج منها PaymentIntent بدل إرسال cs_ إلى
+    PaymentIntents API.
+    */
+    if (String(referencedPaymentId || "").startsWith("cs_")) {
+      const session = await stripe.checkout.sessions.retrieve(
+        referencedPaymentId,
+      );
+
+      paymentIntentId =
+        typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : session.payment_intent?.id || "";
+
+      if (!paymentIntentId) {
+        throw new AppError(
+          "جلسة Stripe لا تحتوي PaymentIntent قابلًا للتحصيل",
+          409,
+          "providerReference",
+        );
+      }
+    }
+
+    const current = await stripe.paymentIntents.retrieve(paymentIntentId);
     const paymentIntent = current.status === "requires_capture"
-      ? await stripe.paymentIntents.capture(referencedPaymentId, {
+      ? await stripe.paymentIntents.capture(paymentIntentId, {
           amount_to_capture: toMinorAmount(amount, currency),
         })
       : current;

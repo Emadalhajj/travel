@@ -23,7 +23,10 @@ import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import PaymentProvider from "../../models/payments/payment-provider-model.js";
 
 import { buildBookingPricingFromDraft } from "../draft-bookings/draft-booking-service.js";
-import { createProviderCheckout } from "./providers/payment-provider-factory.js";
+import {
+  createProviderCheckout,
+  getProviderCheckoutPresentation,
+} from "./providers/payment-provider-factory.js";
 
 import {
   attachProviderCheckoutService,
@@ -77,6 +80,10 @@ const extractCheckoutResult = (checkout = {}) => ({
     checkout.redirect?.url ||
     "",
   expiresAt: checkout.expiresAt || null,
+  clientSecret: checkout.clientSecret || "",
+  publishableKey: checkout.publishableKey || "",
+  presentationMode:
+    checkout.presentationMode || "REDIRECT",
 });
 
 const getExistingCheckoutResult = async (transaction) => {
@@ -230,8 +237,24 @@ export const createPaymentCheckoutSessionService = async ({
   const existingCheckout = await getExistingCheckoutResult(transaction);
 
   if (existingCheckout) {
+    const presentation =
+      await getProviderCheckoutPresentation({
+        providerCode: provider.code,
+        checkoutId: existingCheckout.checkoutId,
+        providerConfig:
+          buildProviderConfig(provider),
+        redirectUrl:
+          existingCheckout.redirectUrl,
+      });
+
+    const embedded =
+      presentation.presentationMode ===
+      "EMBEDDED";
+
     return {
-      action: "REDIRECT",
+      action: embedded
+        ? "EMBEDDED_CHECKOUT"
+        : "REDIRECT",
       paymentTransactionId: transaction._id,
       status: String(transaction.status).toUpperCase(),
       provider: {
@@ -240,6 +263,7 @@ export const createPaymentCheckoutSessionService = async ({
       },
       paymentMethodCode,
       ...existingCheckout,
+      ...presentation,
     };
   }
 
@@ -311,8 +335,14 @@ export const createPaymentCheckoutSessionService = async ({
         updatedBy: actorId,
       });
 
+    const embedded =
+      checkoutResult.presentationMode ===
+      "EMBEDDED";
+
     return {
-      action: "REDIRECT",
+      action: embedded
+        ? "EMBEDDED_CHECKOUT"
+        : "REDIRECT",
       paymentTransactionId: updatedTransaction._id,
       status: String(updatedTransaction.status).toUpperCase(),
       provider: {
@@ -322,6 +352,14 @@ export const createPaymentCheckoutSessionService = async ({
       paymentMethodCode,
       checkoutId: checkoutResult.checkoutId,
       redirectUrl: checkoutResult.redirectUrl,
+      ...(embedded
+        ? {
+            clientSecret:
+              checkoutResult.clientSecret,
+            publishableKey:
+              checkoutResult.publishableKey,
+          }
+        : {}),
     };
   } catch (checkoutError) {
     await markPaymentTransactionFailedService({

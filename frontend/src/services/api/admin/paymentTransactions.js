@@ -53,6 +53,17 @@ export const apiCapturePaymentTransaction = async ({
   return response.data;
 };
 
+export const apiVerifyProviderPaymentTransaction = async ({
+  transactionId,
+}) => {
+  const response = await api.post(
+    "/payment/callback",
+    { transactionId },
+  );
+
+  return response.data;
+};
+
 export const apiRefundPaymentTransaction = async ({
   transactionId,
   reason,

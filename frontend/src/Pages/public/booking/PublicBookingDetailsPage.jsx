@@ -14,6 +14,7 @@ import PageHeader from "../../../Components/layout/PageHeader";
 import BookingProgressTimeline from "../../../Components/shared/booking/BookingProgressTimeline";
 import { fetchPublicBookingById } from "../../../redux/public/bookingSlice";
 import DraftSelectedProductsCard from "../../../Components/shared/draft-bookings/DraftSelectedProductsCard";
+import { getNationalityLabel } from "../../../Utils/nationality";
 
 export default function PublicBookingDetailsPage() {
   const { bookingId } = useParams();
@@ -82,7 +83,10 @@ export default function PublicBookingDetailsPage() {
     },
     {
       label: t("nationality", "الجنسية"),
-      value: finalBooking?.customer?.nationality,
+      value: getNationalityLabel(
+        finalBooking?.customer?.nationality,
+        isArabic,
+      ),
     },
   ];
 
@@ -210,7 +214,7 @@ export default function PublicBookingDetailsPage() {
                       <DraftBookingInfoCard
                         key={traveler._id || index}
                         title={`${t("traveler", "معتمر")} ${index + 1}`}
-                        items={buildTravelerItems({ traveler, t })}
+                        items={buildTravelerItems({ traveler, t, isArabic })}
                       />
                     ))}
                   </div>
@@ -238,7 +242,7 @@ export default function PublicBookingDetailsPage() {
   );
 }
 
-function buildTravelerItems({ traveler, t }) {
+function buildTravelerItems({ traveler, t, isArabic }) {
   return [
     {
       label: t("fullName", "الاسم الكامل"),
@@ -250,7 +254,7 @@ function buildTravelerItems({ traveler, t }) {
     },
     {
       label: t("nationality", "الجنسية"),
-      value: traveler.nationality,
+      value: getNationalityLabel(traveler.nationality, isArabic),
     },
     {
       label: t("birthDate", "تاريخ الميلاد"),

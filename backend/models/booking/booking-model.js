@@ -100,6 +100,14 @@ const pilgrimSchema = new mongoose.Schema(
       required: true,
     },
 
+    passportImage: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    hostId: { type: String, trim: true, default: "" },
+
     mobile: {
       type: String,
       trim: true,
@@ -116,6 +124,20 @@ const pilgrimSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+  },
+  { _id: false },
+);
+
+const bookingHostSchema = new mongoose.Schema(
+  {
+    hostId: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    nationalId: { type: String, required: true, trim: true },
+    phone: { type: String, required: true, trim: true },
+    birthDate: { type: Date, required: true },
+    nationalAddress: { type: String, required: true, trim: true },
+    idImage: { type: String, trim: true, default: "" },
+    nationalAddressImage: { type: String, trim: true, default: "" },
   },
   { _id: false },
 );
@@ -401,6 +423,8 @@ const bookingSchema = new mongoose.Schema(
     },
 
     pilgrims: [pilgrimSchema],
+
+    hosts: { type: [bookingHostSchema], default: [] },
 
     totalPilgrims: {
       type: Number,

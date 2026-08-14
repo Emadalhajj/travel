@@ -31,10 +31,12 @@ import AppError from "../../utils/AppError.js";
 import { roundPrice } from "../../utils/roundPrice.js";
 
 import {
+  LEGACY_PAYMENT_TRANSACTION_STATUSES,
   PAYMENT_TRANSACTION_STATUSES,
   REUSABLE_PAYMENT_TRANSACTION_STATUSES,
   SETTLED_PAYMENT_TRANSACTION_STATUSES,
 } from "../../constants/payments/payment-transaction-statuses.js";
+
 import {
   PAYMENT_TRANSACTION_EVENT_CODES,
   PAYMENT_TRANSACTION_EVENT_SOURCES,
@@ -42,6 +44,15 @@ import {
 import { PAYMENT_TRANSACTION_STATUS_TRANSITIONS } from "../../constants/payments/payment-transaction-transitions.js";
 import { AUDIT_ACTIONS } from "../../constants/audit/audit-actions.js";
 import { recordPaymentTransactionAuditService } from "../audit/payment-transaction-audit-service.js";
+
+const BLOCKING_PUBLIC_PAYMENT_STATUSES = Object.freeze([
+  ...REUSABLE_PAYMENT_TRANSACTION_STATUSES,
+  PAYMENT_TRANSACTION_STATUSES.AUTHORIZED,
+  PAYMENT_TRANSACTION_STATUSES.CAPTURED,
+  PAYMENT_TRANSACTION_STATUSES.SUCCESS,
+  PAYMENT_TRANSACTION_STATUSES.PAID_PENDING_BOOKING,
+  LEGACY_PAYMENT_TRANSACTION_STATUSES.PAID,
+]);
 
 const TERMINAL_STATUSES = new Set([
   PAYMENT_TRANSACTION_STATUSES.SUCCESS,
@@ -51,6 +62,74 @@ const TERMINAL_STATUSES = new Set([
   PAYMENT_TRANSACTION_STATUSES.EXPIRED,
   PAYMENT_TRANSACTION_STATUSES.REFUNDED,
 ]);
+
+/*
+=====================================================
+Find Blocking Public Payment For Draft
+=====================================================
+
+يمنع بدء معاملة جديدة لمسودة لديها دفع قائم أو مدفوع،
+حتى عند تغيير PaymentConfiguration أو طريقة الدفع.
+=====================================================
+*/
+
+export const findBlockingPublicPaymentForDraftService = async ({
+  draftBookingId,
+}) => {
+  if (!mongoose.Types.ObjectId.isValid(draftBookingId)) {
+    throw new AppError("المعرف المرسل غير صالح", 400, "draftId");
+  }
+
+  return PaymentTransaction.findOne({
+    draftBooking: draftBookingId,
+    status: { $in: BLOCKING_PUBLIC_PAYMENT_STATUSES },
+    isDeleted: { $ne: true },
+  })
+    .select("status methodCode providerCode booking updatedAt")
+    .sort({ updatedAt: -1 });
+};
+
+export const findPublicPaymentReviewTransactionsService = async ({
+  userId,
+  draftBookingIds = [],
+}) => {
+  const validUserId = mongoose.Types.ObjectId.isValid(userId)
+    ? userId
+    : null;
+
+  const validDraftBookingIds = draftBookingIds.filter((draftId) =>
+    mongoose.Types.ObjectId.isValid(draftId),
+  );
+
+  if (!validUserId && !validDraftBookingIds.length) return [];
+
+  const ownershipFilter = [];
+
+  if (validUserId) {
+    ownershipFilter.push({ user: validUserId });
+  }
+
+  if (validDraftBookingIds.length) {
+    ownershipFilter.push({
+      draftBooking: { $in: validDraftBookingIds },
+    });
+  }
+
+  return PaymentTransaction.find({
+    $or: ownershipFilter,
+    status: {
+      $in: [
+        PAYMENT_TRANSACTION_STATUSES.PENDING_VERIFICATION,
+        PAYMENT_TRANSACTION_STATUSES.PENDING_REVIEW,
+      ],
+    },
+    draftBooking: { $ne: null },
+    isDeleted: { $ne: true },
+  })
+    .select("draftBooking status methodCode paymentReference updatedAt")
+    .sort({ updatedAt: -1 })
+    .lean();
+};
 
 /*
 =====================================================

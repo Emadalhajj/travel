@@ -21,6 +21,7 @@ import {
   fetchPaymentTransactionDetails,
   refundPaymentTransaction,
   rejectBankTransfer,
+  verifyProviderPaymentTransaction,
 } from "../../../redux/payments/paymentTransactionSlice";
 
 const ACTIONS = {
@@ -69,7 +70,12 @@ export default function AdminPaymentTransactionDetailsPage() {
     reject:
       transaction?.paymentMethodCode === "BANK_TRANSFER" &&
       ["PENDING_VERIFICATION", "PENDING_REVIEW"].includes(status),
-    capture: ["AUTHORIZED", "PROCESSING", "PENDING_REVIEW"].includes(status),
+    capture: transaction?.providerCode
+      ? status === "AUTHORIZED"
+      : ["AUTHORIZED", "PENDING_REVIEW"].includes(status),
+    verify:
+      Boolean(transaction?.providerCode) &&
+      ["INITIATED", "PROCESSING"].includes(status),
     refund: ["CAPTURED", "SUCCESS", "PAID_PENDING_BOOKING"].includes(status),
     cancel: [
       "INITIATED",
@@ -118,6 +124,29 @@ export default function AdminPaymentTransactionDetailsPage() {
     }
   };
 
+  const handleVerifyProviderPayment = async () => {
+    try {
+      const response = await dispatch(
+        verifyProviderPaymentTransaction({ transactionId }),
+      ).unwrap();
+
+      const verificationStatus =
+        response?.data?.verificationStatus || "";
+
+      toast.success(
+        verificationStatus === "AUTHORIZED"
+          ? "تم التحقق من الدفع، ويمكن الآن تأكيد التحصيل"
+          : "تم تحديث حالة الدفع",
+      );
+
+      await dispatch(
+        fetchPaymentTransactionDetails(transactionId),
+      ).unwrap();
+    } catch (verificationError) {
+      toast.error(getOperationErrorMessage(verificationError));
+    }
+  };
+
   if (detailsLoading && !transaction) {
     return <div className="py-5 text-center"><Spinner /></div>;
   }
@@ -139,6 +168,19 @@ export default function AdminPaymentTransactionDetailsPage() {
           )}
           {availableActions.capture && (
             <Button onClick={() => setDialog(ACTIONS.CAPTURE)}>Capture</Button>
+          )}
+          {availableActions.verify && (
+            <Button
+              variant="outline-primary"
+              disabled={operationLoading}
+              onClick={handleVerifyProviderPayment}
+            >
+              {operationLoading ? (
+                <Spinner size="sm" />
+              ) : (
+                "التحقق من الدفع"
+              )}
+            </Button>
           )}
           {availableActions.refund && (
             <Button variant="warning" onClick={() => setDialog(ACTIONS.REFUND)}>

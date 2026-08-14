@@ -16,6 +16,7 @@ Public Payment Result Page
 
 import {
   useEffect,
+  useState,
 } from "react";
 
 import {
@@ -87,6 +88,9 @@ const SUCCESS_STATUSES =
     "PAID_PENDING_BOOKING",
   ]);
 
+const POLLING_INTERVAL_MS = 3000;
+const MAX_POLLING_ATTEMPTS = 20;
+
 const getErrorMessage = (
   error,
   fallback,
@@ -157,6 +161,8 @@ export default function PublicPaymentResultPage() {
       "",
     ).toUpperCase();
 
+  const [pollingTimedOut, setPollingTimedOut] = useState(false);
+
   const isBankTransferSubmitted =
     paymentStatus?.paymentMethodCode === "BANK_TRANSFER" &&
     ["PENDING_VERIFICATION", "PENDING_REVIEW"].includes(normalizedStatus);
@@ -193,6 +199,10 @@ export default function PublicPaymentResultPage() {
     let pollingTimer =
       null;
 
+    let pollingAttempts = 0;
+
+    setPollingTimedOut(false);
+
     const checkStatus =
       async () => {
         try {
@@ -226,10 +236,17 @@ export default function PublicPaymentResultPage() {
               status,
             )
           ) {
+            pollingAttempts += 1;
+
+            if (pollingAttempts >= MAX_POLLING_ATTEMPTS) {
+              setPollingTimedOut(true);
+              return;
+            }
+
             pollingTimer =
               window.setTimeout(
                 checkStatus,
-                3000,
+                POLLING_INTERVAL_MS,
               );
           }
         } catch {
@@ -408,9 +425,9 @@ export default function PublicPaymentResultPage() {
 
         <Button
           variant="outline-primary"
-          onClick={() => navigate(`/draft-booking/${draftId}`)}
+          onClick={() => navigate("/my-draft-bookings")}
         >
-          {isArabic ? "عرض بيانات المسودة" : "View draft details"}
+          {isArabic ? "العودة إلى مسوداتي" : "Back to my drafts"}
         </Button>
       </div>
     );
@@ -533,7 +550,7 @@ export default function PublicPaymentResultPage() {
 
   return (
     <div className="container py-5">
-      <Alert variant="warning">
+      <Alert variant={pollingTimedOut ? "info" : "warning"}>
         <div className="d-flex align-items-center gap-2">
           {statusLoading && (
             <Spinner
@@ -544,8 +561,12 @@ export default function PublicPaymentResultPage() {
 
           <span>
             {isArabic
-              ? "عملية الدفع قيد التحقق أو المعالجة"
-              : "Payment is being verified or processed"}
+              ? pollingTimedOut
+                ? "تستغرق معالجة الدفع وقتًا أطول من المعتاد. يمكنك إعادة التحقق يدويًا."
+                : "عملية الدفع قيد التحقق أو المعالجة"
+              : pollingTimedOut
+                ? "Payment is taking longer than usual. You can check again manually."
+                : "Payment is being verified or processed"}
           </span>
         </div>
       </Alert>
@@ -559,6 +580,18 @@ export default function PublicPaymentResultPage() {
             {normalizedStatus}
           </strong>
         </div>
+      )}
+
+      {pollingTimedOut && (
+        <Button
+          className="mt-3"
+          onClick={() => {
+            setPollingTimedOut(false);
+            dispatch(fetchPaymentStatus(transactionId));
+          }}
+        >
+          {isArabic ? "إعادة التحقق" : "Check again"}
+        </Button>
       )}
     </div>
   );

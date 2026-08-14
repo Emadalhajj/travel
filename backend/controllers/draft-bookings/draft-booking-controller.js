@@ -33,6 +33,7 @@ import {
   expireOldDraftBookings,
   softDeleteDraftBooking,
 } from "../../services/draft-bookings/draft-booking-service.js";
+import AppError from "../../utils/AppError.js";
 
 /*
 =====================================================
@@ -54,6 +55,35 @@ export const createDraft = async (req, res, next) => {
       success: true,
       message: "Draft booking created successfully",
       data: draft,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const uploadDraftDocument = async (req, res, next) => {
+  try {
+    const draft = await getDraftBookingById(req.params.id);
+
+    if (
+      String(draft.user?._id || draft.user || "") !==
+      String(req.user?._id || "")
+    ) {
+      throw new AppError("غير مصرح برفع مرفقات لهذه المسودة", 403);
+    }
+
+    if (!req.file) {
+      throw new AppError("لم يتم إرفاق ملف", 400);
+    }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        name: req.file.originalname,
+        url: `/uploads/draft-bookings/${req.file.filename}`,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+      },
     });
   } catch (error) {
     next(error);
@@ -124,6 +154,7 @@ export const getMyDrafts = async (req, res, next) => {
       userId: req.user?._id,
       page: Number(req.query.page) || 1,
       limit: Number(req.query.limit) || 10,
+      status: req.query.status,
     });
 
     res.status(200).json({

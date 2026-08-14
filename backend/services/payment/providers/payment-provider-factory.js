@@ -12,9 +12,33 @@ import {
   cancelStripePayment,
   captureStripePayment,
   createStripeCheckoutSession,
+  getStripeEmbeddedCheckoutPresentation,
   refundStripePayment,
   verifyStripePayment,
 } from "../stripe-service.js";
+
+export const getProviderCheckoutPresentation = async ({
+  providerCode,
+  checkoutId,
+  providerConfig,
+  redirectUrl = "",
+}) => {
+  const code = String(
+    providerCode || "",
+  ).toUpperCase();
+
+  if (code === "STRIPE") {
+    return getStripeEmbeddedCheckoutPresentation({
+      checkoutId,
+      providerConfig,
+    });
+  }
+
+  return {
+    presentationMode: "REDIRECT",
+    redirectUrl,
+  };
+};
 
 export const SUPPORTED_PAYMENT_PROVIDER_CODES = Object.freeze([
   "HYPERPAY",

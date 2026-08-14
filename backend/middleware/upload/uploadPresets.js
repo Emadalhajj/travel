@@ -16,6 +16,25 @@ const DOCUMENT_EXTENSIONS =
   /\.(jpe?g|png|gif|webp|pdf|doc|docx)$/i;
   // صور + مستندات (للمرفقات)
 
+const IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const DOCUMENT_MIME_TYPES = [...IMAGE_MIME_TYPES, "application/pdf"];
+const BOOKING_DOCUMENT_EXTENSIONS = /\.(jpe?g|png|webp|pdf)$/i;
+
+// نبقي توافق الـpresets القديمة، بينما مستندات الحجز تستخدم القائمة المقيدة أعلاه.
+const legacyImageRule = {
+  extensions: IMAGE_EXTENSIONS,
+  mimeTypes: [...IMAGE_MIME_TYPES, "image/gif"],
+};
+const legacyDocumentRule = {
+  extensions: DOCUMENT_EXTENSIONS,
+  mimeTypes: [
+    ...DOCUMENT_MIME_TYPES,
+    "image/gif",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ],
+};
+
 /*
 تم تعريف المتغيرات بصيغة Constant وهي قيمة ثابتة
 تم تعريف المتغيرات الصور والمرفقات بهذ االشكل حتى نعرفه مرة واحدة: فقط ثم نعيد استخدام مثل
@@ -40,11 +59,9 @@ export const uploadHotel =
     folder: "hotels",
 
     fieldRules: {
-      images:
-        IMAGE_EXTENSIONS,
+      images: legacyImageRule,
 
-      attachments:
-        DOCUMENT_EXTENSIONS,
+      attachments: legacyDocumentRule,
     },
   });
 
@@ -65,8 +82,7 @@ export const uploadRoomType =
     folder: "room-types",
 
     fieldRules: {
-      images:
-        IMAGE_EXTENSIONS,
+      images: legacyImageRule,
     },
   });
 
@@ -78,8 +94,7 @@ export const uploadTransport =
     folder: "transport",
 
     fieldRules: {
-      images:
-        IMAGE_EXTENSIONS,
+      images: legacyImageRule,
     },
   });
 
@@ -91,11 +106,9 @@ export const uploadVisa =
     folder: "visa",
 
     fieldRules: {
-      documents:
-        DOCUMENT_EXTENSIONS,
+      documents: legacyDocumentRule,
 
-      images:
-        IMAGE_EXTENSIONS,
+      images: legacyImageRule,
     },
   });
 
@@ -106,8 +119,7 @@ export const uploadUmrahProgram =
     folder: "umrah-programs",
 
     fieldRules: {
-      images:
-        IMAGE_EXTENSIONS,
+      images: legacyImageRule,
     },
   });
 
@@ -116,8 +128,7 @@ export const uploadUmrahProgram =
   createUploader({
     folder : "extra-service" ,
     fieldRules : {
-      images :
-      IMAGE_EXTENSIONS
+      images: legacyImageRule
     }
   })
 
@@ -127,7 +138,21 @@ export const uploadPaymentProof =
     folder: "payment-proofs",
 
     fieldRules: {
-      proofAttachments:
-        DOCUMENT_EXTENSIONS,
+      proofAttachments: legacyDocumentRule,
+    },
+  });
+
+// مستندات مسودة الحجز: جواز، هوية مستضيف، عنوان وطني وغيرها.
+export const uploadDraftDocument =
+  createUploader({
+    folder: "draft-bookings",
+
+    maxSizeMB: 10,
+
+    fieldRules: {
+      document: {
+        extensions: BOOKING_DOCUMENT_EXTENSIONS,
+        mimeTypes: DOCUMENT_MIME_TYPES,
+      },
     },
   });
