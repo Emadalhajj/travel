@@ -117,21 +117,6 @@ export const createStripeCheckoutSession = async ({
   const normalizedCurrency = String(currency || "SAR").toLowerCase();
 
   try {
-<<<<<<< HEAD
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      ui_mode: "embedded_page",
-      redirect_on_completion: "if_required",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: normalizedCurrency,
-            unit_amount: toMinorAmount(amount, currency),
-            product_data: {
-              name: `Booking payment ${merchantTransactionId}`,
-=======
     const session = await stripe.checkout.sessions.create(
       {
         mode: "payment",
@@ -147,7 +132,6 @@ export const createStripeCheckoutSession = async ({
               product_data: {
                 name: `Booking payment ${merchantTransactionId}`,
               },
->>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
             },
           },
         ],
@@ -172,11 +156,6 @@ export const createStripeCheckoutSession = async ({
       {
         idempotencyKey: String(merchantTransactionId || ""),
       },
-<<<<<<< HEAD
-      customer_email: customer.email || undefined,
-      return_url: returnUrl,
-    });
-=======
     );
 
     if (!session.client_secret) {
@@ -186,7 +165,6 @@ export const createStripeCheckoutSession = async ({
         "stripe.clientSecret",
       );
     }
->>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
 
     const publishableKey = String(
       providerConfig.publishableKey ||
@@ -206,15 +184,10 @@ export const createStripeCheckoutSession = async ({
       id: session.id,
       checkoutId: session.id,
       providerReference: session.id,
-<<<<<<< HEAD
       redirectUrl: "",
       clientSecret: session.client_secret,
       publishableKey,
       presentationMode: "EMBEDDED",
-=======
-      clientSecret: session.client_secret,
-      redirectUrl: "",
->>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
       expiresAt: session.expires_at
         ? new Date(session.expires_at * 1000)
         : null,
@@ -365,7 +338,6 @@ export const captureStripePayment = async ({
   const stripe = getStripeClient(providerConfig);
 
   try {
-<<<<<<< HEAD
     let paymentIntentId = referencedPaymentId;
 
     /*
@@ -398,15 +370,6 @@ export const captureStripePayment = async ({
           amount_to_capture: toMinorAmount(amount, currency),
         })
       : current;
-=======
-    const current = await stripe.paymentIntents.retrieve(referencedPaymentId);
-    const paymentIntent =
-      current.status === "requires_capture"
-        ? await stripe.paymentIntents.capture(referencedPaymentId, {
-            amount_to_capture: toMinorAmount(amount, currency),
-          })
-        : current;
->>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
 
     if (paymentIntent.status !== "succeeded") {
       throw new AppError(

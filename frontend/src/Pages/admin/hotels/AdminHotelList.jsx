@@ -2,11 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchHotels,
-  fetchHotelsById,
   createHotel,
   updateHotel,
   deleteHotel,
-  toggleHotelStatus,
   setPaginationLimit,
   setPaginationPage,
 } from "../../../redux/hotels/hotelSlice";
@@ -15,52 +13,30 @@ import { toast } from "react-toastify";
 
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import TruncatedText from "../../../Components/common/TruncatedText"; // مكون لعرض النص المختصر
 import { formatImagePath } from "../../../Utils/imageUtils";
-import ReusableModalForm from "../../../Components/common/modals/ReusableModalForm";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
-import HotelFormModal from "../../../Components/common/ModalForms/hotel/HotelFormModal";
-import UniversalCard from "../../../Components/common/cards/UniversalCard";
 import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
-import { cloneEntity } from "../../../Utils/cloneEntity";
 import PageHeader from "../../../Components/layout/PageHeader";
-import ExportTableButtons from "../../../Components/common/buttons/ExportTableButtons";
 import EntityFilter from "../../../Components/common/EntityFilter";
 import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import ActionButton from "../../../Components/common/buttons/ActionButton";
-// import UniversalFormModal from "../../../Components/common/ModalForms/UniversalFormModal";
 import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
 import { hotelFormConfig } from "../../../Components/common/ModalForms/hotel/hotelFormConfig";
 
 import UniversalCardsContainer from "../../../Components/common/cards/UniversalCardsContainer";
 import { normalizeForForm } from "../../../Utils/formData/normalize";
-import {
-  selectedKeysFromObject,
-  toBoolean,
-  toNumber,
-  toStringList,
-} from "../../../Utils/formData/converters";
-import {
-  buildPayloadFromConfig,
-  createRequestFormData,
-  extractFormDataEntries,
-} from "../../../Utils/formData/formSerializer";
-import {
-  buildCloneExistingImages,
-  withExistingImages,
-} from "../../../Utils/formData/images";
-// import { serializeForApi } from "../../../Utils/formData/serialize";
-import { buildFormData } from "../../../Utils/formData/buildFormData";
 import { createHandleSave } from "../../../Utils/formData/createHandleSave";
 import PaginationComponent from "../../../Components/common/Pagination";
-
-// import  ImageUploader from "../../../Components/common/ImageUploader";
+import { buildQuery } from "../../../Utils/buildQuery";
+import { handleApiError } from "../../../Utils/handleApiError";
+import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
 
 export default function AdminHotelList() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language || "ar"; // ar أو en
 
   const {
@@ -70,17 +46,6 @@ export default function AdminHotelList() {
     pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
   } = useSelector((state) => state.hotels || {});
 
-  const [showModal, setShowModal] = useState(false);
-  const [currentHotel, setCurrentHotel] = useState(null); // يستخدم لكل من create و edit و clone
-  const [formMode, setFormMode] = useState("create"); // create | edit | clone
-  const [showDetails, setShowDetails] = useState(false);
-  const [deleteModal, setDeleteModal] = useState({
-    show: false,
-    id: null,
-    name: "",
-  });
-
-  const [loadingSave, setLoadingSave] = useState(false);
   const [filters, setFilters] = useState({
     hotelType: "",
     country: "",
@@ -89,144 +54,59 @@ export default function AdminHotelList() {
     search: "",
   });
 
-  const [formErrors, setFormErrors] = useState({});
-  // const [loading , setLoading] = useState(false);
-
-  // const [formModel, setFormModel] = useState("create"); // create  or update or clone
-
-  // Memoized Config for UniversalFormModal
   const memoizedConfig = useMemo(() => hotelFormConfig(), []);
-
-  //
-  // const normalizeHotelForForm = (hotel) => {
-  //   if (!hotel) return null;
-
-  //   const toMultilineText = (value) =>
-  //     Array.isArray(value) ? value.filter(Boolean).join("\n") : value || "";
-
-  //   return {
-  //     ...hotel,
-
-  //     /* ================= CONTACT ================= */
-  //     contact: {
-  //       phone: toMultilineText(hotel?.contact?.phone),
-
-  //       email: Array.isArray(hotel?.contact?.email)
-  //         ? hotel.contact.email[0] || ""
-  //         : hotel?.contact?.email || "",
-
-  //       whatsapp: toMultilineText(hotel?.contact?.whatsapp),
-
-  //       website: Array.isArray(hotel?.contact?.website)
-  //         ? hotel.contact.website[0] || ""
-  //         : hotel?.contact?.website || "",
-  //     },
-
-  //     /* ================= LOCATION ================= */
-  //     location: {
-  //       country: {
-  //         ar: hotel?.location?.country?.ar || "",
-  //         en: hotel?.location?.country?.en || "",
-  //         code: hotel?.location?.country?.code || "",
-  //       },
-
-  //       city: {
-  //         ar: hotel?.location?.city?.ar || "",
-  //         en: hotel?.location?.city?.en || "",
-  //       },
-
-  //       area: hotel?.location?.area || "",
-
-  //       address: {
-  //         ar: hotel?.location?.address?.ar || "",
-  //         en: hotel?.location?.address?.en || "",
-  //       },
-
-  //       coordinates: {
-  //         lat: hotel?.location?.coordinates?.lat || "",
-  //         lng: hotel?.location?.coordinates?.lng || "",
-  //       },
-  //     },
-
-  //     /* ================= ARRAYS ================= */
-  //     features: Array.isArray(hotel?.facilities)
-  //       ? hotel.facilities.reduce((acc, item) => {
-  //           if (item) acc[item] = true;
-  //           return acc;
-  //         }, {})
-  //       : {},
-
-  //     // roomTypes: Array.isArray(hotel?.roomTypes)
-  //     //   ? hotel.roomTypes.map((r) => r._id || r)
-  //     //   : [],
-
-  //     images: hotel?.images || [],
-  //   };
-  // };
-
-  //fetch hotels
-  useEffect(() => {
-    // 1. تنظيف الفلاتر - إزالة الفارغة
-    const filteredEntries = Object.entries(filters).filter(
-      ([_, v]) => v !== "",
-    ); // ← احتفظ فقط بقيم غير فارغة
-    // 2. تحويل إلى كائن
-    const filteredObject = Object.fromEntries(filteredEntries);
-    // 3. إنشاء Query String
-    const query = new URLSearchParams(filteredObject);
-    // 4. إضافة معاملات الصفحة
-    query.append("page", pagination.page);
-    query.append("limit", pagination.limit);
-    // 5. إرسال الطلب
-
-    dispatch(fetchHotels(query));
-  }, [filters, pagination.page, pagination.limit, dispatch]);
-
-  /* ================================
-     Modal Handlers  
-  ================================= */
-  const openCreateModal = () => {
-    setFormMode("create");
-    setCurrentHotel(null); // تنظيف البيانات الحالية
-    setShowModal(true); // فتح المودال
-    setFormErrors({}); // تنظيف الأخطاء
-  };
-  const openEditModal = (hotel) => {
-    setFormMode("edit");
-    setCurrentHotel(normalizeForForm(hotel, memoizedConfig)); // تجهيز البيانات للفورم
-    setShowModal(true);
-    setFormErrors({}); // تنظيف الأخطاء
-  };
-  const openCloneModal = (hotel) => {
-    const normalizedHotel = normalizeForForm(hotel, memoizedConfig);
-
-    setFormMode("clone");
-    setCurrentHotel({
-      ...normalizedHotel,
+  const listQuery = useMemo(
+    () =>
+      buildQuery(filters, { page: pagination.page, limit: pagination.limit }),
+    [filters, pagination.page, pagination.limit],
+  );
+  const {
+    showModal,
+    showDetails,
+    currentItem: currentHotel,
+    formMode,
+    formErrors,
+    loadingSave,
+    deleteModal,
+    openCreate: openCreateModal,
+    openEdit: openEditModal,
+    openClone: openCloneModal,
+    openDetails,
+    openDelete,
+    closeForm,
+    closeDetails,
+    closeDelete,
+    resetForm,
+    setFormErrors,
+    setLoadingSave,
+  } = useAdminEntityCrudState({
+    prepareForForm: (hotel) => normalizeForForm(hotel, memoizedConfig),
+    prepareClone: (hotel, normalized) => ({
+      ...normalized,
       _id: null,
       nameAr: `${hotel.nameAr} (نسخة)`,
       nameEn: `${hotel.nameEn} (Copy)`,
-    });
-    setShowModal(true);
-  };
+    }),
+  });
 
-  // دالة الحفظ المحسنة (الأهم)
+  useEffect(() => {
+    dispatch(fetchHotels(listQuery));
+  }, [dispatch, listQuery]);
+
   const handleSave = createHandleSave({
     dispatch,
     createAction: createHotel,
     updateAction: updateHotel,
-    fetchAction: fetchHotels,
+    fetchAction: () => fetchHotels(listQuery),
     getId: (item) => item._id,
     formConfig: memoizedConfig,
 
     toast,
     lang,
-    closeModal: () => setShowModal(false),
-    resetItem: () => setCurrentHotel(null),
-    resetMode: () => setFormMode("create"),
+    closeModal: closeForm,
+    resetItem: resetForm,
     setLoading: setLoadingSave,
 
-    // setLoading,
     setFormErrors,
   });
 
@@ -235,11 +115,11 @@ export default function AdminHotelList() {
       await dispatch(deleteHotel(deleteModal.id)).unwrap();
       toast.success(lang === "ar" ? "تم الحذف بنجاح" : "Deleted successfully");
 
-      dispatch(fetchHotels());
+      dispatch(fetchHotels(listQuery));
     } catch (err) {
-      toast.error("حدث خطأ أثناء الحذف");
+      toast.error(handleApiError(err, (message) => message, lang));
     } finally {
-      setDeleteModal({ show: false, id: null, name: "" });
+      closeDelete();
     }
   };
 
@@ -254,19 +134,14 @@ export default function AdminHotelList() {
   })();
 
   return (
-    <div className="container py-2">
-      {/* Header */}
+    <div className="container-fluid">
       <PageHeader
-        // titleAr="إدارة الفنادق"
-        // titleEn="Hotels Management"
+        titleAr="إدارة الفنادق"
+        titleEn="Hotels Management"
         subtitleAr="إدارة كاملة للفنادق، المرافق، أنواع الغرف والسياسات"
         subtitleEn="Full management of hotels, facilities, room types and policies"
-      />
-      {/* Action Buttons Row */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        {/* Action Buttons */}
-        <div className="w-100 d-flex justify-content-center">
-          <div className="d-inline-flex align-items-center gap-2">
+        actions={
+          <AdminPageActions>
             <ActionButton
               size="md"
               action="add"
@@ -282,13 +157,12 @@ export default function AdminHotelList() {
                 }
               />
             </Link>
-          </div>
-        </div>
-        <ExportTableButtons />
-      </div>
+          </AdminPageActions>
+        }
+      />
+
       <LoadingOverlay show={loading} />
-      {/* <ErrorOverlay show={!!error} message={error} /> */}
-      {/* filters */}
+      <ErrorOverlay show={Boolean(error)} message={error} />
       <EntityFilter
         filters={filters}
         setFilters={setFilters}
@@ -371,8 +245,7 @@ export default function AdminHotelList() {
 
       <UniversalFormModal
         show={showModal}
-        onHide={() => setShowModal(false)}
-        // onSave={handleSave}
+        onHide={closeForm}
         onSave={(data) =>
           handleSave(data, {
             formMode: formMode, // ← مهم جداً
@@ -401,12 +274,10 @@ export default function AdminHotelList() {
         }
         errors={formErrors}
         loading={loadingSave}
-        // resetForm={formMode === "create" ? null : currentHotel} // إعادة تعيين النموذج بعد الحفظ في حالة الإنشاء
       />
-      {/* detailse */}
       <EntityDetailsModal
         show={showDetails}
-        onHide={() => setShowDetails(false)}
+        onHide={closeDetails}
         title={
           currentHotel
             ? lang === "ar"
@@ -416,7 +287,6 @@ export default function AdminHotelList() {
         }
         images={currentHotel?.images || []}
         fields={[
-          // 1. Basic Info
           {
             label: lang === "ar" ? "الاسم" : "Name",
             value: currentHotel
@@ -477,7 +347,6 @@ export default function AdminHotelList() {
             label: lang === "ar" ? "عدد النجوم" : "Stars",
             value: currentHotel?.stars || "",
           },
-          // 2. Location
           {
             label: lang === "ar" ? "الدولة" : "Country",
             value: currentHotel?.location?.country
@@ -494,7 +363,6 @@ export default function AdminHotelList() {
                 : currentHotel.location.city.en
               : "",
           },
-          // 3. Facilities
           {
             label: lang === "ar" ? "المرافق" : "Facilities",
             value: currentHotel?.facilities
@@ -505,7 +373,6 @@ export default function AdminHotelList() {
                   : ""
               : "",
           },
-          // 4. Room Types
           {
             label: lang === "ar" ? "أنواع الغرف" : "Room Types",
             value: currentHotel?.roomTypes
@@ -516,7 +383,6 @@ export default function AdminHotelList() {
                 : ""
               : "",
           },
-          //created by and created at
           {
             label: lang === "ar" ? "تاريخ الإنشاء" : "Created At",
             value: currentHotel
@@ -531,7 +397,6 @@ export default function AdminHotelList() {
                 : currentHotel.createdBy.nameEn
               : "",
           },
-          //attachments
 
           {
             label: lang === "ar" ? "المرفقات" : "Attachments",
@@ -541,8 +406,35 @@ export default function AdminHotelList() {
           },
         ]}
       />
-      {/* Pagination */}
 
+      <UniversalCardsContainer
+        items={hotels}
+        lang={lang}
+        emptyMessageAr="لا توجد فنادق مضافة بعد"
+        emptyMessageEn="No hotels added yet"
+        getImage={(hotel) =>
+          hotel.images?.[0] ? formatImagePath(hotel.images[0]) : null
+        }
+        getTitle={(hotel) => (lang === "ar" ? hotel.nameAr : hotel.nameEn)}
+        getSubtitle={(hotel) =>
+          lang === "ar" ? hotel.descriptionAr : hotel.descriptionEn
+        }
+        getBadges={(hotel) => [
+          {
+            label: hotel.hotelType?.toUpperCase() || "HOTEL",
+            variant: "primary",
+          },
+        ]}
+        onView={(hotel) => {
+          openDetails(hotel);
+        }}
+        onEdit={openEditModal}
+        onDelete={(hotel) =>
+          openDelete(hotel, lang === "ar" ? hotel.nameAr : hotel.nameEn)
+        }
+        onDuplicate={openCloneModal}
+        onNavigate={(hotel) => navigate(`/admin/hotel/${hotel._id}/rooms`)}
+      />
       <PaginationComponent
         total={pagination.total}
         page={pagination.page}
@@ -551,63 +443,13 @@ export default function AdminHotelList() {
         onPageChange={(newPage) => dispatch(setPaginationPage(newPage))}
         onLimitChange={(newLimit) => {
           dispatch(setPaginationLimit(newLimit));
-          dispatch(setPaginationPage(1)); // العودة للصفحة الأولى عند تغيير العدد
+          dispatch(setPaginationPage(1));
         }}
       />
 
-      {/*cards */}
-      <UniversalCardsContainer
-        items={hotels}
-        lang={lang}
-        emptyMessageAr="لا توجد فنادق مضافة بعد"
-        emptyMessageEn="No hotels added yet"
-        // تخصيص البيانات للفنادق
-        getImage={(hotel) =>
-          hotel.images?.[0] ? formatImagePath(hotel.images[0]) : null
-        }
-        getTitle={(hotel) => (lang === "ar" ? hotel.nameAr : hotel.nameEn)}
-        getSubtitle={(hotel) =>
-          lang === "ar" ? hotel.descriptionAr : hotel.descriptionEn
-        }
-
-        getBadges={(hotel)=>[
-          {
-            label: hotel.hotelType?.toUpperCase() || "HOTEL",
-      variant: "primary",
-          },
-          // {
-          //   label: lang === "ar" ? "الغرف"  : "Rooms",
-          //   variant: "info" ,
-          //   as : "link" ,
-          //   to: `/admin/hotel/${hotel._id}/rooms`
-
-          // }
-        ]}
-
-            // الدوال
-        onView={(hotel) => {
-          setCurrentHotel(hotel);
-          setShowDetails(true);
-        }}
-        onEdit={openEditModal}
-        onDelete={(hotel) =>
-          setDeleteModal({
-            show: true,
-            id: hotel._id,
-            name: lang === "ar" ? hotel.nameAr : hotel.nameEn,
-          })
-        }
-        onDuplicate={openCloneModal}
-        onNavigate={(hotel)=>
-          navigate(`/admin/hotel/${hotel._id}/rooms`)
-        }
-
-      />
-
-      {/* Confirm Delete */}
       <ConfirmDialog
         show={deleteModal.show}
-        onHide={() => setDeleteModal({ show: false })}
+        onHide={closeDelete}
         onConfirm={confirmDelete}
         title={lang === "ar" ? "حذف الفندق؟" : "Delete Hotel?"}
         message={

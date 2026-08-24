@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Badge } from "react-bootstrap";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { useTranslation } from "react-i18next";
@@ -18,6 +17,8 @@ import { extraServiceFormConfig } from "../../../Components/common/ModalForms/ex
 import { buildQuery } from "../../../Utils/buildQuery";
 import { normalizeForForm } from "../../../Utils/formData/normalize";
 import { createHandleSave } from "../../../Utils/formData/createHandleSave";
+import { handleApiError } from "../../../Utils/handleApiError";
+import { formatPrice } from "../../../Utils/roundPrice";
 
 import PageHeader from "../../../Components/layout/PageHeader";
 import ActionButton from "../../../Components/common/buttons/ActionButton";
@@ -30,6 +31,10 @@ import PaginationComponent from "../../../Components/common/Pagination";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
 import ImagePreviewCell from "../../../Components/common/tables/ImagePreviewCell";
 import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
+import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
+import StatusBadge from "../../../Components/shared/common/StatusBadge";
+import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
 
 export default function AdminExtraServiceList() {
   const dispatch = useDispatch();
@@ -39,21 +44,9 @@ export default function AdminExtraServiceList() {
   const {
     extraServicesList = [],
     loading,
+    error,
     pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
   } = useSelector((state) => state.extraServices || {});
-
-  const [showModal, setShowModal] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [currentService, setCurrentService] = useState(null);
-  const [formMode, setFormMode] = useState("create");
-  const [formErrors, setFormErrors] = useState({});
-  const [loadingSave, setLoadingSave] = useState(false);
-
-  const [deleteModal, setDeleteModal] = useState({
-    show: false,
-    id: null,
-    name: "",
-  });
 
   const [filters, setFilters] = useState({
     search: "",
@@ -63,52 +56,54 @@ export default function AdminExtraServiceList() {
   });
 
   const memoizedConfig = useMemo(() => extraServiceFormConfig(), []);
-
-  useEffect(() => {
-    const query = buildQuery(filters, pagination);
-    dispatch(fetchExtraServices(query));
-  }, [dispatch, filters, pagination.page, pagination.limit]);
-
-  const openCreateModal = () => {
-    setFormMode("create");
-    setCurrentService(null);
-    setFormErrors({});
-    setShowModal(true);
-  };
-
-  const openEditModal = (service) => {
-    setFormMode("edit");
-    setCurrentService(normalizeForForm(service, memoizedConfig));
-    setFormErrors({});
-    setShowModal(true);
-  };
-
-  const openCloneModal = (service) => {
-    const normalized = normalizeForForm(service, memoizedConfig);
-
-    setFormMode("clone");
-    setCurrentService({
+  const listQuery = useMemo(
+    () => buildQuery(filters, { page: pagination.page, limit: pagination.limit }),
+    [filters, pagination.page, pagination.limit],
+  );
+  const {
+    showModal,
+    showDetails,
+    currentItem: currentService,
+    formMode,
+    formErrors,
+    loadingSave,
+    deleteModal,
+    openCreate: openCreateModal,
+    openEdit: openEditModal,
+    openClone: openCloneModal,
+    openDetails,
+    openDelete,
+    closeForm,
+    closeDetails,
+    closeDelete,
+    resetForm,
+    setFormErrors,
+    setLoadingSave,
+  } = useAdminEntityCrudState({
+    prepareForForm: (service) => normalizeForForm(service, memoizedConfig),
+    prepareClone: (service, normalized) => ({
       ...normalized,
       _id: null,
       nameAr: `${service.nameAr} (نسخة)`,
       nameEn: `${service.nameEn} (Copy)`,
-    });
-    setFormErrors({});
-    setShowModal(true);
-  };
+    }),
+  });
+
+  useEffect(() => {
+    dispatch(fetchExtraServices(listQuery));
+  }, [dispatch, listQuery]);
 
   const handleSave = createHandleSave({
     dispatch,
     createAction: createExtraService,
     updateAction: updateExtraService,
-    fetchAction: fetchExtraServices,
+    fetchAction: () => fetchExtraServices(listQuery),
     getId: (item) => item._id,
     formConfig: memoizedConfig,
     toast,
     lang,
-    closeModal: () => setShowModal(false),
-    resetItem: () => setCurrentService(null),
-    resetMode: () => setFormMode("create"),
+    closeModal: closeForm,
+    resetItem: resetForm,
     setLoading: setLoadingSave,
     setFormErrors,
   });
@@ -117,10 +112,11 @@ export default function AdminExtraServiceList() {
     try {
       await dispatch(deleteExtraService(deleteModal.id)).unwrap();
       toast.success(lang === "ar" ? "تم حذف الخدمة" : "Service deleted");
-    } catch {
-      toast.error(lang === "ar" ? "حدث خطأ أثناء الحذف" : "Delete failed");
+      dispatch(fetchExtraServices(listQuery));
+    } catch (err) {
+      toast.error(handleApiError(err, (message) => message, lang));
     } finally {
-      setDeleteModal({ show: false, id: null, name: "" });
+      closeDelete();
     }
   };
 
@@ -148,11 +144,15 @@ export default function AdminExtraServiceList() {
     {
       header: lang === "ar" ? "الصورة" : "Image",
       align: "center",
+      exportImageAccessor: "images",
+      pdfWidth: 52,
       render: (row) => <ImagePreviewCell images={row.images} />,
     },
     {
       header: lang === "ar" ? "اسم الخدمة" : "Service Name",
       accessor: ["nameAr", "nameEn"],
+      render: (row) => (lang === "ar" ? row.nameAr : row.nameEn) || "-",
+      excelValue: (row) => (lang === "ar" ? row.nameAr : row.nameEn) || "",
     },
     {
       header: lang === "ar" ? "التصنيف" : "Category",
@@ -161,34 +161,33 @@ export default function AdminExtraServiceList() {
     {
       header: lang === "ar" ? "السعر" : "Price",
       render: (row) =>
-        `${row.pricing?.basePrice || 0} ${row.pricing?.currency || "SAR"}`,
+        formatPrice(row.pricing?.basePrice, row.pricing?.currency || "SAR"),
+      excelValue: (row) => row.pricing?.basePrice || 0,
+      excelType: "number",
     },
     {
       header: lang === "ar" ? "التوفر" : "Availability",
       render: (row) => (
-        <Badge bg={row.isAlwaysAvailable ? "success" : "warning"}>
-          {row.isAlwaysAvailable
+        <StatusBadge
+          value={row.isAlwaysAvailable
             ? lang === "ar"
               ? "دائم التوفر"
               : "Always Available"
             : lang === "ar"
               ? "حسب المخزون"
               : "By Inventory"}
-        </Badge>
+          isArabic={lang === "ar"}
+        />
       ),
     },
     {
       header: lang === "ar" ? "الحالة" : "Status",
       render: (row) => (
-        <Badge bg={row.isActive ? "success" : "secondary"}>
-          {row.isActive
-            ? lang === "ar"
-              ? "نشط"
-              : "Active"
-            : lang === "ar"
-              ? "غير نشط"
-              : "Inactive"}
-        </Badge>
+        <StatusBadge
+          value={row.isActive ? "active" : "inactive"}
+          type="user"
+          isArabic={lang === "ar"}
+        />
       ),
     },
     {
@@ -201,18 +200,13 @@ export default function AdminExtraServiceList() {
           <ActionButton
             action="view"
             onClick={() => {
-              setCurrentService(row);
-              setShowDetails(true);
+              openDetails(row);
             }}
           />
           <ActionButton
             action="delete"
             onClick={() =>
-              setDeleteModal({
-                show: true,
-                id: row._id,
-                name: lang === "ar" ? row.nameAr : row.nameEn,
-              })
+              openDelete(row, lang === "ar" ? row.nameAr : row.nameEn)
             }
           />
         </div>
@@ -223,24 +217,25 @@ export default function AdminExtraServiceList() {
   return (
     <div className="container py-2">
       <PageHeader
+        titleAr="إدارة الخدمات الإضافية"
+        titleEn="Extra Services Management"
         subtitleAr="إدارة الخدمات الإضافية والتكميلية"
         subtitleEn="Manage Extra Services"
-      />
-
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div className="w-100 d-flex justify-content-center">
+        actions={
+          <AdminPageActions>
           <ActionButton
             size="md"
             action="add"
             label={lang === "ar" ? "إضافة خدمة" : "Add Service"}
             onClick={openCreateModal}
           />
-        </div>
-
-        <ExportTableButtons />
-      </div>
+          <ExportTableButtons data={extraServicesList} columns={columns} fileName="extra-services" lang={lang} title={lang === "ar" ? "تقرير الخدمات الإضافية" : "Extra Services Report"} />
+          </AdminPageActions>
+        }
+      />
 
       <LoadingOverlay show={loading} />
+      <ErrorOverlay show={Boolean(error)} message={error} />
 
       <EntityFilter
         filters={filters}
@@ -281,7 +276,7 @@ export default function AdminExtraServiceList() {
 
       <UniversalFormModal
         show={showModal}
-        onHide={() => setShowModal(false)}
+        onHide={closeForm}
         onSave={(data) =>
           handleSave(data, {
             formMode,
@@ -298,7 +293,7 @@ export default function AdminExtraServiceList() {
 
       <EntityDetailsModal
         show={showDetails}
-        onHide={() => setShowDetails(false)}
+        onHide={closeDetails}
         title={lang === "ar" ? "تفاصيل الخدمة" : "Service Details"}
         images={currentService?.images || []}
         fields={[
@@ -316,9 +311,10 @@ export default function AdminExtraServiceList() {
           },
           {
             label: lang === "ar" ? "السعر" : "Price",
-            value: `${currentService?.pricing?.basePrice || 0} ${
-              currentService?.pricing?.currency || "SAR"
-            }`,
+            value: formatPrice(
+              currentService?.pricing?.basePrice,
+              currentService?.pricing?.currency || "SAR",
+            ),
           },
           {
             label: lang === "ar" ? "التوفر" : "Availability",
@@ -333,6 +329,13 @@ export default function AdminExtraServiceList() {
         ]}
       />
 
+      <UniversalTable
+        columns={columns}
+        data={extraServicesList}
+        lang={lang}
+        emptyMessage={lang === "ar" ? "لا توجد خدمات" : "No services found"}
+      />
+
       <PaginationComponent
         total={pagination.total}
         page={pagination.page}
@@ -342,16 +345,9 @@ export default function AdminExtraServiceList() {
         onLimitChange={(newLimit) => dispatch(setLimit(newLimit))}
       />
 
-      <UniversalTable
-        columns={columns}
-        data={extraServicesList}
-        lang={lang}
-        emptyMessage={lang === "ar" ? "لا توجد خدمات" : "No services found"}
-      />
-
       <ConfirmDialog
         show={deleteModal.show}
-        onHide={() => setDeleteModal({ show: false, id: null, name: "" })}
+        onHide={closeDelete}
         onConfirm={confirmDelete}
         title={lang === "ar" ? "حذف الخدمة؟" : "Delete Service?"}
         message={

@@ -41,7 +41,7 @@ export default function DraftBookingCard({
           <p className="text-sm text-gray-500 mt-1">
             آخر تحديث:{" "}
             {draft?.updatedAt
-              ? new Date(draft.updatedAt).toLocaleDateString("ar-SA")
+              ? new Date(draft.updatedAt).toLocaleDateString("en-US")
               : "-"}
           </p>
         </div>

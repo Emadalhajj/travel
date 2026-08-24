@@ -28,6 +28,11 @@ import { roundPrice } from "../../utils/roundPrice.js";
 import {
   convertDraftToBooking,
 } from "../draft-bookings/draft-booking-service.js";
+import {
+  findInventoryHoldByPaymentTransactionService,
+  getInventoryHoldForCommitService,
+  releaseInventoryHoldService,
+} from "../booking/inventory-hold-service.js";
 
 import {
   getPaymentProviderByIdService,
@@ -56,6 +61,11 @@ import {
   PAYMENT_TRANSACTION_EVENT_CODES,
   PAYMENT_TRANSACTION_EVENT_SOURCES,
 } from "../../constants/payments/payment-transaction-events.js";
+import {
+  sendPaidPendingBookingNotification,
+  sendPaymentFailedNotification,
+  sendPaymentReceivedNotification,
+} from "../notifications/payment-notification-service.js";
 
 const SUCCESS_STATUSES = new Set([
   PAYMENT_TRANSACTION_STATUSES.SUCCESS,
@@ -225,6 +235,11 @@ export const completeProviderPaymentService = async ({
       includeEvents: true,
     });
 
+  const linkedHold =
+    await findInventoryHoldByPaymentTransactionService({
+      paymentTransaction: transaction._id,
+    });
+
   /*
   تكرار Callback بعد اكتمال العملية يعيد النتيجة
   الحالية ولا ينشئ حجزًا آخر.
@@ -301,6 +316,20 @@ export const completeProviderPaymentService = async ({
         providerReference:
           verification.providerReference,
       });
+
+    await sendPaymentFailedNotification({ transaction, req });
+
+    if (linkedHold?._id) {
+      try {
+        await releaseInventoryHoldService({
+          holdId: linkedHold._id,
+          reason: "Provider payment verification failed",
+          req,
+        });
+      } catch (releaseError) {
+        console.error("Inventory hold release failed:", releaseError);
+      }
+    }
 
     return buildSafeResult({
       transaction,
@@ -407,6 +436,15 @@ export const completeProviderPaymentService = async ({
   let conversionResult;
 
   try {
+    const holdForConversion = linkedHold?._id
+      ? await getInventoryHoldForCommitService({
+          holdId: linkedHold._id,
+          draftBooking: transaction.draftBooking,
+          paymentTransaction: transaction._id,
+          allowExpired: true,
+        })
+      : null;
+
     conversionResult =
       await convertDraftToBooking({
         draftId:
@@ -431,13 +469,16 @@ export const completeProviderPaymentService = async ({
           paymentTransactionId:
             transaction._id,
         },
+        inventoryHoldId:
+          holdForConversion?._id || null,
+        allowExpiredInventoryHold: true,
       });
   } catch (error) {
     await releasePaymentBookingConversionLockService({
       transactionId: transaction._id,
     });
 
-    await recordBookingConversionFailureService({
+    transaction = await recordBookingConversionFailureService({
       transactionId:
         transaction._id,
       reason:
@@ -446,6 +487,8 @@ export const completeProviderPaymentService = async ({
       source:
         PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
     });
+
+    await sendPaidPendingBookingNotification({ transaction, req });
 
     throw error;
   }
@@ -459,7 +502,7 @@ export const completeProviderPaymentService = async ({
       transactionId: transaction._id,
     });
 
-    await recordBookingConversionFailureService({
+    transaction = await recordBookingConversionFailureService({
       transactionId:
         transaction._id,
       reason:
@@ -467,6 +510,8 @@ export const completeProviderPaymentService = async ({
       source:
         PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
     });
+
+    await sendPaidPendingBookingNotification({ transaction, req });
 
     throw new AppError(
       "لم يتم إنشاء الحجز بعد تأكيد الدفع",
@@ -493,6 +538,12 @@ export const completeProviderPaymentService = async ({
         booking: booking._id,
       },
     });
+
+  await sendPaymentReceivedNotification({
+    transaction,
+    booking,
+    req,
+  });
 
   await releasePaymentBookingConversionLockService({
     transactionId: transaction._id,

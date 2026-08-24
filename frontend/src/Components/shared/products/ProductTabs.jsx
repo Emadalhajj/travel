@@ -79,7 +79,7 @@ export default function ProductTabs({
   return (
     <div
       className={
-        mode === "public" || mode === "booking"
+        mode === "public" || mode === "booking" || mode === "custom"
           ? "bg-white rounded-4 shadow border border-emerald-100 p-3"
           : "bg-white rounded-4 shadow-sm border p-3"
       }

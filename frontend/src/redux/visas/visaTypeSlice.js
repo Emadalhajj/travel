@@ -73,6 +73,7 @@ export const visaTypeSlice = createSlice({
       // fetch visa types
       .addCase(fetchVisaTypes.pending, (state) => {
         state.loading = true;
+        state.error = null;
       })
       .addCase(fetchVisaTypes.fulfilled, (state, action) => {
         state.visaTypes = action.payload?.visaTypes || action.payload || [];
@@ -84,13 +85,16 @@ export const visaTypeSlice = createSlice({
       })
       // create
       .addCase(createVisaType.fulfilled, (state, action) => {
-        state.visaTypes.unshift(action.payload?.visaTypes || action.payload);
+        const visaType = action.payload?.visaType || action.payload;
+        state.visaTypes.unshift(visaType);
       })
 
       // update
       .addCase(updateVisaType.fulfilled, (state, action) => {
+        const updatedVisaType =
+          action.payload?.updatedVisaType || action.payload;
         state.visaTypes = state.visaTypes.map((vt) =>
-          vt._id === action.payload._id ? action.payload : vt,
+          vt._id === updatedVisaType._id ? updatedVisaType : vt,
         );
       })
       // delete

@@ -164,16 +164,6 @@ export const completePublicDraftBooking = createAsyncThunk(
 
 const initialState = {
   draftBooking: null,
-
-  currentStep: "customer_info",
-
-  customer: {
-    name: "",
-    email: "",
-    phone: "",
-    nationality: "",
-    
-  },
   finalBooking: null,
   myBookings: [],
   myDraftBookings: [],
@@ -183,7 +173,6 @@ const initialState = {
   
 draftPagination: null,
   pagination: null,
-  travelers: [],
   loading: false,
   submitLoading: false,
   error: null,
@@ -194,19 +183,10 @@ const publicBookingSlice = createSlice({
   name: "publicBooking",
   initialState,
   reducers: {
-    setCustomer: (state, action) => {
-      state.customer = { ...state.customer, ...action.payload };
-    },
-    setTravelers: (state, action) => {
-      state.travelers = action.payload;
-    },
     resetPublicBooking: () => initialState,
     clearPublicBookingError: (state) => {
       state.error = null;
     },
-    setCurrentStep: (state, action) => {
-  state.currentStep = action.payload;
-},
   },
   extraReducers: (builder) => {
     builder
@@ -356,9 +336,6 @@ const publicBookingSlice = createSlice({
 });
 
 export const {
-  setCustomer,
-  setTravelers,
-    setCurrentStep,
   resetPublicBooking,
   clearPublicBookingError,
 } = publicBookingSlice.actions;

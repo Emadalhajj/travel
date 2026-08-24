@@ -10,4 +10,7 @@ export const changePasswordUser = (payload) =>
   api.patch("/users/me/change-password", payload);
 // Google OAuth
 export const loginWithGoogle = () =>
-  (window.location.href = "http://localhost:5000/api/auth/google");
+  window.location.assign(`${api.defaults.baseURL}/auth/google`);
+
+export const exchangeGoogleAuth = () =>
+  api.post("/auth/google/exchange", {}, { withCredentials: true });

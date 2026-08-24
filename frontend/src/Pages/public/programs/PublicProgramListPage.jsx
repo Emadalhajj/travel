@@ -10,6 +10,9 @@ import ProgramCard from "../../../Components/shared/programs/ProgramCard";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import Loader from "../../../Components/common/Loader";
 import PageHeader from "../../../Components/layout/PageHeader";
+import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
+import PublicButton from "../../../Components/shared/buttons/PublicButton";
+import EmptyState from "../../../Components/shared/common/EmptyState";
 
 // import {
 //   fetchPublicPrograms,
@@ -52,8 +55,7 @@ export default function PublicProgramListPage() {
   }, [dispatch]);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4">
-      <div className="max-w-7xl mx-auto">
+    <PublicPageLayout>
         {/* Header */}
         <PageHeader
           eyebrowAr="برامج العمرة"
@@ -63,13 +65,9 @@ export default function PublicProgramListPage() {
           subtitleAr="اختر البرنامج المناسب لك أو قم ببناء برنامج مخصص."
           subtitleEn="Choose a ready-made package or build your own custom package."
           actions={
-            <button
-              type="button"
-              onClick={() => navigate("/custom-package")}
-              className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"
-            >
+            <PublicButton onClick={() => navigate("/custom-package")}>
               {t("buildCustomPackage", "بناء برنامج مخصص")}
-            </button>
+            </PublicButton>
           }
         />
 
@@ -79,15 +77,11 @@ export default function PublicProgramListPage() {
 
         {/* Empty State */}
         {!loading && !error && programs.length === 0 && (
-          <div className="text-center bg-white rounded-xl shadow-sm p-10">
-            <h3 className="text-xl font-semibold text-gray-800">
-              {t("noProgramsFound", "لا توجد برامج متاحة حاليًا")}
-            </h3>
-
-            <p className="text-gray-500 mt-2">
-              {t("noProgramsFoundDesc", "سيتم عرض البرامج هنا عند توفرها")}
-            </p>
-          </div>
+          <EmptyState
+            icon="🕋"
+            title={t("noProgramsFound", "لا توجد برامج متاحة حاليًا")}
+            description={t("noProgramsFoundDesc", "سيتم عرض البرامج هنا عند توفرها")}
+          />
         )}
 
         {/* Programs Grid */}
@@ -104,7 +98,6 @@ export default function PublicProgramListPage() {
             ))}
           </div>
         )}
-      </div>
-    </div>
+    </PublicPageLayout>
   );
 }

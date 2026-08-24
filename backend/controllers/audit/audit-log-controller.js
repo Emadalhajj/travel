@@ -35,7 +35,10 @@ export const listAuditLogs = async (req, res, next) => {
       limit: Number(req.query.limit) || 20,
       action: req.query.action,
       entity: req.query.entity,
+      entityId: req.query.entityId,
       user: req.query.user,
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo,
     });
 
     res.status(200).json({

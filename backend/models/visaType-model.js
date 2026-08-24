@@ -13,6 +13,10 @@ const visaTypeSchema = new mongoose.Schema(
       required: [true, "Visa type name (Arabic) is required"],
       trim: true,
     },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );

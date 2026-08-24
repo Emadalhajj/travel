@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Badge } from "react-bootstrap";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { useTranslation } from "react-i18next";
@@ -19,7 +18,9 @@ import { fetchTransports } from "../../../redux/transports/transportSlice";
 
 import { buildQuery } from "../../../Utils/buildQuery";
 import { normalizeForForm } from "../../../Utils/formData/normalize";
-import { serializeForApi } from "../../../Utils/formData/serialize";
+import { createHandleSave } from "../../../Utils/formData/createHandleSave";
+import { handleApiError } from "../../../Utils/handleApiError";
+import { formatPrice } from "../../../Utils/roundPrice";
 
 import PageHeader from "../../../Components/layout/PageHeader";
 import ActionButton from "../../../Components/common/buttons/ActionButton";
@@ -31,7 +32,11 @@ import UniversalTable from "../../../Components/common/tables/UniversalTable";
 import PaginationComponent from "../../../Components/common/Pagination";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
 import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
+import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
+import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import { vehicleRentalFormConfig } from "../../../Components/common/ModalForms/transport/vehicleRentalFormConfig";
+import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
 
 export default function AdminVehicleRentalList() {
   const dispatch = useDispatch();
@@ -41,25 +46,13 @@ export default function AdminVehicleRentalList() {
   const {
     vehicleRentalsList = [],
     loading,
+    error,
     pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
   } = useSelector((state) => state.vehicleRentals || {});
 
   const { transportList = [] } = useSelector(
     (state) => state.transport || {},
   );
-
-  const [showModal, setShowModal] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [currentRental, setCurrentRental] = useState(null);
-  const [formMode, setFormMode] = useState("create");
-  const [formErrors, setFormErrors] = useState({});
-  const [loadingSave, setLoadingSave] = useState(false);
-
-  const [deleteModal, setDeleteModal] = useState({
-    show: false,
-    id: null,
-    name: "",
-  });
 
   const [filters, setFilters] = useState({
     search: "",
@@ -72,11 +65,49 @@ export default function AdminVehicleRentalList() {
     () => vehicleRentalFormConfig(transportList),
     [transportList],
   );
+  const listQuery = useMemo(
+    () => buildQuery(filters, { page: pagination.page, limit: pagination.limit }),
+    [filters, pagination.page, pagination.limit],
+  );
+  const prepareRental = (rental) => ({
+    ...normalizeForForm(rental, memoizedConfig),
+    transport:
+      typeof rental.transport === "object"
+        ? rental.transport?._id
+        : rental.transport,
+  });
+  const {
+    showModal,
+    showDetails,
+    currentItem: currentRental,
+    formMode,
+    formErrors,
+    loadingSave,
+    deleteModal,
+    openCreate: openCreateModal,
+    openEdit: openEditModal,
+    openClone: openCloneModal,
+    openDetails,
+    openDelete,
+    closeForm,
+    closeDetails,
+    closeDelete,
+    resetForm,
+    setFormErrors,
+    setLoadingSave,
+  } = useAdminEntityCrudState({
+    prepareForForm: prepareRental,
+    prepareClone: (rental, normalized) => ({
+      ...normalized,
+      _id: null,
+      nameAr: `${rental.nameAr} (نسخة)`,
+      nameEn: `${rental.nameEn} (Copy)`,
+    }),
+  });
 
   useEffect(() => {
-    const query = buildQuery(filters, pagination);
-    dispatch(fetchVehicleRentals(query));
-  }, [dispatch, filters, pagination.page, pagination.limit]);
+    dispatch(fetchVehicleRentals(listQuery));
+  }, [dispatch, listQuery]);
 
   useEffect(() => {
     dispatch(fetchTransports({ page: 1, limit: 1000 }));
@@ -94,101 +125,21 @@ export default function AdminVehicleRentalList() {
     return labels[value] || value || "-";
   };
 
-  const openCreateModal = () => {
-    setFormMode("create");
-    setCurrentRental(null);
-    setFormErrors({});
-    setShowModal(true);
-  };
-
-  const openEditModal = (rental) => {
-    const normalized = normalizeForForm(rental, memoizedConfig);
-
-    setFormMode("edit");
-    setCurrentRental({
-      ...normalized,
-      transport:
-        typeof rental.transport === "object"
-          ? rental.transport?._id
-          : rental.transport,
-    });
-    setFormErrors({});
-    setShowModal(true);
-  };
-
-  const openCloneModal = (rental) => {
-    const normalized = normalizeForForm(rental, memoizedConfig);
-
-    setFormMode("clone");
-    setCurrentRental({
-      ...normalized,
-      _id: null,
-      transport:
-        typeof rental.transport === "object"
-          ? rental.transport?._id
-          : rental.transport,
-      nameAr: `${rental.nameAr} (نسخة)`,
-      nameEn: `${rental.nameEn} (Copy)`,
-    });
-    setFormErrors({});
-    setShowModal(true);
-  };
-
-  const handleSave = async (data, context = {}) => {
-    try {
-      setLoadingSave(true);
-      setFormErrors({});
-
-      const formState = data?.formState || data;
-      const payload = serializeForApi(formState, memoizedConfig);
-
-      if (context.formMode === "edit") {
-        await dispatch(
-          updateVehicleRental({
-            id: context.currentItem?._id,
-            payload,
-          }),
-        ).unwrap();
-
-        toast.success(
-          lang === "ar"
-            ? "تم تحديث عرض التأجير بنجاح"
-            : "Vehicle rental updated successfully",
-        );
-      } else {
-        await dispatch(createVehicleRental(payload)).unwrap();
-
-        toast.success(
-          lang === "ar"
-            ? "تم إنشاء عرض التأجير بنجاح"
-            : "Vehicle rental created successfully",
-        );
-      }
-
-      setShowModal(false);
-      setCurrentRental(null);
-      setFormMode("create");
-      dispatch(fetchVehicleRentals(buildQuery(filters, pagination)));
-    } catch (err) {
-      const backendErrors =
-        err?.errors ||
-        err?.payload?.errors ||
-        err?.data?.errors ||
-        err?.response?.data?.errors ||
-        {};
-
-      setFormErrors(backendErrors);
-
-      toast.error(
-        err?.message ||
-          err?.data?.message ||
-          err?.response?.data?.message ||
-          (lang === "ar" ? "حدث خطأ أثناء الحفظ" : "Save failed"),
-      );
-    } finally {
-      setLoadingSave(false);
-    }
-  };
+  const handleSave = createHandleSave({
+    dispatch,
+    createAction: createVehicleRental,
+    updateAction: updateVehicleRental,
+    fetchAction: () => fetchVehicleRentals(listQuery),
+    getId: (item) => item._id,
+    formConfig: memoizedConfig,
+    toast,
+    lang,
+    closeModal: closeForm,
+    resetItem: resetForm,
+    setLoading: setLoadingSave,
+    setFormErrors,
+    useFormData: false,
+  });
 
   const confirmDelete = async () => {
     try {
@@ -198,14 +149,11 @@ export default function AdminVehicleRentalList() {
           ? "تم حذف عرض التأجير بنجاح"
           : "Vehicle rental deleted successfully",
       );
-    } catch {
-      toast.error(
-        lang === "ar"
-          ? "حدث خطأ أثناء الحذف"
-          : "Delete failed",
-      );
+      dispatch(fetchVehicleRentals(listQuery));
+    } catch (err) {
+      toast.error(handleApiError(err, (message) => message, lang));
     } finally {
-      setDeleteModal({ show: false, id: null, name: "" });
+      closeDelete();
     }
   };
 
@@ -219,6 +167,8 @@ export default function AdminVehicleRentalList() {
     {
       header: lang === "ar" ? "اسم العرض" : "Rental Name",
       accessor: ["nameAr", "nameEn"],
+      render: (row) => (lang === "ar" ? row.nameAr : row.nameEn) || "-",
+      excelValue: (row) => (lang === "ar" ? row.nameAr : row.nameEn) || "",
     },
     {
       header: lang === "ar" ? "وسيلة النقل" : "Vehicle",
@@ -235,6 +185,8 @@ export default function AdminVehicleRentalList() {
       header: lang === "ar" ? "السعة" : "Capacity",
       align: "center",
       render: (row) => row.transport?.capacity || "-",
+      excelValue: (row) => row.transport?.capacity ?? null,
+      excelType: "number",
     },
     {
       header: lang === "ar" ? "نوع التأجير" : "Rental Type",
@@ -243,38 +195,35 @@ export default function AdminVehicleRentalList() {
     {
       header: lang === "ar" ? "السعر" : "Price",
       render: (row) =>
-        `${row.pricing?.basePrice || 0} ${
-          row.pricing?.currency || "SAR"
-        }`,
+        formatPrice(row.pricing?.basePrice, row.pricing?.currency || "SAR"),
+      excelValue: (row) => row.pricing?.basePrice || 0,
+      excelType: "number",
     },
     {
       header: lang === "ar" ? "التوفر" : "Availability",
       align: "center",
       render: (row) => (
-        <Badge bg={row.isAlwaysAvailable ? "success" : "warning"}>
-          {row.isAlwaysAvailable
+        <StatusBadge
+          value={row.isAlwaysAvailable
             ? lang === "ar"
               ? "دائم التوفر"
               : "Always Available"
             : lang === "ar"
               ? "حسب المخزون"
               : "By Inventory"}
-        </Badge>
+          isArabic={lang === "ar"}
+        />
       ),
     },
     {
       header: lang === "ar" ? "الحالة" : "Status",
       align: "center",
       render: (row) => (
-        <Badge bg={row.isActive ? "success" : "secondary"}>
-          {row.isActive
-            ? lang === "ar"
-              ? "نشط"
-              : "Active"
-            : lang === "ar"
-              ? "غير نشط"
-              : "Inactive"}
-        </Badge>
+        <StatusBadge
+          value={row.isActive ? "active" : "inactive"}
+          type="user"
+          isArabic={lang === "ar"}
+        />
       ),
     },
     {
@@ -287,18 +236,13 @@ export default function AdminVehicleRentalList() {
           <ActionButton
             action="view"
             onClick={() => {
-              setCurrentRental(row);
-              setShowDetails(true);
+              openDetails(row);
             }}
           />
           <ActionButton
             action="delete"
             onClick={() =>
-              setDeleteModal({
-                show: true,
-                id: row._id,
-                name: lang === "ar" ? row.nameAr : row.nameEn,
-              })
+              openDelete(row, lang === "ar" ? row.nameAr : row.nameEn)
             }
           />
         </div>
@@ -309,12 +253,12 @@ export default function AdminVehicleRentalList() {
   return (
     <div className="container py-2">
       <PageHeader
+        titleAr="إدارة تأجير وسائل النقل"
+        titleEn="Vehicle Rentals Management"
         subtitleAr="إدارة عروض تأجير وسائل النقل"
         subtitleEn="Manage Vehicle Rental Offers"
-      />
-
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div className="w-100 d-flex justify-content-center">
+        actions={
+          <AdminPageActions>
           <ActionButton
             size="md"
             action="add"
@@ -325,12 +269,13 @@ export default function AdminVehicleRentalList() {
             }
             onClick={openCreateModal}
           />
-        </div>
-
-        <ExportTableButtons />
-      </div>
+          <ExportTableButtons data={vehicleRentalsList} columns={columns} fileName="vehicle-rentals" lang={lang} title={lang === "ar" ? "تقرير تأجير المركبات" : "Vehicle Rentals Report"} />
+          </AdminPageActions>
+        }
+      />
 
       <LoadingOverlay show={loading} />
+      <ErrorOverlay show={Boolean(error)} message={error} />
 
       <EntityFilter
         filters={filters}
@@ -370,7 +315,7 @@ export default function AdminVehicleRentalList() {
 
       <UniversalFormModal
         show={showModal}
-        onHide={() => setShowModal(false)}
+        onHide={closeForm}
         onSave={(data) =>
           handleSave(data, {
             formMode,
@@ -395,7 +340,7 @@ export default function AdminVehicleRentalList() {
 
       <EntityDetailsModal
         show={showDetails}
-        onHide={() => setShowDetails(false)}
+        onHide={closeDetails}
         title={
           lang === "ar"
             ? "تفاصيل عرض التأجير"
@@ -432,9 +377,10 @@ export default function AdminVehicleRentalList() {
           },
           {
             label: lang === "ar" ? "السعر الأساسي" : "Base Price",
-            value: `${currentRental?.pricing?.basePrice || 0} ${
-              currentRental?.pricing?.currency || "SAR"
-            }`,
+            value: formatPrice(
+              currentRental?.pricing?.basePrice,
+              currentRental?.pricing?.currency || "SAR",
+            ),
           },
           {
             label: lang === "ar" ? "التوفر" : "Availability",
@@ -449,15 +395,6 @@ export default function AdminVehicleRentalList() {
         ]}
       />
 
-      <PaginationComponent
-        total={pagination.total}
-        page={pagination.page}
-        limit={pagination.limit}
-        totalPages={pagination.totalPages}
-        onPageChange={(newPage) => dispatch(setPage(newPage))}
-        onLimitChange={(newLimit) => dispatch(setLimit(newLimit))}
-      />
-
       <UniversalTable
         columns={columns}
         data={vehicleRentalsList}
@@ -469,9 +406,18 @@ export default function AdminVehicleRentalList() {
         }
       />
 
+      <PaginationComponent
+        total={pagination.total}
+        page={pagination.page}
+        limit={pagination.limit}
+        totalPages={pagination.totalPages}
+        onPageChange={(newPage) => dispatch(setPage(newPage))}
+        onLimitChange={(newLimit) => dispatch(setLimit(newLimit))}
+      />
+
       <ConfirmDialog
         show={deleteModal.show}
-        onHide={() => setDeleteModal({ show: false, id: null, name: "" })}
+        onHide={closeDelete}
         onConfirm={confirmDelete}
         title={
           lang === "ar"

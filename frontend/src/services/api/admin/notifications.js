@@ -7,4 +7,4 @@ export const apiMarkNotificationAsRead = (id) =>
   api.patch(`/notifications/${id}/read`);
 
 export const apiMarkAllNotificationsAsRead = () =>
-  api.patch("/notifications/read-all");
+  api.patch("/notifications/my/read-all");

@@ -1,5 +1,5 @@
 // src/pages/client/Profile.jsx
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
@@ -45,11 +45,18 @@ export default function Profile() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleImageChange = (data) => {
-    if (data.newImages?.length > 0) {
-      setForm({ ...form, profileImage: data.newImages[0] });
-    }
-  };
+  const handleImageChange = useCallback((data) => {
+    const profileImage = data?.newImages?.[0];
+    setForm((previous) => ({
+      ...previous,
+      profileImage: profileImage instanceof File ? profileImage : null,
+    }));
+  }, []);
+
+  const initialProfileImages = useMemo(
+    () => (currentUser?.profileImage ? [currentUser.profileImage] : []),
+    [currentUser?.profileImage],
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -113,18 +120,7 @@ export default function Profile() {
             <div className="flex flex-col items-center mb-10">
               <div className="relative">
                 <ImageUploader
-                  initialImages={
-                    currentUser?.profileImage
-                      ? [
-                          {
-                            url: currentUser.profileImage.startsWith("http")
-                              ? currentUser.profileImage
-                              : `http://localhost:5000/${currentUser.profileImage}`,
-                            isOld: true,
-                          },
-                        ]
-                      : []
-                  }
+                  initialImages={initialProfileImages}
                   onChange={handleImageChange}
                   multiple={false}
                   maxImages={1}

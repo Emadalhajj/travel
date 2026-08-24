@@ -130,7 +130,7 @@ export default function ProductCard({
         <div className="mt-auto">
           <div className="fw-bold text-success mb-3">
             {Number(price || 0).toLocaleString(
-              isArabic ? "ar-SA" : "en-US",
+              isArabic ? "en-US" : "en-US",
             )}{" "}
             {currency}
           </div>

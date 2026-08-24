@@ -1,9 +1,12 @@
+import PublicButton from "../buttons/PublicButton";
+
 export default function EmptyState({
   icon = "📄",
   title,
   description,
   actionLabel,
   onAction,
+  actionVariant = "primary",
 }) {
   return (
     <div className="rounded-2xl bg-white p-10 text-center shadow-sm border border-slate-100">
@@ -22,13 +25,11 @@ export default function EmptyState({
       )}
 
       {actionLabel && onAction && (
-        <button
-          type="button"
-          onClick={onAction}
-          className="mt-6 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"
-        >
-          {actionLabel}
-        </button>
+        <div className="mt-6">
+          <PublicButton variant={actionVariant} onClick={onAction}>
+            {actionLabel}
+          </PublicButton>
+        </div>
       )}
     </div>
   );

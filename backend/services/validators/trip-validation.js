@@ -37,6 +37,7 @@ export const createTripSchema = Joi.object({
       Joi.allow(null),
     )
     .optional(),
+  startTime: Joi.number().integer().min(0).max(1439).optional(),
   /* ======================
    * PRICING
    * ====================== */
@@ -59,6 +60,9 @@ export const createTripSchema = Joi.object({
    * IMAGES
    * ====================== */
   images: Joi.array().items(Joi.string()).default([]),
+  "imagesDeleted[]": Joi.alternatives()
+    .try(Joi.array().items(Joi.string()), Joi.string())
+    .optional(),
 
   /* ======================
    * FEATURES (Dynamic Options)

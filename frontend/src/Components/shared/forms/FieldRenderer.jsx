@@ -1,8 +1,11 @@
 import { Col } from "react-bootstrap";
+import PhoneNumberField from "../../common/PhoneNumberField";
+import CalendarField from "../../common/CalendarField";
 
 export default function FieldRenderer({
   field,
   value,
+  error,
   onChange,
   isArabic = true,
 }) {
@@ -15,21 +18,52 @@ export default function FieldRenderer({
 
   return (
     <Col md={col} xs={12}>
-      <label className="block">
+      <div className="block">
         <span className="mb-2 block text-sm font-semibold text-slate-700">
           {label}
           {field.required && <span className="text-red-500"> *</span>}
         </span>
 
-        {renderField({ field, value, onChange, isArabic })}
-      </label>
+        {renderField({ field, value, onChange, isArabic, error })}
+        {error && field.type !== "phone" && field.type !== "date" && (
+          <p className="mt-1 text-xs font-semibold text-red-600">{error}</p>
+        )}
+      </div>
     </Col>
   );
 }
 
-function renderField({ field, value, onChange, isArabic }) {
+function renderField({ field, value, onChange, isArabic, error }) {
   const baseClass =
-    "w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
+    `w-full rounded-xl border px-4 py-3 text-sm outline-none focus:ring-2 ${error ? "border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-emerald-500 focus:ring-emerald-100"}`;
+
+  if (field.type === "phone") {
+    return (
+      <PhoneNumberField
+        value={value}
+        onChange={onChange}
+        required={field.required}
+        isArabic={isArabic}
+        error={error}
+        hideLabel
+      />
+    );
+  }
+
+  if (field.type === "date") {
+    return (
+      <CalendarField
+        id={field.id || field.name}
+        value={value || ""}
+        onChange={onChange}
+        min={field.min}
+        max={field.max}
+        required={field.required}
+        error={error}
+        isArabic={isArabic}
+      />
+    );
+  }
 
   if (field.type === "textarea") {
     return (

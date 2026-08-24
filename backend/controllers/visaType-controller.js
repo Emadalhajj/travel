@@ -9,7 +9,7 @@ export const getAllVisaTypes = asyncHandler(async (req, res) => {
 
 // 🟢 إنشاء نوع تأشيرة
 export const createVisaType = asyncHandler(async (req, res) => {
-  const {nameEn, nameAr } = req.body;
+  const { nameEn, nameAr, isActive } = req.body;
   
   if (!nameEn || !nameAr) {
     res.status(400);
@@ -24,17 +24,18 @@ export const createVisaType = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "نوع التأشيرة موجود مسبقًا" });
   }
 
-  const visaType = new VisaType({ nameEn, nameAr });
+  const visaType = new VisaType({ nameEn, nameAr, isActive });
   await visaType.save();
   res.status(201).json({ message: "تم إنشاء نوع التأشيرة بنجاح", visaType });
 });
 // 🟢 تحديث نوع تأشيرة
 export const updateVisaType = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { nameEn, nameAr } = req.body;
+  const { nameEn, nameAr, isActive } = req.body;
   const updatedVisaType = await VisaType.findByIdAndUpdate(id, {
     nameEn, 
     nameAr,
+    isActive,
    
   } , { new: true});
   if (!updatedVisaType){

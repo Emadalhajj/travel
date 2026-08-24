@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { register, loging } from "../../services/api";
 import { updateUserProfile } from "../../services/api/admin/auth";
 import { changePasswordUser } from "../../services/api/admin/auth";
+import { exchangeGoogleAuth } from "../../services/api/admin/auth";
 
 // 🟢 تسجيل المستخدم الجديد
 export const registerUser = createAsyncThunk(
@@ -29,6 +30,20 @@ export const loginUser = createAsyncThunk(
     } catch (err) {
       return thunkAPI.rejectWithValue(
         err.response?.data?.message || "Registration failed",
+      );
+    }
+  },
+);
+
+export const completeGoogleLogin = createAsyncThunk(
+  "auth/completeGoogleLogin",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await exchangeGoogleAuth();
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Google login failed",
       );
     }
   },
@@ -83,6 +98,8 @@ const authSlice = createSlice({
     logoutUser: (state) => {
       state.currentUser = null;
       localStorage.removeItem("currentUser");
+      localStorage.removeItem("token");
+      state.token = null;
       state.TypeAction = "logout";
     },
     clearError: (state) => {
@@ -118,6 +135,7 @@ const authSlice = createSlice({
       .addCase(loginUser.pending, (state) => {
         state.loading = true;
         state.error = null;
+        state.TypeAction = null;
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
@@ -133,6 +151,24 @@ const authSlice = createSlice({
         state.TypeAction = "login";
       })
       .addCase(loginUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+        state.TypeAction = null;
+        toast.error(action.payload);
+      })
+      .addCase(completeGoogleLogin.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(completeGoogleLogin.fulfilled, (state, action) => {
+        state.loading = false;
+        state.currentUser = action.payload.user;
+        state.token = action.payload.token;
+        localStorage.setItem("currentUser", JSON.stringify(action.payload.user));
+        localStorage.setItem("token", action.payload.token);
+        state.TypeAction = "login";
+      })
+      .addCase(completeGoogleLogin.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
         toast.error(action.payload);

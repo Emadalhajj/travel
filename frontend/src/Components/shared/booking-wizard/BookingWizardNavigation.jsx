@@ -1,46 +1,46 @@
-/*
-وظيفته أزرار التنقل فقط.
-*/
+import { ArrowLeft, ArrowRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import PublicButton from "../buttons/PublicButton";
+
 export default function BookingWizardNavigation({
   isFirstStep = false,
   isLastStep = false,
   disabled = false,
+  loading = false,
   onBack,
   onNext,
   nextLabel = "التالي",
   backLabel = "السابق",
 }) {
+  const { i18n } = useTranslation();
+  const isArabic = i18n.language === "ar";
+
   if (isLastStep) return null;
 
+  const BackIcon = isArabic ? ArrowRight : ArrowLeft;
+  const NextIcon = isArabic ? ArrowLeft : ArrowRight;
+
   return (
-    <div className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-4">
-      <button
-        type="button"
+    <div className="flex items-center justify-between gap-3">
+      <PublicButton
+        variant="secondary"
+        icon={BackIcon}
         onClick={onBack}
-        disabled={isFirstStep || disabled}
-        className={[
-          "px-5 py-2 rounded-lg border",
-          isFirstStep || disabled
-            ? "border-gray-200 text-gray-400 cursor-not-allowed"
-            : "border-gray-300 text-gray-700 hover:bg-gray-50",
-        ].join(" ")}
+        disabled={isFirstStep || disabled || loading}
       >
         {backLabel}
-      </button>
+      </PublicButton>
 
-      <button
-        type="button"
+      <PublicButton
+        variant="primary"
+        icon={NextIcon}
+        iconPosition="end"
         onClick={onNext}
         disabled={disabled}
-        className={[
-          "px-5 py-2 rounded-lg text-white",
-          disabled
-            ? "bg-blue-300 cursor-not-allowed"
-            : "bg-blue-600 hover:bg-blue-700",
-        ].join(" ")}
+        loading={loading}
       >
         {nextLabel}
-      </button>
+      </PublicButton>
     </div>
   );
 }

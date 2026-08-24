@@ -11,10 +11,20 @@ import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import Loader from "../../../Components/common/Loader";
 import PageHeader from "../../../Components/layout/PageHeader";
+import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
+import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
+import PublicButton from "../../../Components/shared/buttons/PublicButton";
 import BookingProgressTimeline from "../../../Components/shared/booking/BookingProgressTimeline";
 import { fetchPublicBookingById } from "../../../redux/public/bookingSlice";
 import DraftSelectedProductsCard from "../../../Components/shared/draft-bookings/DraftSelectedProductsCard";
 import { getNationalityLabel } from "../../../Utils/nationality";
+import { formatDate } from "../../../Utils/dateUtils";
+import { formatPrice } from "../../../Utils/roundPrice";
+import {
+  buildTravelerFullName,
+  formatGenderLabel,
+  getBookingTotal,
+} from "../../../Utils/bookingDisplay";
 
 export default function PublicBookingDetailsPage() {
   const { bookingId } = useParams();
@@ -45,8 +55,7 @@ export default function PublicBookingDetailsPage() {
 
   if (!loading && !finalBooking) {
     return (
-      <div className="min-h-screen bg-slate-50 px-4 py-8">
-        <div className="mx-auto max-w-6xl">
+      <PublicPageLayout containerClassName="max-w-6xl">
           <PageHeader
             eyebrowAr="تفاصيل الحجز"
             eyebrowEn="Booking Details"
@@ -61,8 +70,7 @@ export default function PublicBookingDetailsPage() {
 />
           
           <ErrorOverlay show={Boolean(error)} message={error} />
-        </div>
-      </div>
+      </PublicPageLayout>
     );
   }
 
@@ -97,11 +105,11 @@ export default function PublicBookingDetailsPage() {
     },
     {
       label: t("startDate", "تاريخ البداية"),
-      value: formatDate(finalBooking?.program?.startDate),
+      value: formatDate(finalBooking?.program?.startDate, { isArabic }),
     },
     {
       label: t("endDate", "تاريخ النهاية"),
-      value: formatDate(finalBooking?.program?.endDate),
+      value: formatDate(finalBooking?.program?.endDate, { isArabic }),
     },
   ];
 
@@ -133,15 +141,15 @@ export default function PublicBookingDetailsPage() {
     },
     {
       label: t("subtotal", "الإجمالي قبل الضريبة"),
-      value: formatMoney(subtotal, currency),
+      value: formatPrice(subtotal, currency),
     },
     {
       label: t("vat", `ضريبة القيمة المضافة ${taxRate}%`),
-      value: formatMoney(taxAmount, currency),
+      value: formatPrice(taxAmount, currency),
     },
     {
       label: t("totalWithVat", "الإجمالي شامل الضريبة"),
-      value: formatMoney(getBookingTotal(finalBooking), currency),
+      value: formatPrice(getBookingTotal(finalBooking), currency),
     },
   ];
   const selectedProductsList =
@@ -149,8 +157,7 @@ export default function PublicBookingDetailsPage() {
     finalBooking?.data?.selectedProductsList ||
     [];
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="mx-auto max-w-6xl">
+    <PublicPageLayout containerClassName="max-w-6xl">
         <PageHeader
           eyebrowAr="تفاصيل الحجز"
           eyebrowEn="Booking Details"
@@ -159,13 +166,12 @@ export default function PublicBookingDetailsPage() {
           subtitleAr="هذه الصفحة تعرض بيانات الحجز الحالية كما هي محفوظة في النظام."
           subtitleEn="This page shows the current booking data saved in the system."
           actions={
-            <button
-              type="button"
+            <PublicButton
+              variant="secondary"
               onClick={() => navigate("/my-bookings")}
-              className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
             >
               {t("backToMyBookings", "العودة لحجوزاتي")}
-            </button>
+            </PublicButton>
           }
         >
           <div className="mt-3 flex flex-wrap gap-2">
@@ -199,11 +205,7 @@ export default function PublicBookingDetailsPage() {
                 items={programItems}
               />
 
-              <section className="rounded-2xl bg-white p-6 shadow-sm border border-slate-100">
-                <h2 className="mb-5 text-xl font-bold text-slate-900">
-                  {t("travelers", "المعتمرون")}
-                </h2>
-
+              <PublicSectionCard title={t("travelers", "المعتمرون")}>
                 {travelers.length === 0 ? (
                   <p className="text-sm text-slate-500">
                     {t("noTravelersFound", "لا توجد بيانات معتمرين")}
@@ -219,7 +221,7 @@ export default function PublicBookingDetailsPage() {
                     ))}
                   </div>
                 )}
-              </section>
+              </PublicSectionCard>
             </main>
 
             <DraftBookingSummaryCard
@@ -237,8 +239,7 @@ export default function PublicBookingDetailsPage() {
             />
           </div>
         )}
-      </div>
-    </div>
+    </PublicPageLayout>
   );
 }
 
@@ -246,7 +247,7 @@ function buildTravelerItems({ traveler, t, isArabic }) {
   return [
     {
       label: t("fullName", "الاسم الكامل"),
-      value: traveler.fullName || buildPilgrimFullName(traveler),
+      value: traveler.fullName || buildTravelerFullName(traveler),
     },
     {
       label: t("passportNumber", "رقم الجواز"),
@@ -258,52 +259,11 @@ function buildTravelerItems({ traveler, t, isArabic }) {
     },
     {
       label: t("birthDate", "تاريخ الميلاد"),
-      value: formatDate(traveler.birthDate),
+      value: formatDate(traveler.birthDate, { isArabic }),
     },
     {
       label: t("gender", "الجنس"),
-      value: formatGender(traveler.gender, t),
+      value: formatGenderLabel(traveler.gender, t),
     },
   ];
-}
-
-function buildPilgrimFullName(pilgrim) {
-  return [
-    pilgrim.firstNameAr || pilgrim.firstNameEn,
-    pilgrim.secondNameAr || pilgrim.secondNameEn,
-    pilgrim.thirdNameAr || pilgrim.thirdNameEn,
-    pilgrim.lastNameAr || pilgrim.lastNameEn,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
-function getBookingTotal(booking) {
-  return (
-    booking?.pricing?.totalPrice ||
-    booking?.pricing?.total ||
-    booking?.pricing?.totalAmount ||
-    0
-  );
-}
-
-function formatMoney(amount, currency = "SAR") {
-  return `${Number(amount || 0).toFixed(2)} ${currency}`;
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "-";
-
-  return date.toLocaleDateString("en-CA");
-}
-
-function formatGender(value, t) {
-  if (value === "male") return t("male", "ذكر");
-  if (value === "female") return t("female", "أنثى");
-
-  return "-";
 }

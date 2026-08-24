@@ -105,7 +105,15 @@ const tripSlice = createSlice({
       totalPages: 0,
     },
   },
-  reducers: {},
+  reducers: {
+    setPage: (state, action) => {
+      state.pagination.page = action.payload;
+    },
+    setLimit: (state, action) => {
+      state.pagination.limit = action.payload;
+      state.pagination.page = 1;
+    },
+  },
   extraReducers: (builder) => {
     //fetch
     builder
@@ -115,7 +123,18 @@ const tripSlice = createSlice({
       })
       .addCase(fetchTrips.fulfilled, (state, action) => {
         state.loading = false;
+        state.error = null;
         state.tripList = action.payload?.trips || action.payload || [];
+        const total = action.payload?.total ?? state.tripList.length;
+        const page = action.payload?.page ?? 1;
+        const limit = action.payload?.limit ?? 10;
+        state.pagination = {
+          total,
+          page,
+          limit,
+          totalPages:
+            action.payload?.totalPages ?? Math.ceil(total / limit),
+        };
       })
       .addCase(fetchTrips.rejected, (state, action) => {
         state.loading = false;
@@ -198,4 +217,5 @@ const tripSlice = createSlice({
       });
   },
 });
+export const { setPage, setLimit } = tripSlice.actions;
 export default tripSlice.reducer;

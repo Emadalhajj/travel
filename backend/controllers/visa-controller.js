@@ -41,6 +41,8 @@ export const getAllVisas = asyncHandler(async (req, res) => {
     success: true,
     total,
     page: Number(req.query.page) || 1,
+    limit,
+    totalPages: Math.ceil(total / limit),
     visas,
   });
 
@@ -67,7 +69,7 @@ export const createVisa = asyncHandler(async (req, res) => {
     visaType,
     country,
     isActive,
-    createdBy,
+    isAlwaysAvailable,
   } = req.body;
 
   if (
@@ -77,8 +79,7 @@ export const createVisa = asyncHandler(async (req, res) => {
     !description?.en ||
     !visaType ||
     !country?.ar ||
-    !country?.en ||
-    !createdBy
+    !country?.en
   ) {
     return res
       .status(400)
@@ -94,7 +95,7 @@ export const createVisa = asyncHandler(async (req, res) => {
     price: parseFloat(price),
     duration,
     validity,
-    createdBy,
+    createdBy: req.user._id,
     country: {
       ar: country?.ar || req.body.country?.ar || "المملكة العربية السعودية",
       en: country?.en || req.body.country?.en || "Saudi Arabia",
@@ -102,6 +103,7 @@ export const createVisa = asyncHandler(async (req, res) => {
     visaType,
     images: imagePaths, // ← مصفوفة من المسارات
     isActive: isActive ?? true, // استخدم القيمة المرسلة أو القيمة الافتراضية true
+    isAlwaysAvailable: isAlwaysAvailable ?? true,
   });
 
   // Populate لإرجاع البيانات الكاملة
@@ -117,25 +119,20 @@ export const createVisa = asyncHandler(async (req, res) => {
 // 🟢 تتحديث تأشيرة (يدعم إضافة + حذف صور)
 export const updateVisa = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const data = req.body.data ? JSON.parse(req.body.data) : {};
+  const data = req.body;
+  const existingVisa = await Visa.findById(id);
 
-  const {
-    name,
-    description,
-    price,
-    duration,
-    validity,
-    visaType,
-    country,
-    isActive,
-    updatedBy,
-  } = data;
+  if (!existingVisa) {
+    return res.status(404).json({ message: "لم يتم العثور على التأشيرة" });
+  }
+
   // 1. الصور الجديدة
   const newImagePaths =
     req.files?.images?.map((file) => `/uploads/visa/${file.filename}`) || [];
 
   // 2. الصور القديمة المحذوفة (نستقبلها كـ مصفوفة)
-  const deleteImages = req.body["deleteImages[]"] || [];
+  let deleteImages =
+    req.body["imagesDeleted[]"] || req.body["deleteImages[]"] || [];
   if (!Array.isArray(deleteImages)) {
     deleteImages = [deleteImages];
   }
@@ -165,17 +162,22 @@ export const updateVisa = asyncHandler(async (req, res) => {
   // تحديث قاعدة البيانات
 
   const updateData = {
-    ...req.body,
-    price: parseFloat(req.body.price), // تأكد من تحويل السعر إلى رقم
+    ...data,
+    price: data.price === undefined ? undefined : parseFloat(data.price),
     updatedBy: req.user._id,
   };
 
-  if (newImagePaths.length > 0) {
-    updateData.$push = { images: { $each: newImagePaths } };
-  }
-  if (deleteImages.length > 0) {
-    updateData.$pull = { images: { $in: deleteImages } };
-  }
+  Object.keys(updateData).forEach((key) => {
+    if (updateData[key] === undefined) delete updateData[key];
+  });
+  delete updateData["imagesDeleted[]"];
+  delete updateData["deleteImages[]"];
+  updateData.images = [
+    ...(existingVisa.images || []).filter(
+      (image) => !deleteImages.includes(String(image)),
+    ),
+    ...newImagePaths,
+  ];
 
   const updatevisa = await Visa.findByIdAndUpdate(id, updateData, {
     new: true,
@@ -186,10 +188,6 @@ export const updateVisa = asyncHandler(async (req, res) => {
     })
     .populate("createdBy", "nameEn username")
     .populate("updatedBy", "nameEn username");
-
-  if (!updatevisa) {
-    return res.status(404).json({ message: "لم يتم العثور على التأشيرة" });
-  }
 
   res.status(200).json({
     message: "تم تحديث التأشيرة بنجاح",

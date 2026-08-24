@@ -19,10 +19,8 @@ export const sendWhatsApp = async ({
   to,
   message,
 }) => {
-  console.log("WHATSAPP SENT:", {
-    to,
-    message,
-  });
+  void to;
+  void message;
 
   return {
     success: true,

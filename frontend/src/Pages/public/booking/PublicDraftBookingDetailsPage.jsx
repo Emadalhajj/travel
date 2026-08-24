@@ -4,27 +4,28 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import {
-  CalendarDays,
-  Check,
-  CreditCard,
-  FileText,
-  PackageCheck,
-  User,
-  Users,
-} from "lucide-react";
-
-import {
   fetchPublicDraftBookingById,
   cancelPublicDraftBooking,
 } from "../../../redux/public/bookingSlice";
 
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PageHeader from "../../../Components/layout/PageHeader";
+import ActionButton from "../../../Components/common/buttons/ActionButton";
+import PublicButton from "../../../Components/shared/buttons/PublicButton";
+import ConfirmDialog from "../../../Components/common/ConfirmModal";
+import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
 
 import Loader from "../../../Components/common/Loader";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 
-import BookingProgressTimeline from "../../../Components/shared/booking/BookingProgressTimeline";
+import BookingProgressTimeline, {
+  bookingSteps,
+  customPackageSteps,
+  formatBookingStepLabel,
+  normalizeBookingStep,
+} from "../../../Components/shared/booking/BookingProgressTimeline";
+import TravelerReviewCard from "../../../Components/shared/booking/TravelerReviewCard";
+import HostReviewCard from "../../../Components/shared/booking/HostReviewCard";
 
 import DraftBookingInfoCard from "../../../Components/shared/draft-bookings/DraftBookingInfoCard";
 import DraftBookingSummaryCard from "../../../Components/shared/draft-bookings/DraftBookingSummaryCard";
@@ -32,62 +33,13 @@ import DraftSelectedProductsCard from "../../../Components/shared/draft-bookings
 
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import { getNationalityLabel } from "../../../Utils/nationality";
+import { calculateInclusiveDays, formatDate } from "../../../Utils/dateUtils";
+import { formatPrice } from "../../../Utils/roundPrice";
 
 import {
   calculateBookingPricing,
   getProgramUnitPrice,
 } from "../../../Components/shared/booking-wizard/bookingPricing";
-
-/*
-=====================================================
-خط سير البرنامج المخصص
-=====================================================
-*/
-
-const customBookingSteps = [
-  {
-    key: "dates",
-    labelAr: "التواريخ",
-    labelEn: "Dates",
-    icon: CalendarDays,
-  },
-  {
-    key: "services",
-    labelAr: "الخدمات",
-    labelEn: "Services",
-    icon: PackageCheck,
-  },
-  {
-    key: "customer_info",
-    labelAr: "بيانات العميل",
-    labelEn: "Customer",
-    icon: User,
-  },
-  {
-    key: "travelers",
-    labelAr: "المعتمرون",
-    labelEn: "Travelers",
-    icon: Users,
-  },
-  {
-    key: "review",
-    labelAr: "المراجعة",
-    labelEn: "Review",
-    icon: FileText,
-  },
-  {
-    key: "payment",
-    labelAr: "الدفع",
-    labelEn: "Payment",
-    icon: CreditCard,
-  },
-  {
-    key: "success",
-    labelAr: "التأكيد",
-    labelEn: "Confirmation",
-    icon: Check,
-  },
-];
 
 export default function PublicDraftBookingDetailsPage() {
   const { draftId } = useParams();
@@ -104,6 +56,7 @@ export default function PublicDraftBookingDetailsPage() {
 
   const [localError, setLocalError] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
 
   /*
   =====================================================
@@ -170,6 +123,8 @@ export default function PublicDraftBookingDetailsPage() {
       ? draftBooking.travelers
       : [];
   }, [draftBooking]);
+
+  const hosts = useMemo(() => Array.isArray(draftBooking?.hosts) ? draftBooking.hosts : [], [draftBooking]);
 
   const selectedProductsList = useMemo(() => {
     return (
@@ -280,6 +235,7 @@ export default function PublicDraftBookingDetailsPage() {
   =====================================================
   */
 
+  const durationDays = calculateInclusiveDays(programStartDate, programEndDate);
   const programItems = [
     {
       label: t("program", "البرنامج"),
@@ -287,15 +243,15 @@ export default function PublicDraftBookingDetailsPage() {
     },
     {
       label: t("startDate", "تاريخ البداية"),
-      value: formatDate(programStartDate),
+      value: formatDate(programStartDate, { isArabic }),
     },
     {
       label: t("endDate", "تاريخ النهاية"),
-      value: formatDate(programEndDate),
+      value: formatDate(programEndDate, { isArabic }),
     },
     {
       label: t("duration", "مدة البرنامج"),
-      value: calculateDuration(programStartDate, programEndDate, t),
+      value: durationDays ? `${durationDays} ${t("days", "يوم")}` : "-",
     },
     {
       label: t("travelersCount", "عدد المعتمرين"),
@@ -316,7 +272,7 @@ export default function PublicDraftBookingDetailsPage() {
     },
     {
       label: t("currentStep", "الخطوة الحالية"),
-      value: formatStepName(
+      value: formatBookingStepLabel(
         draftBooking?.currentStep,
         isArabic,
       ),
@@ -331,7 +287,7 @@ export default function PublicDraftBookingDetailsPage() {
     },
     {
       label: t("subtotal", "الإجمالي قبل الضريبة"),
-      value: formatMoney(
+      value: formatPrice(
         pricingSummary.subtotal,
         pricingSummary.currency,
       ),
@@ -341,21 +297,21 @@ export default function PublicDraftBookingDetailsPage() {
         "vat",
         `ضريبة القيمة المضافة ${pricingSummary.taxRate}%`,
       ),
-      value: formatMoney(
+      value: formatPrice(
         pricingSummary.taxAmount,
         pricingSummary.currency,
       ),
     },
     {
       label: t("discount", "الخصم"),
-      value: formatMoney(
+      value: formatPrice(
         pricingSummary.discount,
         pricingSummary.currency,
       ),
     },
     {
       label: t("totalWithVat", "الإجمالي شامل الضريبة"),
-      value: formatMoney(
+      value: formatPrice(
         pricingSummary.total,
         pricingSummary.currency,
       ),
@@ -403,6 +359,10 @@ export default function PublicDraftBookingDetailsPage() {
     packageType === "READY_PACKAGE" ||
     packageType === "PREDEFINED_PACKAGE";
 
+  const navigateToPartyDetails = () => {
+    navigate(`/booking/draft/${draftId}/details`);
+  };
+
   const hasRequiredServices =
     hasSelectedProducts || hasReadyPackage;
 
@@ -412,8 +372,7 @@ export default function PublicDraftBookingDetailsPage() {
     isDraft &&
     hasCustomerData &&
     hasTravelers &&
-    hasRequiredServices &&
-    pricingSummary.total > 0;
+    hasRequiredServices;
 
   /*
   =====================================================
@@ -424,6 +383,7 @@ export default function PublicDraftBookingDetailsPage() {
   const currentTimelineStep = normalizeBookingStep(
     draftBooking?.currentStep,
   );
+  const timelineSteps = hasReadyPackage ? bookingSteps : customPackageSteps;
 
   /*
   =====================================================
@@ -444,12 +404,12 @@ export default function PublicDraftBookingDetailsPage() {
     }
 
     if (currentStep === "customer_info") {
-      navigate(`/booking/custom/${draftId}/customer`);
+      navigateToPartyDetails();
       return;
     }
 
     if (currentStep === "travelers") {
-      navigate(`/booking/custom/${draftId}/travelers`);
+      navigateToPartyDetails();
       return;
     }
 
@@ -481,7 +441,7 @@ export default function PublicDraftBookingDetailsPage() {
       return;
     }
 
-    navigate(`/booking/custom/${draftId}/customer`);
+    navigateToPartyDetails();
   };
 
   /*
@@ -491,7 +451,7 @@ export default function PublicDraftBookingDetailsPage() {
   */
 
   const handleEditCustomer = () => {
-    navigate(`/booking/custom/${draftId}/customer`);
+    navigateToPartyDetails();
   };
 
   /*
@@ -501,7 +461,7 @@ export default function PublicDraftBookingDetailsPage() {
   */
 
   const handleEditTravelers = () => {
-    navigate(`/booking/custom/${draftId}/travelers`);
+    navigateToPartyDetails();
   };
 
   /*
@@ -511,15 +471,6 @@ export default function PublicDraftBookingDetailsPage() {
   */
 
   const handleCancel = async () => {
-    const confirmed = window.confirm(
-      t(
-        "confirmCancelDraft",
-        "هل أنت متأكد من إلغاء هذه المسودة؟",
-      ),
-    );
-
-    if (!confirmed) return;
-
     try {
       setIsCancelling(true);
       setLocalError("");
@@ -553,6 +504,7 @@ export default function PublicDraftBookingDetailsPage() {
       );
     } finally {
       setIsCancelling(false);
+      setShowCancelConfirmation(false);
     }
   };
 
@@ -593,13 +545,13 @@ export default function PublicDraftBookingDetailsPage() {
           message={error}
         />
 
-        <button
-          type="button"
+        <PublicButton
+          variant="secondary"
           onClick={() => navigate("/my-draft-bookings")}
-          className="mt-6 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+          className="mt-6"
         >
           {t("backToDrafts", "العودة للمسودات")}
-        </button>
+        </PublicButton>
       </PublicPageLayout>
     );
   }
@@ -615,45 +567,35 @@ export default function PublicDraftBookingDetailsPage() {
         subtitleEn="Review the program, customer, travelers, and selected services before payment."
         actions={
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
+            {isDraft && <ActionButton action="back" onClick={handleEditTravelers} showLabel label={t("previousStep", "الخطوة السابقة")} size="lg" />}
+            <PublicButton
+              variant="secondary"
               onClick={() => navigate("/my-draft-bookings")}
-              className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
             >
               {t("backToDrafts", "العودة للمسودات")}
-            </button>
+            </PublicButton>
 
             {isDraft && (
-              <button
-                type="button"
+              <PublicButton
                 onClick={handleContinue}
                 disabled={submitLoading || isCancelling}
-                className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 {t("continueBooking", "متابعة الحجز")}
-              </button>
+              </PublicButton>
             )}
 
             {isDraft && (
-              <button
-                type="button"
-                onClick={handleCancel}
+              <PublicButton
+                variant="dangerOutline"
+                onClick={() => setShowCancelConfirmation(true)}
                 disabled={
                   submitLoading ||
                   isCancelling
                 }
-                className="rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                loading={isCancelling}
               >
-                {isCancelling
-                  ? t(
-                      "cancellingDraft",
-                      "جاري الإلغاء...",
-                    )
-                  : t(
-                      "cancelDraft",
-                      "إلغاء المسودة",
-                    )}
-              </button>
+                {t("cancelDraft", "إلغاء المسودة")}
+              </PublicButton>
             )}
           </div>
         }
@@ -673,7 +615,7 @@ export default function PublicDraftBookingDetailsPage() {
       <BookingProgressTimeline
         currentStep={currentTimelineStep}
         isArabic={isArabic}
-        steps={customBookingSteps}
+        steps={timelineSteps}
       />
 
       <ErrorOverlay
@@ -751,16 +693,13 @@ export default function PublicDraftBookingDetailsPage() {
             />
 
             {isDraft && (
-              <button
-                type="button"
+              <ActionButton
+                action="edit"
                 onClick={handleEditCustomer}
-                className="absolute left-5 top-5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
-              >
-                {t(
-                  "editCustomerData",
-                  "تعديل البيانات",
-                )}
-              </button>
+                showLabel
+                label={t("editCustomerData", "تعديل البيانات")}
+                className="absolute left-5 top-5"
+              />
             )}
           </section>
 
@@ -772,7 +711,7 @@ export default function PublicDraftBookingDetailsPage() {
             items={programItems}
           />
 
-          <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <PublicSectionCard>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
@@ -788,16 +727,12 @@ export default function PublicDraftBookingDetailsPage() {
               </div>
 
               {isDraft && (
-                <button
-                  type="button"
+                <ActionButton
+                  action="edit"
                   onClick={handleEditTravelers}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
-                >
-                  {t(
-                    "editTravelers",
-                    "تعديل المعتمرين",
-                  )}
-                </button>
+                  showLabel
+                  label={t("editTravelers", "تعديل المعتمرين")}
+                />
               )}
             </div>
 
@@ -824,7 +759,9 @@ export default function PublicDraftBookingDetailsPage() {
                 ))}
               </div>
             )}
-          </section>
+
+            {hosts.length > 0 && <div className="mt-8 space-y-5"><h2 className="text-xl font-bold text-slate-900">{t("hosts", "المستضيفون")}</h2>{hosts.map((host, index) => <HostReviewCard key={host.hostId || index} host={host} index={index} t={t} isArabic={isArabic} />)}</div>}
+          </PublicSectionCard>
         </main>
 
         <aside className="space-y-6">
@@ -862,7 +799,7 @@ export default function PublicDraftBookingDetailsPage() {
                       "cancelDraft",
                       "إلغاء المسودة",
                     ),
-                    onClick: handleCancel,
+                    onClick: () => setShowCancelConfirmation(true),
                     disabled:
                       submitLoading ||
                       isCancelling,
@@ -896,153 +833,18 @@ export default function PublicDraftBookingDetailsPage() {
           )}
         </aside>
       </div>
-    </PublicPageLayout>
-  );
-}
-
-/*
-=====================================================
-بطاقة مراجعة المعتمر
-=====================================================
-*/
-
-function TravelerReviewCard({
-  traveler,
-  index,
-  t,
-  isArabic,
-}) {
-  const travelerItems = [
-    {
-      label: t("fullName", "الاسم الكامل"),
-      value: traveler.fullName || "-",
-    },
-    {
-      label: t("passportNumber", "رقم الجواز"),
-      value: traveler.passportNumber || "-",
-    },
-    {
-      label: t("nationality", "الجنسية"),
-      value: getNationalityLabel(traveler.nationality, isArabic),
-    },
-    {
-      label: t("birthDate", "تاريخ الميلاد"),
-      value: formatDate(traveler.birthDate),
-    },
-    {
-      label: t("gender", "الجنس"),
-      value: formatGender(traveler.gender, t),
-    },
-    {
-      label: t("mobile", "رقم الجوال"),
-      value: traveler.mobile || "-",
-    },
-    {
-      label: t("whatsapp", "رقم الواتساب"),
-      value: traveler.whatsapp || "-",
-    },
-  ];
-
-  const attachments = [
-    {
-      key: "passportImage",
-      label: t("passportImage", "صورة الجواز"),
-      value: traveler.passportImage,
-    },
-    {
-      key: "personalPhoto",
-      label: t("personalPhoto", "الصورة الشخصية"),
-      value: traveler.personalPhoto,
-    },
-    {
-      key: "vaccinationCertificate",
-      label: t(
-        "vaccinationCertificate",
-        "شهادة التطعيم",
-      ),
-      value: traveler.vaccinationCertificate,
-    },
-    {
-      key: "visaAttachment",
-      label: t(
-        "visaAttachment",
-        "مرفق التأشيرة",
-      ),
-      value: traveler.visaAttachment,
-    },
-  ];
-
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-      <h3 className="mb-5 text-lg font-bold text-slate-900">
-        {t("traveler", "معتمر")} {index + 1}
-      </h3>
-
-      <DraftBookingInfoCard
-        title={t(
-          "travelerPersonalData",
-          "البيانات الشخصية",
-        )}
-        items={travelerItems}
+      <ConfirmDialog
+        show={showCancelConfirmation}
+        onHide={() => !isCancelling && setShowCancelConfirmation(false)}
+        onConfirm={handleCancel}
+        title={t("cancelDraftTitle", "تأكيد إلغاء المسودة")}
+        message={t("confirmCancelDraft", "هل أنت متأكد من إلغاء هذه المسودة؟ لا يمكن التراجع عن هذه العملية.")}
+        confirmText={t("confirmCancelDraftAction", "نعم، إلغاء المسودة")}
+        cancelText={t("keepDraft", "الاحتفاظ بالمسودة")}
+        variant="warning"
+        loading={isCancelling}
       />
-
-      <div className="mt-5">
-        <h4 className="mb-3 text-sm font-bold text-slate-900">
-          {t(
-            "travelerAttachments",
-            "المستندات المرفقة",
-          )}
-        </h4>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {attachments.map((attachment) => (
-            <AttachmentItem
-              key={attachment.key}
-              label={attachment.label}
-              value={attachment.value}
-              isArabic={isArabic}
-            />
-          ))}
-        </div>
-      </div>
-    </article>
-  );
-}
-
-/*
-=====================================================
-عرض المرفق
-=====================================================
-*/
-
-function AttachmentItem({
-  label,
-  value,
-  isArabic,
-}) {
-  const attachmentUrl = getAttachmentUrl(value);
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-xs font-semibold text-slate-500">
-        {label}
-      </p>
-
-      {attachmentUrl ? (
-        <a
-          href={attachmentUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-flex text-sm font-bold text-emerald-700 hover:text-emerald-800 hover:underline"
-        >
-          {isArabic ? "عرض المرفق" : "View attachment"}
-        </a>
-      ) : (
-        <p className="mt-2 text-sm text-slate-400">
-          {isArabic ? "غير مرفق" : "Not attached"}
-        </p>
-      )}
-    </div>
+    </PublicPageLayout>
   );
 }
 
@@ -1051,78 +853,6 @@ function AttachmentItem({
 Helpers
 =====================================================
 */
-
-function normalizeBookingStep(step) {
-  const stepMap = {
-    dates: "dates",
-    date: "dates",
-
-    package: "services",
-    products: "services",
-    services: "services",
-
-    customer: "customer_info",
-    customer_info: "customer_info",
-
-    traveler: "travelers",
-    travelers: "travelers",
-    pilgrim: "travelers",
-    pilgrims: "travelers",
-
-    summary: "review",
-    review: "review",
-
-    checkout: "payment",
-    payment: "payment",
-
-    completed: "success",
-    success: "success",
-  };
-
-  return (
-    stepMap[String(step || "").toLowerCase()] ||
-    "review"
-  );
-}
-
-function formatStepName(step, isArabic) {
-  const normalized = normalizeBookingStep(step);
-
-  const labels = {
-    dates: {
-      ar: "التواريخ",
-      en: "Dates",
-    },
-    services: {
-      ar: "الخدمات",
-      en: "Services",
-    },
-    customer_info: {
-      ar: "بيانات العميل",
-      en: "Customer",
-    },
-    travelers: {
-      ar: "المعتمرون",
-      en: "Travelers",
-    },
-    review: {
-      ar: "المراجعة",
-      en: "Review",
-    },
-    payment: {
-      ar: "الدفع",
-      en: "Payment",
-    },
-    success: {
-      ar: "التأكيد",
-      en: "Confirmation",
-    },
-  };
-
-  return isArabic
-    ? labels[normalized]?.ar || "-"
-    : labels[normalized]?.en || "-";
-}
 
 function getNumberWithZeroSupport(...values) {
   for (const value of values) {
@@ -1140,82 +870,4 @@ function getNumberWithZeroSupport(...values) {
   }
 
   return 0;
-}
-
-function calculateDuration(startValue, endValue, t) {
-  if (!startValue || !endValue) return "-";
-
-  const start = new Date(startValue);
-  const end = new Date(endValue);
-
-  if (
-    Number.isNaN(start.getTime()) ||
-    Number.isNaN(end.getTime()) ||
-    end < start
-  ) {
-    return "-";
-  }
-
-  const difference =
-    end.getTime() - start.getTime();
-
-  const days =
-    Math.floor(
-      difference / (1000 * 60 * 60 * 24),
-    ) + 1;
-
-  return `${days} ${t("days", "يوم")}`;
-}
-
-function getAttachmentUrl(value) {
-  if (!value) return "";
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "object") {
-    return (
-      value.url ||
-      value.path ||
-      value.fileUrl ||
-      value.secureUrl ||
-      ""
-    );
-  }
-
-  return "";
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return date.toLocaleDateString("en-CA");
-}
-
-function formatMoney(
-  amount,
-  currency = "SAR",
-) {
-  return `${Number(amount || 0).toFixed(
-    2,
-  )} ${currency}`;
-}
-
-function formatGender(value, t) {
-  if (value === "male") {
-    return t("male", "ذكر");
-  }
-
-  if (value === "female") {
-    return t("female", "أنثى");
-  }
-
-  return "-";
 }

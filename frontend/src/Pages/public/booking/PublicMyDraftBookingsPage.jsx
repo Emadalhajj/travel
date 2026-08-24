@@ -11,6 +11,8 @@ import PaginationComponent from "../../../Components/common/Pagination";
 import PageHeader from "../../../Components/layout/PageHeader";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import Loader from "../../../Components/common/Loader";
+import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
+import PublicButton from "../../../Components/shared/buttons/PublicButton";
 
 export default function PublicMyDraftBookingsPage() {
   const dispatch = useDispatch();
@@ -44,8 +46,7 @@ export default function PublicMyDraftBookingsPage() {
     );
   };
  return (
-  <div className="min-h-screen bg-slate-50 px-4 py-8">
-    <div className="mx-auto max-w-6xl">
+  <PublicPageLayout containerClassName="max-w-6xl">
       <PageHeader
         eyebrowAr="مسودات الحجز"
         eyebrowEn="Draft Bookings"
@@ -54,13 +55,9 @@ export default function PublicMyDraftBookingsPage() {
         subtitleAr="استعرض مسودات الحجز التي لم يتم تحويلها إلى حجوزات نهائية."
         subtitleEn="View draft bookings that have not been converted to final bookings."
         actions={
-          <button
-            type="button"
-            onClick={() => navigate("/programs")}
-            className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"
-          >
+          <PublicButton onClick={() => navigate("/programs")}>
             {t("browsePrograms", "تصفح البرامج")}
-          </button>
+          </PublicButton>
         }
       />
 
@@ -107,8 +104,7 @@ export default function PublicMyDraftBookingsPage() {
           </div>
         </>
       )}
-    </div>
-  </div>
+  </PublicPageLayout>
 );
 }
 

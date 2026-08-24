@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -15,33 +15,32 @@ import { fetchHotels } from "../../../redux/hotels/hotelSlice";
 import { toast } from "react-toastify";
 import { useTranslation } from "react-i18next";
 
-// ==================== Utils ====================
 import { formatImagePath } from "../../../Utils/imageUtils";
 import { normalizeForForm } from "../../../Utils/formData/normalize";
 import { createHandleSave } from "../../../Utils/formData/createHandleSave";
 
-// ==================== Components ====================
 import PageHeader from "../../../Components/layout/PageHeader";
 import ActionButton from "../../../Components/common/buttons/ActionButton";
 import EntityFilter from "../../../Components/common/EntityFilter";
 import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
+import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
 import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
 import UniversalCardsContainer from "../../../Components/common/cards/UniversalCardsContainer";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
 import PaginationComponent from "../../../Components/common/Pagination";
 
-// ==================== Form Config ====================
 import { roomTypeFormConfig } from "../../../Components/common/ModalForms/hotel/roomTypeFormConfig";
+import { handleApiError } from "../../../Utils/handleApiError";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
 
 export default function AdminHotelRooms() {
   const { hotelId } = useParams(); // ← يأخذ من URL: /admin/hotel/123/rooms
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
 
-  // ==================== Redux State ====================
   const {
     roomTypesList: rooms = [],
     loading,
@@ -53,7 +52,6 @@ export default function AdminHotelRooms() {
     (state) => state.hotels || {},
   );
 
-  // ==================== Local State ====================
   const [showModal, setShowModal] = useState(false);
   const [currentRoomType, setCurrentRoomType] = useState(null);
   const [formMode, setFormMode] = useState("create"); // create | edit | clone
@@ -72,10 +70,8 @@ export default function AdminHotelRooms() {
     sort: "", // مهم: يجب أن يأخذ قيم مثل "basePrice_desc"
   });
 
-  // ==================== Memoized Config ====================
   const memoizedConfig = useMemo(() => roomTypeFormConfig(hotels), [hotels]);
 
-  // ==================== Fetch Data ====================
   useEffect(() => {
     if (!hotelId) return;
 
@@ -83,7 +79,6 @@ export default function AdminHotelRooms() {
     dispatch(fetchHotels({ page: 1, limit: 1000 }));
   }, [hotelId, dispatch]);
 
-  // ==================== Modal Handlers ====================
   const openCreateModal = () => {
     setFormMode("create");
     setCurrentRoomType({ hotel: hotelId });
@@ -115,7 +110,6 @@ export default function AdminHotelRooms() {
     setShowModal(true);
   };
 
-  // ==================== Save Handler ====================
   const handleSave = createHandleSave({
     dispatch,
     createAction: createRoomType,
@@ -132,23 +126,20 @@ export default function AdminHotelRooms() {
     setFormErrors,
   });
 
-  // ==================== Delete Handler ====================
   const confirmDelete = async () => {
     try {
       await dispatch(deleteRoomType(deleteModal.id)).unwrap();
       toast.success(lang === "ar" ? "تم الحذف بنجاح" : "Deleted successfully");
       dispatch(fetchRoomByHotelId(hotelId));
     } catch (err) {
-      toast.error(
-        err?.message || (lang === "ar" ? "حدث خطأ" : "Error occurred"),
-      );
+      toast.error(handleApiError(err, (message) => message, lang));
     } finally {
       setDeleteModal({ show: false, id: null, name: "" });
     }
   };
 
-  // ==================== Hotel Info ====================
-  const hotel = rooms?.[0]?.hotel;
+  const hotel =
+    rooms?.[0]?.hotel || hotels.find((item) => item._id === hotelId) || null;
 
   const filteredRooms = useMemo(() => {
     const searchValue = filters.search?.trim().toLowerCase() || "";
@@ -197,7 +188,6 @@ export default function AdminHotelRooms() {
     return filteredRooms.slice(start, start + pagination.limit);
   }, [filteredRooms, pagination.page, pagination.limit]);
 
-  // ==================== Details Fields ====================
   const getDetailsFields = (room) => [
     {
       label: lang === "ar" ? "الاسم (عربي)" : "Name (Arabic)",
@@ -302,11 +292,11 @@ export default function AdminHotelRooms() {
     },
   ];
 
-  // ==================== Render ====================
   return (
     <div className="container py-2">
-      {/* Header */}
       <PageHeader
+        titleAr="أنواع الغرف"
+        titleEn="Room Types"
         subtitleAr={
           hotel
             ? `إدارة أنواع الغرف في فندق ${hotel.nameAr}`
@@ -317,12 +307,8 @@ export default function AdminHotelRooms() {
             ? `Manage Room Types in ${hotel.nameEn} Hotel`
             : "Manage Room Types"
         }
-      />
-
-      {/* Action Buttons */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div className="w-100 d-flex justify-content-center">
-          <div className="d-inline-flex align-items-center gap-2">
+        actions={
+          <AdminPageActions>
             <ActionButton
               size="md"
               action="add"
@@ -335,13 +321,13 @@ export default function AdminHotelRooms() {
               label={lang === "ar" ? "العودة للفنادق" : "Back to Hotels"}
               onClick={() => navigate("/admin/hotels")}
             />
-          </div>
-        </div>
-      </div>
+          </AdminPageActions>
+        }
+      />
 
       <LoadingOverlay show={loading} />
+      <ErrorOverlay show={Boolean(error)} message={error} />
 
-      {/* Filters */}
       <EntityFilter
         filters={filters}
         setFilters={setFilters}
@@ -404,14 +390,8 @@ export default function AdminHotelRooms() {
                 labelAr: "الأقدم أولاً",
                 labelEn: "Oldest First",
               },
-              // {
-              //   value: "nameAr_asc",
-              //   labelAr: "الاسم (أ-ي)",
-              //   labelEn: "Name (A-Z)",
-              // },
             ],
           },
-          // order: {},
           isActive: {
             type: "select",
             col: 2,
@@ -424,7 +404,6 @@ export default function AdminHotelRooms() {
         }}
       />
 
-      {/* Form Modal */}
       <UniversalFormModal
         show={showModal}
         onHide={() => setShowModal(false)}
@@ -450,7 +429,6 @@ export default function AdminHotelRooms() {
         loading={loadingSave}
       />
 
-      {/* Details Modal */}
       <EntityDetailsModal
         show={showDetails}
         onHide={() => setShowDetails(false)}
@@ -465,17 +443,6 @@ export default function AdminHotelRooms() {
         fields={getDetailsFields(currentRoomType)}
       />
 
-      {/* Pagination */}
-      <PaginationComponent
-        total={totalFilteredRooms}
-        page={pagination.page}
-        limit={pagination.limit}
-        totalPages={totalFilteredPages}
-        onPageChange={(newPage) => dispatch(setPage(newPage))}
-        onLimitChange={(newLimit) => dispatch(setLimit(newLimit))}
-      />
-
-      {/* Cards */}
       <UniversalCardsContainer
         items={currentRooms}
         lang={lang}
@@ -535,8 +502,15 @@ export default function AdminHotelRooms() {
           dispatch(toggleRoomTypeActiveStatus(room._id))
         }
       />
+      <PaginationComponent
+        total={totalFilteredRooms}
+        page={pagination.page}
+        limit={pagination.limit}
+        totalPages={totalFilteredPages}
+        onPageChange={(newPage) => dispatch(setPage(newPage))}
+        onLimitChange={(newLimit) => dispatch(setLimit(newLimit))}
+      />
 
-      {/* Confirm Delete */}
       <ConfirmDialog
         show={deleteModal.show}
         onHide={() => setDeleteModal({ show: false })}
@@ -563,309 +537,3 @@ export default function AdminHotelRooms() {
     </div>
   );
 }
-
-// import { useParams } from "react-router-dom";
-// import { useEffect, useState } from "react";
-// import { useDispatch, useSelector } from "react-redux";
-// import {
-//   deleteRoomType,
-//   fetchRoomByHotelId,
-//   updateRoomType,
-// } from "../../../redux/hotels/roomtypeSlice";
-// import {
-//   Bath,
-//   Bed,
-//   ImageIcon,
-//   MapPin,
-//   Ruler,
-//   Users,
-//   Utensils,
-// } from "lucide-react";
-// import { Badge, Image } from "react-bootstrap";
-// import { formatImagePath } from "../../../Utils/imageUtils";
-// import { useTranslation } from "react-i18next";
-// import { motion } from "framer-motion";
-// import TruncatedText from "../../../Components/common/TruncatedText";
-// import Home from "../../client/Home";
-// import UniversalCard from "../../../Components/common/cards/UniversalCard";
-// import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
-// import ConfirmDialog from "../../../Components/common/ConfirmModal";
-// import { RoomTypeModalForm } from "../../../Components/common/ModalForms/hotel/RoomTypeModalForm";
-// import { toast } from "react-toastify";
-
-// const AdminHotelRooms = () => {
-//   const { hotelId } = useParams();
-//   const dispatch = useDispatch();
-//   const { t, i18n } = useTranslation();
-//   const lang = i18n.language || "ar"; // ar أو en
-//   const [showModal, setShowModal] = useState(false);
-//   const [showDetails, setShowDetails] = useState(false);
-//   const [isEditing, setIsEditing] = useState(false);
-//   const [selectedRoomType, setSelectedRoomType] = useState(null);
-
-//   const { roomTypes: rooms = [], loading } = useSelector(
-//     (state) => state.roomTypes || {}
-//   );
-//   console.log("rooms rooms", rooms);
-
-//   const [deleteModal, setDeleteModal] = useState({
-//     show: false,
-//     id: null,
-//     name: "",
-//   });
-//   // عند الغاء التعديل
-//   const handleCancel = () => {
-//     // إلغاء التعديل
-//     setSelectedRoomType(null);
-//     setIsEditing(false); // ← هنا إعادة تعيين حالة التعديل
-//     setShowModal(false);
-//   };
-//   useEffect(() => {
-//     if (!showModal) {
-//       // المودال اتقفل بأي طريقة → نعيد كل حاجة للإضافة
-//       handleCancel();
-//     }
-//   }, [showModal]);
-
-//   useEffect(() => {
-//     if (!hotelId) return;
-//     dispatch(fetchRoomByHotelId(hotelId));
-//   }, [dispatch, hotelId]);
-
-//   if (loading) {
-//     return <div className="text-center py-5">جاري تحميل الغرف...</div>;
-//   }
-
-//   if (!rooms.length) {
-//     return (
-//       <div className="text-center py-5 text-muted">
-//         لا توجد غرف مرتبطة بهذا الفندق
-//       </div>
-//     );
-//   }
-//   // handle rooms edit
-
-//   const handleEditClick = (room) => {
-//     setSelectedRoomType(room); // 🔥 هذا هو المفتاح
-//     setIsEditing(true);
-//     setShowModal(true);
-//   };
-
-//   //delete
-
-//   const handleDeleteClick = (id, name) => {
-//     setDeleteModal({
-//       show: true,
-//       id,
-//       name: name || "هذا النوع",
-//     });
-//   };
-//   // عند التأكيد على الحذف
-//   const confirmDelete = () => {
-//     dispatch(deleteRoomType(deleteModal.id));
-//     setDeleteModal({ show: false, id: null, name: "" });
-//   };
-//   // handle save eited
-//   const handleSave = async (formData) => {
-//     try {
-//       await dispatch(
-//         updateRoomType({
-//           id: selectedRoomType._id,
-//           formData,
-//         })
-//       ).unwrap();
-//       toast.success(
-//         lang === "ar" ? "تم التعديل بنجاح" : "Updated successfully"
-//       );
-//       setShowModal(false);
-//       setSelectedRoomType(null);
-//       setIsEditing(false);
-//     } catch (err) {
-//       toast.error(
-//         err?.message || (lang === "ar" ? "حدث خطأ" : "An error occurred")
-//       );
-//     }
-//   };
-//   const hotel = rooms?.[0]?.hotel;
-
-//   return (
-//     <div className="container py-5">
-//       {/* العنوان الرئيسي */}
-//       <motion.h2
-//         initial={{ opacity: 0, y: -20 }}
-//         animate={{ opacity: 1, y: 0 }}
-//         className="text-center mb-5 fw-bold text-primary display-6"
-//       ></motion.h2>
-
-//       {/* شبكة الكروت */}
-//       <div className="container mx-auto py-10 px-4">
-//         <h2 className="text-3xl font-bold text-center text-gray-800 mb-10">
-//           {hotel && (
-//             <h2>
-//               {lang === "ar"
-//                 ? `أنواع الغرف المتاحة في فندق ${hotel.nameAr}`
-//                 : `Available Room Types in ${hotel.nameEn} hotel`}
-//             </h2>
-//           )}
-//         </h2>
-
-//         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-//           {rooms.map((room) => (
-//             <UniversalCard
-//               key={room._id}
-//               title={lang === "ar" ? room.nameAr : room.nameEn}
-//               subtitle={lang === "ar" ? room.descriptionAr : room.descriptionEn}
-//               image={
-//                 room.images?.[0]
-//                   ? formatImagePath(room.images[0].url || room.images[0])
-//                   : null
-//               }
-//               isActive={room.isActive}
-//               price={room.pricing?.basePrice}
-//               discountPercent={room.pricing?.discountPercent || 0}
-//               badges={[{ label: room.bedType?.toUpperCase() || "DOUBLE" }]}
-//               meta={[
-//                 {
-//                   icon: <Users size={20} />,
-//                   label: `${room.capacity?.maxAdults || 2} + ${
-//                     room.capacity?.maxChildren || 0
-//                   } أشخاص`,
-//                 },
-//                 {
-//                   icon: <Ruler size={20} />,
-//                   label: room.size ? `${room.size} م²` : "غير محدد",
-//                 },
-//                 { icon: <Bath size={20} />, label: "حمام خاص" },
-//               ]}
-//               onView={() => {
-//                 setSelectedRoomType(room);
-//                 setShowDetails(true);
-//               }}
-//               onEdit={() => handleEditClick(room)}
-//               onDelete={() =>
-//                 handleDeleteClick(room._id, room.nameAr || room.nameEn)
-//               }
-//             />
-//           ))}
-//         </div>
-//       </div>
-//       {/* Modal Form */}
-//       <RoomTypeModalForm
-//         show={showModal}
-//         onHide={handleCancel}
-//         title={
-//           isEditing
-//             ? lang === "ar"
-//               ? "تعديل نوع الغرفة"
-//               : "Edit Room Type"
-//             : lang === "ar"
-//             ? "إضافة نوع غرفة جديد"
-//             : "Add New Room Type"
-//         }
-//         initialData={selectedRoomType}
-//         onSubmit={handleSave}
-//         submitLabel={
-//           isEditing
-//             ? lang === "ar"
-//               ? "حفظ التعديلات"
-//               : "Save Changes"
-//             : lang === "ar"
-//             ? "إضافة الغرفة"
-//             : "Add Room Type"
-//         }
-//         onCancel={handleCancel}
-//       />
-//       <ConfirmDialog
-//         show={deleteModal.show}
-//         onHide={() => setDeleteModal({ show: false, id: null, name: "" })}
-//         onConfirm={confirmDelete}
-//         title={lang === "ar" ? "حذف نوع الغرفة؟" : "Delete Room Type?"}
-//         message={
-//           <span>
-//             {lang === "ar"
-//               ? `هل أنت متأكد من حذف نوع الغرفة: `
-//               : `Are you sure you want to delete the room type: `}
-//             <strong>{deleteModal.name}</strong>
-//             <br />
-//             <small className="text-danger">
-//               {lang === "ar"
-//                 ? "لا يمكن استرجاعه بعد الحذف!"
-//                 : "This action cannot be undone!"}
-//             </small>
-//           </span>
-//         }
-//         confirmText={lang === "ar" ? "نعم، احذف" : "Yes, Delete"}
-//         cancelText={lang === "ar" ? "إلغاء" : "Cancel"}
-//         variant="delete"
-//       />
-//       <EntityDetailsModal
-//         show={showDetails}
-//         onHide={() => setShowDetails(false)}
-//         title={lang === "ar" ? "عرض التفاصيل" : "Room details show"}
-//         images={selectedRoomType?.images || []}
-//         fields={[
-//           {
-//             label: lang === "ar" ? "الاسم (عربي)" : "Name (Arabic)",
-//             value: selectedRoomType?.nameAr,
-//           },
-//           {
-//             label: lang === "ar" ? "الاسم (إنجليزي)" : "Name (English)",
-//             value: selectedRoomType?.nameEn,
-//           },
-//           {
-//             label: lang === "ar" ? " السعر الاساسي" : "Base Price ",
-//             value: `${selectedRoomType?.pricing?.basePrice} ر.س`,
-//           },
-//           {
-//             label: lang === "ar" ? "سعر نهاية الاسبوع" : "weekEnd Price",
-//             value: `${selectedRoomType?.pricing?.weekendPrice} ر.س`,
-//           },
-//           {
-//             label: lang === "ar" ? "السعة" : "Capacity",
-//             value: `${selectedRoomType?.capacity?.maxAdults} + ${selectedRoomType?.capacity?.maxChildren}`,
-//           },
-//           {
-//             label: lang === "ar" ? "نوع السرير" : "Bed Type",
-//             value: selectedRoomType?.bedType,
-//           },
-//           {
-//             label: lang === "ar" ? "الوصف" : "Description",
-//             value:
-//               lang === "ar"
-//                 ? selectedRoomType?.descriptionAr
-//                 : selectedRoomType?.descriptionEn,
-//             col: "col-12",
-//           },
-
-//           {
-//             label: lang === "ar" ? "المقاس" : "size",
-//             value: selectedRoomType?.size,
-//             // col: "col-12",
-//           },
-//           {
-//             label: lang === "ar" ? "الحالة" : "Status",
-//             value: selectedRoomType?.isActive ? (
-//               <Badge bg="success" className="fs-6">
-//                 {lang === "ar" ? "نشط" : "Active"}
-//               </Badge>
-//             ) : (
-//               <Badge bg="secondary" className="fs-6">
-//                 {lang === "ar" ? "غير نشط" : "Inactive"}
-//               </Badge>
-//             ),
-//           },
-//           {
-//             label: lang === "ar" ? "الوجبات" : "meals",
-//             value: `${selectedRoomType?.mealPlane}`,
-//           },
-//           {
-//             label: lang === "ar" ? "المرافقين" : "Amenities",
-//             value: `${selectedRoomType?.amenities} `,
-//           },
-//         ]}
-//       />
-//     </div>
-//   );
-// };
-
-// export default AdminHotelRooms;

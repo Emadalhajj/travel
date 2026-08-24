@@ -45,11 +45,8 @@ export const createVisaSchema = Joi.object({
     }),
   }).required(),
 
-  createdBy: Joi.string().required().messages({
-    "any.required": "معرف المنشئ مطلوب",
-  }),
-
   isActive: Joi.boolean().default(true),
+  isAlwaysAvailable: Joi.boolean().default(true),
 
   // ✅ حقل الصورة (اختياري)
   image: Joi.string().allow("", null).messages({
@@ -70,6 +67,14 @@ export const updateVisaSchema = Joi.object({
   price: Joi.number().positive(),
   duration: Joi.string().max(365),
   validity: Joi.string().max(365),
+  country: Joi.object({
+    ar: Joi.string(),
+    en: Joi.string(),
+  }),
   isActive: Joi.boolean(),
+  isAlwaysAvailable: Joi.boolean(),
+  "imagesDeleted[]": Joi.alternatives()
+    .try(Joi.array().items(Joi.string()), Joi.string())
+    .optional(),
   image: Joi.string().allow("", null),
 }).min(1); // على الأقل حقل واحد

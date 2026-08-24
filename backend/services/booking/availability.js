@@ -1,8 +1,9 @@
 // services/booking/availability.js
 
 import AppError from "../../utils/AppError.js";
-import { roundPrice } from "../../utils/roundPrice.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
+import Inventory from "../../models/inventory-model.js";
+import { checkInventoryForWholePeriod } from "../availability/inventory-availability-service.js";
 
 /*
 =====================================================
@@ -42,10 +43,6 @@ const getLanguage = (req) => {
   return req ? isArabicRequest(req) : true;
 };
 
-const isValidObject = (doc) => {
-  return !!doc;
-};
-
 /*
 =====================================================
 Room Availability
@@ -70,9 +67,7 @@ export const checkRoomAvailability = async ({
   checkOut,
   requestedRooms = 1,
   RoomType,
-  Booking,
   req = null,
-  excludeBookingId = null,
 }) => {
   const isArabic = getLanguage(req);
 
@@ -85,8 +80,6 @@ export const checkRoomAvailability = async ({
       "roomType",
     );
   }
-
-  const totalRooms = Number(roomType.totalRooms) || 0;
 
   const checkInDate = normalizeDate(checkIn);
   const checkOutDate = normalizeDate(checkOut);
@@ -109,46 +102,16 @@ export const checkRoomAvailability = async ({
     );
   }
 
-  const filter = {
-    roomType: roomType._id,
-
-    bookingStatus: {
-      $nin: ["cancelled"],
-    },
-  };
-
-  if (excludeBookingId) {
-    filter._id = {
-      $ne: excludeBookingId,
-    };
-  }
-
-  const bookings = await Booking.find(filter)
-    .select("checkIn checkOut reservedRooms bookingStatus")
-    .lean();
-
-  const bookedCount = bookings
-    .filter((booking) => {
-      const bookedCheckIn = normalizeDate(booking.checkIn);
-      const bookedCheckOut = normalizeDate(booking.checkOut);
-
-      if (!bookedCheckIn || !bookedCheckOut) return false;
-
-      return datesOverlap({
-        startA: bookedCheckIn,
-        endA: bookedCheckOut,
-        startB: checkInDate,
-        endB: checkOutDate,
-      });
-    })
-    .reduce((sum, booking) => {
-      return sum + (Number(booking.reservedRooms) || 1);
-    }, 0);
-
-  const available = Math.max(0, totalRooms - bookedCount);
-
-  const canBook =
-    available >= Number(requestedRooms || 1);
+  const inventoryAvailability = await checkInventoryForWholePeriod({
+    Inventory,
+    inventoryType: "roomType",
+    itemId: roomType._id,
+    startDate: checkInDate,
+    endDate: checkOutDate,
+    requestedQuantity: requestedRooms,
+  });
+  const available = inventoryAvailability.minAvailable;
+  const canBook = inventoryAvailability.isAvailable;
 
   if (!canBook) {
     throw new AppError(
@@ -162,16 +125,13 @@ export const checkRoomAvailability = async ({
 
   return {
     roomTypeId: roomType._id,
-    totalRooms,
-    bookedCount,
+    totalRooms: Number(roomType.totalRooms) || 0,
+    bookedCount: null,
     available,
     requestedRooms: Number(requestedRooms) || 1,
     canBook,
-    occupancyRate: roundPrice(
-      totalRooms > 0
-        ? (bookedCount / totalRooms) * 100
-        : 0,
-    ),
+    occupancyRate: null,
+    availabilityReason: inventoryAvailability.reason,
   };
 };
 
@@ -191,6 +151,9 @@ Visa Availability
 export const checkVisaAvailability = async ({
   visaId,
   Visa,
+  startDate,
+  endDate,
+  requestedQuantity = 1,
   req = null,
 }) => {
   const isArabic = getLanguage(req);
@@ -222,6 +185,24 @@ export const checkVisaAvailability = async ({
     );
   }
 
+  if (visa.isAlwaysAvailable !== true) {
+    const availability = await checkInventoryForWholePeriod({
+      Inventory,
+      inventoryType: "visa",
+      itemId: visa._id,
+      startDate,
+      endDate,
+      requestedQuantity,
+    });
+    if (!availability.isAvailable) {
+      throw new AppError(
+        isArabic ? "هذه التأشيرة غير متاحة خلال الفترة المطلوبة" : "Visa is unavailable for the requested period",
+        400,
+        "visa",
+      );
+    }
+  }
+
   return {
     canBook: true,
     visa,
@@ -243,6 +224,8 @@ export const checkTripAvailability = async ({
   tripId,
   pilgrimsCount = 1,
   Trip,
+  startDate,
+  endDate,
   req = null,
 }) => {
   const isArabic = getLanguage(req);
@@ -274,18 +257,26 @@ export const checkTripAvailability = async ({
     );
   }
 
-  const availableSeats =
-    Number(trip.capacity?.availableSeats) || 0;
+  const inventoryStart = normalizeDate(startDate || trip.startDate);
+  const inventoryEnd = normalizeDate(endDate) || (
+    inventoryStart
+      ? new Date(inventoryStart.getFullYear(), inventoryStart.getMonth(), inventoryStart.getDate() + 1)
+      : null
+  );
+  const availability = await checkInventoryForWholePeriod({
+    Inventory,
+    inventoryType: "trip",
+    itemId: trip._id,
+    startDate: inventoryStart,
+    endDate: inventoryEnd,
+    requestedQuantity: pilgrimsCount,
+  });
 
-  const totalSeats =
-    Number(trip.capacity?.totalSeats) || 0;
-
-  // إذا لم يتم ضبط المقاعد في الرحلة، نسمح بالحجز
-  if (totalSeats > 0 && availableSeats < pilgrimsCount) {
+  if (!availability.isAvailable) {
     throw new AppError(
       isArabic
-        ? `المقاعد المتاحة فقط ${availableSeats}`
-        : `Only ${availableSeats} seats available`,
+        ? "الرحلة غير متاحة خلال الفترة المطلوبة"
+        : "Trip is unavailable for the requested period",
       400,
       "trip",
     );
@@ -294,9 +285,9 @@ export const checkTripAvailability = async ({
   return {
     canBook: true,
     trip,
-    totalSeats,
-    availableSeats,
+    availableSeats: availability.minAvailable,
     requestedSeats: pilgrimsCount,
+    availabilityReason: availability.reason,
   };
 };
 
@@ -318,6 +309,8 @@ export const checkTransportAvailability = async ({
   transportId,
   pilgrimsCount = 1,
   Transport,
+  startDate,
+  endDate,
   req = null,
 }) => {
   const isArabic = getLanguage(req);
@@ -361,6 +354,24 @@ export const checkTransportAvailability = async ({
     );
   }
 
+  if (transport.isAlwaysAvailable !== true) {
+    const availability = await checkInventoryForWholePeriod({
+      Inventory,
+      inventoryType: "transport",
+      itemId: transport._id,
+      startDate,
+      endDate,
+      requestedQuantity: 1,
+    });
+    if (!availability.isAvailable) {
+      throw new AppError(
+        isArabic ? "وسيلة النقل غير متاحة خلال الفترة المطلوبة" : "Transport is unavailable for the requested period",
+        400,
+        "transport",
+      );
+    }
+  }
+
   return {
     canBook: true,
     transport,
@@ -399,6 +410,10 @@ export const checkBookingAvailability = async ({
     Array.isArray(data.pilgrims) && data.pilgrims.length > 0
       ? data.pilgrims.length
       : 1;
+  const availabilityStart =
+    data.checkIn || data.startDate || data.travelDate || data.program?.startDate;
+  const availabilityEnd =
+    data.checkOut || data.endDate || data.returnDate || data.program?.endDate;
 
   const result = {
     room: null,
@@ -425,6 +440,9 @@ export const checkBookingAvailability = async ({
     result.visa = await checkVisaAvailability({
       visaId: data.visa,
       Visa,
+      startDate: availabilityStart,
+      endDate: availabilityEnd,
+      requestedQuantity: pilgrimsCount,
       req,
     });
   }
@@ -434,6 +452,8 @@ export const checkBookingAvailability = async ({
       tripId: data.trip,
       pilgrimsCount,
       Trip,
+      startDate: availabilityStart,
+      endDate: availabilityEnd,
       req,
     });
   }
@@ -443,6 +463,8 @@ export const checkBookingAvailability = async ({
       transportId: data.transport,
       pilgrimsCount,
       Transport,
+      startDate: availabilityStart,
+      endDate: availabilityEnd,
       req,
     });
   }

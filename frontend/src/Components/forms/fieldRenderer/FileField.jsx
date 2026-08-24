@@ -18,7 +18,6 @@ export default function FileField(
 
   const {
     field,
-    formState,
     setFormState,
     initialData,
     setImageState,
@@ -30,6 +29,13 @@ export default function FileField(
     helpers.getFieldValue(
       field,
     ) || [];
+
+  const currentImages = initialData?.[field.name] || value;
+  const normalizedInitialImages = Array.isArray(currentImages)
+    ? currentImages
+    : currentImages
+      ? [currentImages]
+      : [];
 
   if (
     field.type ===
@@ -82,7 +88,7 @@ export default function FileField(
     <ImageUploader
 
       initialImages={
-        initialData?.[field.name] || value
+        normalizedInitialImages
       }
 
       multiple={field.multiple !== false}

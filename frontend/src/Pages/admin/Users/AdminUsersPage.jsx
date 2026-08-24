@@ -1,374 +1,276 @@
-import axios from "axios";
-import React, { useEffect, useState } from "react";
-import { Button, Container, Form, Modal, Tab, Table } from "react-bootstrap";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import {
-  deleteUser,
-  fetchUsers,
-  resetUserPassword,
-  toggleUserStatus,
-  updateUser,
-} from "../../../redux/users/adminUserActions";
 import { toast } from "react-toastify";
 import { useTranslation } from "react-i18next";
 
+import PageHeader from "../../../Components/layout/PageHeader";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
+import ActionButton from "../../../Components/common/buttons/ActionButton";
+import ConfirmDialog from "../../../Components/common/ConfirmModal";
+import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
+import UniversalTable from "../../../Components/common/tables/UniversalTable";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
+import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
+import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
+import PaginationComponent from "../../../Components/common/Pagination";
+import ChangePasswordModal from "../../../Components/common/users/ChangePasswordModal";
+import StatusBadge from "../../../Components/shared/common/StatusBadge";
+import {
+  normalizeUserForForm,
+  userFormConfig,
+} from "../../../Components/common/users/userFormConfig";
+import {
+  createNewUser,
+  deleteUserById,
+  fetchUsers,
+  toggleStatus,
+  updateUser,
+} from "../../../redux/auth/usersSlice";
+import useAuthorization from "../../../hooks/auth/useAuthorization";
+import { USER_ROLES } from "../../../constants/auth/roles";
+import { buildFormData } from "../../../Utils/formData/buildFormData";
+
+const errorMessage = (error, fallback) => {
+  if (typeof error === "string") return error;
+  if (typeof error?.message === "string") return error.message;
+  return Object.values(error || {}).find((value) => typeof value === "string") || fallback;
+};
+
+const fieldErrors = (error) => {
+  if (!error || typeof error !== "object") return {};
+  return error.errors || (error.message ? {} : error);
+};
+
 export default function AdminUsersPage() {
-  const { t, i18n } = useTranslation();
-
-  const { users, loading, error } = useSelector(
-    (state) => state.AdminUserReducer
-  );
   const dispatch = useDispatch();
+  const { i18n } = useTranslation();
+  const isArabic = (i18n.language || "ar") === "ar";
+  const { isSuperAdmin, canManageUser, canDeactivateUser } = useAuthorization();
+  const { usersList = [], total = 0, loading = {}, error } = useSelector(
+    (state) => state.users,
+  );
 
-  const [showModal, setShowModal] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [formModal, setFormModal] = useState({ show: false, mode: "create", user: null });
+  const [formErrors, setFormErrors] = useState({});
+  const [detailsUser, setDetailsUser] = useState(null);
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [deactivateUser, setDeactivateUser] = useState(null);
 
-  const [modalType, setModalType] = useState("");
-
-  // هذه الصفحة مخصصة لإدارة المستخدمين
-  // const [users, setUsers] = useState([]);
-  // const [loading, setLoading] = useState(false);
-  // const [error, setError] = useState(null);
+  const loadUsers = useCallback(
+    () => dispatch(fetchUsers({ page, limit })),
+    [dispatch, page, limit],
+  );
 
   useEffect(() => {
-    dispatch(fetchUsers()); // جلب المستخدمين من الخادم
-  }, [dispatch]);
+    loadUsers();
+  }, [loadUsers]);
 
-  //delete user
-  const handleUserDelete = (userId) => {
-    if (window.confirm(t("AdminUsersPage.confirm_delete"))) {
-      dispatch(deleteUser(userId));
-      // هنا يمكنك إضافة منطق لحذف المستخدم من الواجهة
+  const formConfig = useMemo(
+    () => userFormConfig({
+      isCreate: formModal.mode === "create",
+      allowedRoles: isSuperAdmin
+        ? Object.values(USER_ROLES)
+        : [USER_ROLES.USER],
+    }),
+    [formModal.mode, isSuperAdmin],
+  );
+
+  const closeForm = () => {
+    setFormModal({ show: false, mode: "create", user: null });
+    setFormErrors({});
+  };
+
+  const handleSave = async (payload) => {
+    try {
+      const requestPayload = payload?.imageState
+        ? buildFormData(payload, formConfig)
+        : payload;
+      if (formModal.mode === "update") {
+        await dispatch(
+          updateUser({ id: formModal.user._id, payload: requestPayload }),
+        ).unwrap();
+      } else {
+        await dispatch(createNewUser(requestPayload)).unwrap();
+      }
+      toast.success(
+        isArabic
+          ? formModal.mode === "update" ? "تم تحديث المستخدم" : "تم إنشاء المستخدم"
+          : formModal.mode === "update" ? "User updated" : "User created",
+      );
+      closeForm();
+      loadUsers();
+    } catch (operationError) {
+      setFormErrors(fieldErrors(operationError));
+      toast.error(errorMessage(operationError, isArabic ? "تعذر حفظ المستخدم" : "Unable to save user"));
     }
   };
 
-  const handleUserDisable = (userId, isActive) => {
-    dispatch(toggleUserStatus({ userId, isActive: !isActive }));
-    // هنا يمكنك إضافة منطق لتعطيل أو تفعيل المستخدم من الواجهة
+  const handleActivate = useCallback(async (user) => {
+    try {
+      await dispatch(toggleStatus(user._id)).unwrap();
+      toast.success(isArabic ? "تم تفعيل المستخدم" : "User activated");
+    } catch (operationError) {
+      toast.error(errorMessage(operationError, isArabic ? "تعذر تفعيل المستخدم" : "Unable to activate user"));
+    }
+  }, [dispatch, isArabic]);
+
+  const confirmDeactivate = async () => {
+    if (!deactivateUser) return;
+    try {
+      await dispatch(deleteUserById(deactivateUser._id)).unwrap();
+      toast.success(isArabic ? "تم تعطيل المستخدم" : "User deactivated");
+      setDeactivateUser(null);
+      loadUsers();
+    } catch (operationError) {
+      toast.error(errorMessage(operationError, isArabic ? "تعذر تعطيل المستخدم" : "Unable to deactivate user"));
+    }
   };
 
-  // edit user information
-
-  // فتح النموذج لتحديث المستخدم
-  const handleUpdate = (userId) => {
-    setSelectedUserId(userId); // تعيين معرف المستخدم المحدد
-    setModalType("edit");
-    setShowModal(true); // فتح النموذج
-  };
-
-  // مكون النموذج لتحديث المستخدم
-  const UpdateUserForm = ({ userId, onClose }) => {
-    const [formData, setFormData] = useState({
-      username: "",
-      email: "",
-      password: "",
-    });
-
-    // جلب بيانات المستخدم الأصلية عند فتح النموذج
-    const currentUser = users.find((user) => user._id === userId) || {
-      username: "",
-      email: "",
-      password: "",
-    };
-
-    const handleChange = (e) => {
-      setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      if (formData.username && formData.email) {
-        dispatch(updateUser({ userId, userData: formData }))
-          .then(() => {
-            toast.success(t("AdminUsersPage.toast_success_update"));
-            onClose(); // إغلاق النموذج بعد النجاح
-          })
-          .catch((error) => {
-            console.error("فشل في التحديث: update fiald", error);
-          });
-      }
-    };
-
-    useEffect(() => {
-      setFormData({
-        username: currentUser.username || "",
-        email: currentUser.email || "",
-        password: currentUser.password || "",
-      });
-    }, [userId, currentUser]);
-
-    return (
-      <div
-        className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50"
-        onClick={onClose}
-      >
-        <div
-          className="bg-white rounded-lg p-6 w-full max-w-md transform transition-all duration-300 ease-in-out"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center border-b pb-3 mb-4">
-            <h3 className="text-xl font-semibold text-gray-800">
-              {t("AdminUsersPage.modal_update_title")}
-            </h3>
-            <button
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl"
-            >
-              &times;
-            </button>
-          </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                {t("AdminUsersPage.modal_update_username")}
-              </label>
-              <input
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 p-2"
+  const columns = useMemo(() => [
+    {
+      header: isArabic ? "الاسم الكامل" : "Full name",
+      render: (user) => `${user.firstName || ""} ${user.lastName || ""}`.trim() || "-",
+    },
+    { header: isArabic ? "اسم المستخدم" : "Username", accessor: "username" },
+    { header: isArabic ? "البريد الإلكتروني" : "Email", accessor: "email" },
+    {
+      header: isArabic ? "الدور" : "Role",
+      render: (user) => ({
+        [USER_ROLES.USER]: isArabic ? "مستخدم" : "User",
+        [USER_ROLES.ADMIN]: isArabic ? "مدير" : "Admin",
+        [USER_ROLES.SUPER_ADMIN]: isArabic ? "مشرف عام" : "Super Admin",
+      })[user.role] || user.role,
+    },
+    {
+      header: isArabic ? "الحالة" : "Status",
+      render: (user) => (
+        <StatusBadge value={user.isActive ? "active" : "inactive"} type="user" isArabic={isArabic} />
+      ),
+    },
+    {
+      header: isArabic ? "الإجراءات" : "Actions",
+      render: (user) => (
+        <div className="d-flex flex-wrap gap-2 justify-content-center">
+          <ActionButton action="view" onClick={() => setDetailsUser(user)} />
+          {canManageUser(user) && (
+            <>
+              <ActionButton
+                action="edit"
+                onClick={() => {
+                  setFormErrors({});
+                  setFormModal({ show: true, mode: "update", user });
+                }}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                {t("AdminUsersPage.modal_update_email")}
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 p-2"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white p-2 rounded-md hover:from-blue-700 hover:to-blue-900 transition duration-300"
-            >
-              {t("AdminUsersPage.modal_update_submit")}
-            </button>
-          </form>
+              <ActionButton action="resetPassword" onClick={() => setPasswordUser(user)} />
+              {user.isActive
+                ? canDeactivateUser(user) && (
+                    <ActionButton action="deactivate" onClick={() => setDeactivateUser(user)} />
+                  )
+                : <ActionButton action="activate" onClick={() => handleActivate(user)} />}
+            </>
+          )}
         </div>
-      </div>
-    );
-  };
+      ),
+    },
+  ], [isArabic, canManageUser, canDeactivateUser, handleActivate]);
 
-  // إعادة تعيين كلمة المرور
-
-  // فتح النموذج لإعادة تعيين كلمة المرور 1
-  const handleOpenResetModal = (userId) => {
-    setSelectedUserId(userId); // تعيين معرف المستخدم المحدد
-    setModalType("reset");
-    setShowModal(true); // فتح النموذج
-  };
-
-  const ResetUserPasswordForm = ({ userId, onClose }) => {
-    const [newPassword, setNewPassword] = useState("");
-    const handleChange = (e) => {
-      setNewPassword(e.target.value);
-    };
-
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      if (!newPassword || newPassword.length < 6) {
-        toast.error(t("AdminUsersPage.toast_error_password"));
-        return;
-      }
-
-      dispatch(resetUserPassword({ userId, newPassword }))
-        .then(() => {
-          toast.success(t("AdminUsersPage.toast_success_reset"));
-          onClose(); // إغلاق النموذج بعد النجاح
-        })
-        .catch((error) => {
-          console.error(
-            "فشل في إعادة تعيين كلمة المرور: rest passwords is fiald",
-            error
-          );
-        });
-      //console.log("Resetting password for:", userId, newPassword);
-    };
-
-    return (
-      <div
-        className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50"
-        onClick={onClose}
-      >
-        <div
-          className="bg-white rounded-lg p-6 w-full max-w-md transform transition-all duration-300 ease-in-out"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center border-b pb-3 mb-4">
-            <h3 className="text-xl font-semibold text-gray-800">
-              {t("AdminUsersPage.modal_reset_title")}
-            </h3>
-            <button
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl"
-            >
-              &times;
-            </button>
-          </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                {t("AdminUsersPage.modal_reset_password")}
-              </label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={handleChange}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 p-2"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-yellow-600 text-white p-2 rounded-md hover:from-yellow-700 hover:to-yellow-900 transition duration-300"
-            >
-              {t("AdminUsersPage.modal_reset_submit")}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  };
+  const isBusy = Object.values(loading).some(Boolean);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-  
-    <div className="min-h-screen bg-gray-100 py-6">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 rounded-lg shadow-lg mb-6">
-          <h1 className="text-2xl font-bold text-center">
-            {t("AdminUsersPage.page_title")}
-          </h1>
-        </div>
-        {loading && (
-          <div className="text-center py-4">
-            <p className="text-gray-700">{t("AdminUsersPage.loading")}</p>
-          </div>
-        )}
-        {error && (
-          <div className="text-center py-4">
-            <p className="text-red-600">{error}</p>
-          </div>
-        )}
-        {users.length === 0 && !loading && !error && (
-          <div className="text-center py-4">
-            <p className="text-gray-700">{t("AdminUsersPage.no_users")}</p>
-          </div>
-        )}
-        {users.length > 0 && (
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden o">
-            <div className="overflow-x-auto">
-              {" "}
-              {/* ✅ يضيف تمرير أفقي للشاشات الصغيرة */}
-              <table className="w-full table-fixed text-sm text-gray-700">
-                {" "}
-                {/* ✅ table-fixed لتوازن الأعمدة */}
-                <thead className="bg-blue-100 text-gray-800">
-                  <tr>
-                    <th className="w-12 py-3 px-4 text-center font-semibold">
-                      {t("AdminUsersPage.table_no")}
-                    </th>
-                    <th className="w-40 py-3 px-4 text-center font-semibold">
-                      {t("AdminUsersPage.table_username")}
-                    </th>
-                    <th className="w-60 py-3 px-4 text-center font-semibold">
-                      {t("AdminUsersPage.table_email")}
-                    </th>
-                    <th className="w-32 py-3 px-4 text-center font-semibold">
-                      {t("AdminUsersPage.table_role")}
-                    </th>
-                    <th className="w-32 py-3 px-4 text-center font-semibold">
-                      {t("AdminUsersPage.table_status")}
-                    </th>
-                    <th className="w-72 py-3 px-4 text-center font-semibold">
-                      {t("AdminUsersPage.table_actions")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user, index) => (
-                    <tr
-                      key={user._id}
-                      className="border-b hover:bg-gray-50 transition duration-150"
-                    >
-                      <td className="py-3 px-4 text-center">{index + 1}</td>
-                      <td className="py-3 px-4 text-center">{user.username}</td>
-                      <td className="py-3 px-4 text-center">{user.email}</td>
-                      <td className="py-3 px-4 text-center">{user.role}</td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center space-x-2 gap-2">{/* ✅ صف واحد + تباعد منظم */}
-                          <Form.Check
-                            type="switch"
-                            id={`custom-switch-${user._id}`}
-                            checked={user.isActive}
-                            onChange={() =>
-                              handleUserDisable(user._id, user.isActive)
-                            }
-                            className="focus:ring-2 focus:ring-blue-500"
-                          />
-                          <span
-                            className={
-                              user.isActive ? "text-green-600" : "text-red-600"
-                            }
-                          >
-                            {user.isActive
-                              ? t("AdminUsersPage.status_active")
-                              : t("AdminUsersPage.status_inactive")}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-center space-x-2">
-                        <button
-                          onClick={() => handleUpdate(user._id)}
-                          className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-3 py-1 rounded-md hover:from-blue-700 hover:to-blue-900 transition duration-300"
-                        >
-                          {t("AdminUsersPage.button_edit")}
-                        </button>
-                        <button
-                          onClick={() => handleUserDelete(user._id)}
-                          className="bg-gradient-to-r from-red-600 to-red-800 text-white px-3 py-1 rounded-md hover:from-red-700 hover:to-red-900 transition duration-300"
-                        >
-                          {t("AdminUsersPage.button_delete")}
-                        </button>
-                        <button
-                          onClick={() => handleOpenResetModal(user._id)}
-                          className="bg-gradient-to-r from-yellow-600 to-yellow-800 text-white px-3 py-1 rounded-md hover:from-yellow-700 hover:to-yellow-900 transition duration-300"
-                        >
-                          {t("AdminUsersPage.button_reset_password")}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-        {showModal && modalType === "edit" && selectedUserId && (
-          <UpdateUserForm
-            userId={selectedUserId}
-            onClose={() => {
-              setShowModal(false);
-              setSelectedUserId(null);
-            }}
-          />
-        )}
-        {showModal && modalType === "reset" && selectedUserId && (
-          <ResetUserPasswordForm
-            userId={selectedUserId}
-            onClose={() => {
-              setShowModal(false);
-              setSelectedUserId(null);
-            }}
-          />
-        )}
+    <div className="container py-5">
+      <PageHeader
+        titleAr="إدارة المستخدمين"
+        titleEn="Users Management"
+        subtitleAr="إدارة الحسابات والأدوار والحالة"
+        subtitleEn="Manage accounts, roles and status"
+        actions={
+          <AdminPageActions>
+            <ActionButton
+              action="add"
+              showLabel
+              onClick={() => {
+                setFormErrors({});
+                setFormModal({ show: true, mode: "create", user: null });
+              }}
+            />
+          </AdminPageActions>
+        }
+      />
+
+      <div className="position-relative bg-white rounded shadow-sm overflow-hidden">
+        <LoadingOverlay show={isBusy} text={isArabic ? "جاري التحميل..." : "Loading..."} />
+        <ErrorOverlay show={Boolean(error)} message={errorMessage(error, "Unable to load users")} />
+        <UniversalTable
+          columns={columns}
+          data={usersList}
+          lang={isArabic ? "ar" : "en"}
+          emptyMessage={isArabic ? "لا يوجد مستخدمون" : "No users found"}
+        />
       </div>
+
+      <div className="mt-4">
+        <PaginationComponent
+          total={total}
+          page={page}
+          limit={limit}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          onLimitChange={(nextLimit) => {
+            setLimit(nextLimit);
+            setPage(1);
+          }}
+        />
+      </div>
+
+      <UniversalFormModal
+        show={formModal.show}
+        onHide={closeForm}
+        onSave={handleSave}
+        config={formConfig}
+        initialData={normalizeUserForForm(formModal.user)}
+        errors={formErrors}
+        loading={loading.create || loading.update}
+        titleAr={formModal.mode === "create" ? "إضافة مستخدم" : "تعديل المستخدم"}
+        titleEn={formModal.mode === "create" ? "Create User" : "Edit User"}
+      />
+
+      <ChangePasswordModal
+        show={Boolean(passwordUser)}
+        onHide={() => setPasswordUser(null)}
+        userId={passwordUser?._id}
+        userName={passwordUser?.username}
+        requireCurrentPassword={false}
+      />
+
+      <ConfirmDialog
+        show={Boolean(deactivateUser)}
+        onHide={() => setDeactivateUser(null)}
+        onConfirm={confirmDeactivate}
+        loading={loading.delete}
+        variant="block"
+        title={isArabic ? "تعطيل المستخدم" : "Deactivate user"}
+        message={isArabic
+          ? `هل تريد تعطيل حساب ${deactivateUser?.username || "المستخدم"}؟`
+          : `Deactivate ${deactivateUser?.username || "this user"}?`}
+        confirmText={isArabic ? "تأكيد التعطيل" : "Deactivate"}
+        cancelText={isArabic ? "إلغاء" : "Cancel"}
+      />
+
+      <EntityDetailsModal
+        show={Boolean(detailsUser)}
+        onHide={() => setDetailsUser(null)}
+        title={detailsUser?.username || "User"}
+        images={detailsUser?.profileImage ? [detailsUser.profileImage] : []}
+        fields={detailsUser ? [
+          { label: isArabic ? "الاسم" : "Name", value: `${detailsUser.firstName || ""} ${detailsUser.lastName || ""}`.trim() },
+          { label: isArabic ? "البريد" : "Email", value: detailsUser.email },
+          { label: isArabic ? "الدور" : "Role", value: detailsUser.role },
+          { label: isArabic ? "الحالة" : "Status", value: detailsUser.isActive ? (isArabic ? "نشط" : "Active") : (isArabic ? "معطل" : "Inactive") },
+        ] : []}
+      />
     </div>
   );
 }

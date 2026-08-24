@@ -67,11 +67,11 @@ export const computations = {
 // ─── التنسيقات ───
 export const formatters = {
   currency: (value, currency = 'SAR') => {
-    return new Intl.NumberFormat('ar-SA', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
     }).format(value);
   },
   percentage: (value) => `${value}%`,
-  number: (value) => new Intl.NumberFormat('ar-SA').format(value),
+  number: (value) => new Intl.NumberFormat('en-US').format(value),
 };

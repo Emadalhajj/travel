@@ -6,17 +6,17 @@ import {
   faUser,
   faGlobe,
   faRightFromBracket,
-  faShoppingCart,
 } from "@fortawesome/free-solid-svg-icons";
 import { Link, useNavigate, NavLink } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import { logoutUser } from "../../redux/auth/authSlice";
 import { useTranslation } from "react-i18next";
+import useAuthorization from "../../hooks/auth/useAuthorization";
+import { formatImagePath } from "../../Utils/imageUtils";
 
 export default function Header() {
-  const currentUser = useSelector((state) => state.auth.currentUser);
-  const user = currentUser?.user || currentUser;
-  const isAdmin = user?.role === "admin" || user?.role === "superAdmin";
+  const { user, isAdmin } = useAuthorization();
+  const currentUser = user;
   // const items = useSelector((state) => state.cart.items) || [];
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -133,11 +133,9 @@ export default function Header() {
           {/* صورة المستخدم */}
           {currentUser?.profileImage ? (
             <Image
-              src={
-                currentUser.profileImage.startsWith("http")
-                  ? currentUser.profileImage
-                  : `http://localhost:5000/${currentUser.profileImage}`
-              }
+              key={currentUser.profileImage}
+              src={formatImagePath(currentUser.profileImage)}
+              alt={t("profileImage", "صورة الملف الشخصي")}
               width={40}
               height={40}
               roundedCircle

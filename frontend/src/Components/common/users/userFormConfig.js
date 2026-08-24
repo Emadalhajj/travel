@@ -1,4 +1,16 @@
-export const userFormConfig = ({ isCreate = true } = {}) => ({
+import { USER_ROLES } from "../../../constants/auth/roles";
+
+export const normalizeUserForForm = (user) => {
+  if (!user) return null;
+  const safeUser = { ...user };
+  delete safeUser.password;
+  return { ...safeUser, password: "", confirmPassword: "" };
+};
+
+export const userFormConfig = ({
+  isCreate = true,
+  allowedRoles = Object.values(USER_ROLES),
+} = {}) => ({
   commonFields: [
     {
       name: "firstName",
@@ -29,7 +41,6 @@ export const userFormConfig = ({ isCreate = true } = {}) => ({
       col: 6,
     },
 
-    // ────── كلمة المرور تظهر فقط عند الإضافة ──────
     ...(isCreate
       ? [
           {
@@ -38,7 +49,7 @@ export const userFormConfig = ({ isCreate = true } = {}) => ({
             labelEn: "Password",
             type: "password",
             col: 6,
-            required: true, // يمكنك إضافة هذا إذا أردت
+            required: true,
           },
           {
             name: "confirmPassword",
@@ -58,10 +69,10 @@ export const userFormConfig = ({ isCreate = true } = {}) => ({
       type: "select",
       col: 6,
       options: [
-        { value: "admin", labelAr: "مدير", labelEn: "Admin" },
-        { value: "user", labelAr: "مستخدم", labelEn: "User" },
-        { value: "superAdmin", labelAr: "مشرف", labelEn: "Super Admin" },
-      ],
+        { value: USER_ROLES.ADMIN, labelAr: "مدير", labelEn: "Admin" },
+        { value: USER_ROLES.USER, labelAr: "مستخدم", labelEn: "User" },
+        { value: USER_ROLES.SUPER_ADMIN, labelAr: "مشرف", labelEn: "Super Admin" },
+      ].filter(({ value }) => allowedRoles.includes(value)),
     },
     {
       name: "profileImage",
@@ -80,21 +91,4 @@ export const userFormConfig = ({ isCreate = true } = {}) => ({
     },
   ],
 
-  // createFields : [
-  //     {
-  //         name : "password",
-  //         labelAr : "كلمة المرور",
-  //         labelEn : "Password",
-  //         type : "password",
-
-  //         col : 6,
-  //     },
-  //     {
-  //         name : "confirmPassword",
-  //         labelAr : "تأكيد كلمة المرور",
-  //         labelEn : "Confirm Password",
-  //         type : "password",
-  //         col : 6,
-  //     },
-  // ]
 });

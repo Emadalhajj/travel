@@ -35,7 +35,8 @@ export default function ConfirmDialog({
   loading = false,
   icon: CustomIcon,
 }) {
-  const { t } = useTranslation();
+  const { i18n } = useTranslation();
+  const isArabic = i18n.language === "ar";
   const Icon = CustomIcon || iconMap[variant] || AlertTriangle;
   const color = colorMap[variant] || colorMap.default;
 
@@ -86,7 +87,7 @@ export default function ConfirmDialog({
           {loading ? (
             <>
               <span className="spinner-border spinner-border-sm" />
-              جاري المعالجة...
+              {isArabic ? "جاري المعالجة..." : "Processing..."}
             </>
           ) : (
             confirmText
@@ -106,4 +107,4 @@ export default function ConfirmDialog({
 <ConfirmDialog variant="warning"  title="إلغاء الحجز"        confirmText="إلغاء الحجز" />
 
 
-*/ 
+*/

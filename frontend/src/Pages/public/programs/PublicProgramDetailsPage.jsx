@@ -18,6 +18,8 @@ import PublicButton from "../../../Components/shared/buttons/PublicButton";
 import DraftBookingSummaryCard from "../../../Components/shared/draft-bookings/DraftBookingSummaryCard";
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
+import { formatDate } from "../../../Utils/dateUtils";
+import { formatPrice } from "../../../Utils/roundPrice";
 
 export default function PublicProgramDetailsPage() {
   const { id } = useParams();
@@ -59,11 +61,11 @@ export default function PublicProgramDetailsPage() {
   const infoItems = [
     {
       label: t("startDate", "Start Date"),
-      value: formatDate(selectedProgram?.startDate, isArabic),
+      value: formatDate(selectedProgram?.startDate, { isArabic }),
     },
     {
       label: t("endDate", "End Date"),
-      value: formatDate(selectedProgram?.endDate, isArabic),
+      value: formatDate(selectedProgram?.endDate, { isArabic }),
     },
     {
       label: t("duration", "Duration"),
@@ -90,11 +92,11 @@ export default function PublicProgramDetailsPage() {
     },
     {
       label: t("startDate", "Start Date"),
-      value: formatDate(selectedProgram?.startDate, isArabic),
+      value: formatDate(selectedProgram?.startDate, { isArabic }),
     },
     {
       label: t("endDate", "End Date"),
-      value: formatDate(selectedProgram?.endDate, isArabic),
+      value: formatDate(selectedProgram?.endDate, { isArabic }),
     },
     {
       label: t("availableSeats", "Available Seats"),
@@ -102,9 +104,10 @@ export default function PublicProgramDetailsPage() {
     },
     {
       label: t("total", "Total"),
-      value: `${selectedProgram?.pricing?.totalPrice || 0} ${
-        selectedProgram?.pricing?.currency || "SAR"
-      }`,
+      value: formatPrice(
+        selectedProgram?.pricing?.totalPrice,
+        selectedProgram?.pricing?.currency || "SAR",
+      ),
     },
   ];
 
@@ -254,7 +257,7 @@ function ServiceItemCard({ item, isArabic, t }) {
         </div>
 
         <div className="shrink-0 rounded-xl bg-white px-4 py-2 text-sm font-bold text-emerald-700">
-          {item.priceAtTime || item.price || 0} {item.currency || "SAR"}
+          {formatPrice(item.priceAtTime || item.price, item.currency || "SAR")}
         </div>
       </div>
 
@@ -311,10 +314,4 @@ function getLocalizedDescription(item, isArabic) {
         item.shortDescriptionAr ||
         item.description?.ar ||
         "";
-}
-
-function formatDate(date, isArabic) {
-  if (!date) return "-";
-
-  return new Date(date).toLocaleDateString(isArabic ? "ar-SA" : "en-US");
 }

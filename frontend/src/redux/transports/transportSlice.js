@@ -109,6 +109,10 @@ const transportSlice = createSlice({
         state.transportList =
           action.payload?.transports || action.payload || [];
       })
+      .addCase(fetchTransports.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
       .addCase(fetchTransportById.fulfilled, (state, action) => {
         state.loading = false;
         state.selectedTransport =

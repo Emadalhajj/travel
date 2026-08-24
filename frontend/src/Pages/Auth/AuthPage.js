@@ -1,19 +1,24 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { loginUser } from "../../redux/auth/authSlice";
 import { useTranslation } from "react-i18next";
 import {
   clearError,
+  completeGoogleLogin,
   registerUser,
-  setCurrentUser,
 } from "../../redux/auth/authSlice";
 import { toast } from "react-toastify";
+import { loginWithGoogle } from "../../services/api/admin/auth";
+import PublicButton from "../../Components/shared/buttons/PublicButton";
 
 export default function AuthPage() {
   const { t, i18n } = useTranslation();
+  const isArabic = i18n.language === "ar";
+
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const googleExchangeStarted = useRef(false);
 
   const { loading, error, currentUser, TypeAction } = useSelector(
     (state) => state.auth,
@@ -31,7 +36,8 @@ export default function AuthPage() {
     password: "",
   });
 
-  const [Error, setError] = useState(null);
+  const [formError, setFormError] = useState(null);
+  const [loginError, setLoginError] = useState(null);
 
   const handleResiterChange = (e) => {
     setregisterForm({ ...registerForm, [e.target.name]: e.target.value });
@@ -40,8 +46,9 @@ export default function AuthPage() {
   const handleSubmitRegiter = (e) => {
     e.preventDefault();
     dispatch(clearError());
+    setFormError(null);
     if (registerForm.password !== registerForm.confirmPassword)
-      return setError(t("auth.passwordMismatch"));
+      return setFormError(t("auth.passwordMismatch"));
     const userData = {
       username: registerForm.username,
       email: registerForm.email,
@@ -54,14 +61,9 @@ export default function AuthPage() {
   useEffect(() => {
     if (loading) return;
 
-    if (error) {
-      dispatch(clearError());
-      return;
-    }
-
     if (currentUser && !loading && TypeAction === "register") {
       toast.success("تم التسجيل بنجاح ✅");
-      setError(null);
+      setFormError(null);
       setregisterForm({
         username: "",
         email: "",
@@ -69,114 +71,55 @@ export default function AuthPage() {
         confirmPassword: "",
       });
     }
-    if (currentUser && !loading && TypeAction === "login") {
-      toast.success("تم تسجيل الدخول بنجاح ✅");
-      navigate("/");
-    }
-  }, [currentUser, loading, error, TypeAction, navigate, dispatch]);
+  }, [currentUser, loading, TypeAction]);
 
   // login logic
   const handleLoginChange = (e) => {
+    if (loginError) setLoginError(null);
     setLoginForm({ ...loginForm, [e.target.name]: e.target.value });
   };
-  const handleSubmitLogin = (e) => {
+  const handleSubmitLogin = async (e) => {
     e.preventDefault();
     dispatch(clearError());
-    dispatch(loginUser(loginForm));
+    setLoginError(null);
+
+    try {
+      await dispatch(loginUser(loginForm)).unwrap();
+      toast.success("تم تسجيل الدخول بنجاح ✅");
+      navigate("/");
+    } catch (loginFailure) {
+      setLoginError(
+        typeof loginFailure === "string"
+          ? loginFailure
+          : loginFailure?.message || t("auth.loginFail"),
+      );
+    }
   };
 
   //GOOGLE LOGIN LOCIC
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get("token");
-    const userParam = urlParams.get("user");
-
-    // console.log("AuthPage token:", token); // للتحقق
-    // console.log("AuthPage userParam:", userParam); // للتحقق
-
-    if (token) {
-      let userObj = { token };
-      if (userParam) {
-        try {
-          userObj = JSON.parse(decodeURIComponent(userParam));
-          // console.log("Parsed userObj:", userObj); // للتحقق
-        } catch (err) {
-          console.error("Error parsing userParam:", err);
-          // keep userObj as { token }
-        }
+    const urlParams = new URLSearchParams(window.location.search)
+    const googleStatus = urlParams.get("google");
+    if (!googleStatus || googleExchangeStarted.current) return;
+    googleExchangeStarted.current = true;
+    window.history.replaceState({}, document.title, window.location.pathname);
+    const completeGoogleFlow = async ()=>{
+      if(googleStatus !== "success") {
+        toast.error(isArabic ? "تعذر تسجيل الدخول بحساب Google" : "Unable to login with Google account");
+        return
       }
-
-      localStorage.setItem("currentUser", JSON.stringify(userObj));
-      localStorage.setItem("token", token);
-
-      // تحديث Redux
-      dispatch(setCurrentUser({ user: userObj }));
-
-      toast.success("تم تسجيل الدخول بحساب Google ✅");
-      window.history.replaceState({}, document.title, window.location.pathname);
-      navigate("/");
-    }
-  }, [navigate, dispatch]);
-
-  //   const [form, setForm] = useState({
-  //     username: "",
-  //     email: "",
-  //     password: "",
-  //     confirmPassword: "",
-  //   });
-
-  //   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-  //   const [error, setError] = useState(null);
-  //   const [success, setSuccess] = useState(null);
-
-  //     // 🔹 تحديث الحقول
-  //   const handleChange = (e) =>
-  //     setForm({ ...form, [e.target.name]: e.target.value });
-  //   const handleLoginChange = (e) =>
-  //     setLoginForm({ ...loginForm, [e.target.name]: e.target.value });
-
-  //   const handleRegister = async (e) => {
-  //     e.preventDefault();
-  //     if (form.password !== form.confirmPassword)
-  //       return setError(t("auth.passwordMismatch"));
-
-  //     try {
-  //       const res = await axios.post(
-  //         "http://localhost:5000/api/users/register",
-  //         form
-  //       );
-  //       setSuccess(res.data.message);
-  //       setError(null);
-  //       setForm({ username: "", email: "", password: "", confirmPassword: "" });
-  //     } catch (err) {
-  //       setError(err.response?.data?.message || t("auth.registerFail"));
-  //     }
-  //   };
-
-  //   const handleLogin = async (e) => {
-  //     e.preventDefault();
-
-  //     try {
-  //       const res = await axios.post("http://localhost:5000/api/users/login", {
-  //         email: loginForm.email,
-  //         password: loginForm.password,
-  //       });
-
-  //       const user = res.data.user;
-  //       const token = res.data.token;
-
-  //       localStorage.setItem("currentUser", JSON.stringify(user));
-  //       localStorage.setItem("token", token);
-  //       setUser(user);
-
-  //       dispatch(loginUser(loginForm));
-  //       alert(`${t("auth.welcome")} ${user.username}!`);
-
-  //       navigate("/");
-  //     } catch (err) {
-  //       alert(err.response?.data?.message || t("auth.loginFail"));
-  //     }
-  //   };
+      try {
+        await dispatch(completeGoogleLogin()).unwrap();
+        toast.success(isArabic ? "تم تسجيل الدخول بنجاح" : "Login successful");
+        navigate("/" , { replace: true });// وظيفة replace هو إزالة الصفحة الحالية من سجل التصفح بعد تسجيل الدخول الناجح، مما يمنع المستخدم من العودة إلى صفحة تسجيل الدخول عند الضغط على زر الرجوع في المتصفح.
+      }
+      catch (error) {
+        toast.error(isArabic ? "تعذر تسجيل الدخول بحساب Google" : "Unable to login with Google account");
+      }
+    } 
+    completeGoogleFlow();
+   
+  }, [dispatch, isArabic, navigate]);
 
   return (
     <div
@@ -191,9 +134,9 @@ export default function AuthPage() {
             {t("auth.createAccount")}
           </h2>
 
-          {error && (
+          {(formError || (TypeAction !== "login" && error)) && (
             <div className="bg-red-100 text-red-700 text-sm p-3 rounded mb-4 shadow">
-              {error}
+              {formError || error}
             </div>
           )}
           <form onSubmit={handleSubmitRegiter} className="space-y-5">
@@ -268,6 +211,15 @@ export default function AuthPage() {
             {t("auth.welcomeBack")}
           </h2>
 
+          {loginError && (
+            <div
+              className="bg-red-100 text-red-700 text-sm p-3 rounded mb-4 shadow"
+              role="alert"
+            >
+              {loginError}
+            </div>
+          )}
+
           <form onSubmit={handleSubmitLogin} className="space-y-5">
             <div>
               <label className="block text-gray-700 mb-1 font-medium">
@@ -306,12 +258,14 @@ export default function AuthPage() {
           </form>
 
           {/* زر Google */}
-          <a
-            href="http://localhost:5000/api/auth/google"
-            className="block text-center mt-4 w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition"
+          <PublicButton
+            type="button"
+            onClick={loginWithGoogle}
+            fullWidth
+            className="mt-4 bg-red-500 hover:bg-red-600"
           >
             🔗 {t("auth.googleLogin")}
-          </a>
+          </PublicButton>
 
           <div className="text-center mt-4">
             <Link

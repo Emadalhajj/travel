@@ -14,19 +14,26 @@ Booking Notification Service
 -----------------------------------------------------
 await sendBookingCreatedNotification(...)
 await sendBookingConfirmedNotification(...)
-await sendPaymentReceivedNotification(...)
 =====================================================
 */
 
+import { sendNotificationChannels } from "./notification-channel-service.js";
+import { NOTIFICATION_TYPES } from "../../constants/notifications/notification-constants.js";
+
+const sendBookingEvent = ({ booking, user, req, event, payload }) =>
+  sendNotificationChannels({
+    payload,
+    deduplicationBase: `booking:${booking._id}:${event}`,
+    email: booking.customer?.email || user?.email || "",
+    req,
+  });
+
 export const sendBookingCreatedNotification = async ({
-  Notification,
   booking,
   user,
   req = null,
-  sendNotification,
 }) => {
-  return await sendNotification({
-    Notification,
+  return sendBookingEvent({ booking, user, req, event: "created", payload: {
     user: user?._id || booking.user,
     booking: booking._id,
 
@@ -36,8 +43,7 @@ export const sendBookingCreatedNotification = async ({
     messageAr: `تم إنشاء الحجز رقم ${booking.bookingNumber} بنجاح.`,
     messageEn: `Booking ${booking.bookingNumber} has been created successfully.`,
 
-    channel: "database",
-    type: "booking_created",
+    type: NOTIFICATION_TYPES.BOOKING_CREATED,
 
     metadata: {
       bookingNumber: booking.bookingNumber,
@@ -46,18 +52,15 @@ export const sendBookingCreatedNotification = async ({
     },
 
     createdBy: req?.user?._id,
-  });
+  }});
 };
 
 export const sendBookingConfirmedNotification = async ({
-  Notification,
   booking,
   user,
   req = null,
-  sendNotification,
 }) => {
-  return await sendNotification({
-    Notification,
+  return sendBookingEvent({ booking, user, req, event: "confirmed", payload: {
     user: user?._id || booking.user,
     booking: booking._id,
 
@@ -67,8 +70,7 @@ export const sendBookingConfirmedNotification = async ({
     messageAr: `تم تأكيد الحجز رقم ${booking.bookingNumber}.`,
     messageEn: `Booking ${booking.bookingNumber} has been confirmed.`,
 
-    channel: "database",
-    type: "booking_confirmed",
+    type: NOTIFICATION_TYPES.BOOKING_CONFIRMED,
 
     metadata: {
       bookingNumber: booking.bookingNumber,
@@ -76,18 +78,15 @@ export const sendBookingConfirmedNotification = async ({
     },
 
     createdBy: req?.user?._id,
-  });
+  }});
 };
 
 export const sendBookingCancelledNotification = async ({
-  Notification,
   booking,
   user,
   req = null,
-  sendNotification,
 }) => {
-  return await sendNotification({
-    Notification,
+  return sendBookingEvent({ booking, user, req, event: "cancelled", payload: {
     user: user?._id || booking.user,
     booking: booking._id,
 
@@ -97,8 +96,7 @@ export const sendBookingCancelledNotification = async ({
     messageAr: `تم إلغاء الحجز رقم ${booking.bookingNumber}.`,
     messageEn: `Booking ${booking.bookingNumber} has been cancelled.`,
 
-    channel: "database",
-    type: "booking_cancelled",
+    type: NOTIFICATION_TYPES.BOOKING_CANCELLED,
 
     metadata: {
       bookingNumber: booking.bookingNumber,
@@ -106,38 +104,16 @@ export const sendBookingCancelledNotification = async ({
     },
 
     createdBy: req?.user?._id,
-  });
+  }});
 };
 
-export const sendPaymentReceivedNotification = async ({
-  Notification,
+export const sendInitialBookingNotification = async ({
   booking,
-  amount,
   user,
   req = null,
-  sendNotification,
 }) => {
-  return await sendNotification({
-    Notification,
-    user: user?._id || booking.user,
-    booking: booking._id,
-
-    titleAr: "تم استلام دفعة",
-    titleEn: "Payment Received",
-
-    messageAr: `تم استلام دفعة بقيمة ${amount} ${booking.pricing?.currency || "SAR"} للحجز رقم ${booking.bookingNumber}.`,
-    messageEn: `Payment of ${amount} ${booking.pricing?.currency || "SAR"} has been received for booking ${booking.bookingNumber}.`,
-
-    channel: "database",
-    type: "payment_received",
-
-    metadata: {
-      bookingNumber: booking.bookingNumber,
-      amount,
-      paidAmount: booking.paidAmount,
-      remainingAmount: booking.remainingAmount,
-    },
-
-    createdBy: req?.user?._id,
-  });
+  if (String(booking?.bookingStatus || "").toLowerCase() === "confirmed") {
+    return sendBookingConfirmedNotification({ booking, user, req });
+  }
+  return sendBookingCreatedNotification({ booking, user, req });
 };

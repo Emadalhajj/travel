@@ -41,7 +41,6 @@ export const PROVIDER_PAYMENT_METHODS = [
 
 export const MANUAL_PAYMENT_METHODS = ["CASH", "CREDIT"];
 
-<<<<<<< HEAD
 /*
 طرق الدفع التجارية التي يسمح المسؤول بإنشاء
 PaymentConfiguration مستقلة لها.
@@ -207,18 +206,12 @@ export const DISABLED_PAYMENT_METHOD_CODES =
   Object.freeze([
     "ONLINE_PAYMENT",
   ]);
-=======
-export const DISABLED_PAYMENT_METHOD_CODES = Object.freeze([
-  "ONLINE_PAYMENT",
-]);
->>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
 
 export const isPaymentMethodAvailableForConfiguration = (
   paymentMethod,
 ) =>
   Boolean(
     paymentMethod?.code &&
-<<<<<<< HEAD
       paymentMethod.isActive !==
         false &&
       PAYMENT_CONFIGURATION_METHOD_CODES.includes(
@@ -229,98 +222,7 @@ export const isPaymentMethodAvailableForConfiguration = (
       !DISABLED_PAYMENT_METHOD_CODES.includes(
         paymentMethod.code,
       ),
-=======
-      paymentMethod.isActive !== false &&
-      !DISABLED_PAYMENT_METHOD_CODES.includes(paymentMethod.code),
->>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
   );
-
-/*
-=====================================================
-Public Payment Display Groups
-=====================================================
-
-هذه المجموعات خاصة بتجربة العميل فقط.
-قاعدة البيانات تبقى محتفظة بطريقة الدفع الفعلية،
-لكن العميل لا يحتاج رؤية علامات البطاقات كطرق مستقلة.
-=====================================================
-*/
-
-export const PUBLIC_PAYMENT_GROUPS = Object.freeze({
-  ELECTRONIC: "ELECTRONIC",
-  BANK_TRANSFER: "BANK_TRANSFER",
-  SADAD: "SADAD",
-  PAY_LATER: "PAY_LATER",
-  CASH: "CASH",
-});
-
-export const PUBLIC_PAYMENT_GROUP_ORDER = Object.freeze([
-  PUBLIC_PAYMENT_GROUPS.ELECTRONIC,
-  PUBLIC_PAYMENT_GROUPS.BANK_TRANSFER,
-  PUBLIC_PAYMENT_GROUPS.SADAD,
-  PUBLIC_PAYMENT_GROUPS.PAY_LATER,
-  PUBLIC_PAYMENT_GROUPS.CASH,
-]);
-
-const ELECTRONIC_METHOD_CODES = new Set([
-  "CARD",
-  "MADA",
-  "VISA",
-  "MASTERCARD",
-  "APPLE_PAY",
-  "STC_PAY",
-]);
-
-export const resolvePublicPaymentGroup = (paymentMethodCode) => {
-  const code = String(paymentMethodCode || "").toUpperCase();
-
-  if (ELECTRONIC_METHOD_CODES.has(code)) {
-    return PUBLIC_PAYMENT_GROUPS.ELECTRONIC;
-  }
-
-  if (code === "BANK_TRANSFER") {
-    return PUBLIC_PAYMENT_GROUPS.BANK_TRANSFER;
-  }
-
-  if (code === "SADAD") {
-    return PUBLIC_PAYMENT_GROUPS.SADAD;
-  }
-
-  if (code === "CREDIT") {
-    return PUBLIC_PAYMENT_GROUPS.PAY_LATER;
-  }
-
-  if (code === "CASH") {
-    return PUBLIC_PAYMENT_GROUPS.CASH;
-  }
-
-  return null;
-};
-
-export const groupPublicPaymentConfigurations = (configurations = []) => {
-  const groups = configurations.reduce((result, configuration) => {
-    const group = resolvePublicPaymentGroup(
-      configuration?.paymentMethodCode,
-    );
-
-    if (!group) return result;
-
-    if (!result[group]) {
-      result[group] = [];
-    }
-
-    result[group].push(configuration);
-    return result;
-  }, {});
-
-  return PUBLIC_PAYMENT_GROUP_ORDER
-    .filter((group) => groups[group]?.length)
-    .map((group) => ({
-      code: group,
-      configurations: groups[group],
-      primaryConfiguration: groups[group][0],
-    }));
-};
 
 /*
 =====================================================

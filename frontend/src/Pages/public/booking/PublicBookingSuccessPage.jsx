@@ -6,9 +6,13 @@ import { useTranslation } from "react-i18next";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import Loader from "../../../Components/common/Loader";
 import PageHeader from "../../../Components/layout/PageHeader";
+import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
+import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
+import PublicButton from "../../../Components/shared/buttons/PublicButton";
 
 import { fetchPublicBookingById } from "../../../redux/public/bookingSlice";
 import InfoRow from "../../../Components/shared/common/InfoRow";
+import { formatPrice } from "../../../Utils/roundPrice";
 
 export default function PublicBookingSuccessPage() {
   const { bookingId } = useParams();
@@ -43,11 +47,8 @@ export default function PublicBookingSuccessPage() {
       0,
   );
 
-  const formatMoney = (amount) => `${Number(amount || 0).toFixed(2)} ${currency}`;
-
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="mx-auto max-w-4xl">
+    <PublicPageLayout containerClassName="max-w-4xl">
         <PageHeader
           center
           eyebrowAr="تم إنشاء الحجز"
@@ -63,7 +64,7 @@ export default function PublicBookingSuccessPage() {
         <ErrorOverlay show={!loading && Boolean(error)} message={error} />
 
         {!loading && !error && (
-          <div className="rounded-2xl bg-white p-8 shadow-sm border border-slate-100 text-center">
+          <PublicSectionCard className="p-8 text-center">
             <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-700">
               ✓
             </div>
@@ -86,41 +87,41 @@ export default function PublicBookingSuccessPage() {
 
               <InfoRow
                 label={t("subtotal", "الإجمالي قبل الضريبة")}
-                value={formatMoney(subtotal)}
+                value={formatPrice(subtotal, currency)}
               />
 
               <InfoRow
                 label={t("vat", `ضريبة القيمة المضافة ${taxRate}%`)}
-                value={formatMoney(taxAmount)}
+                value={formatPrice(taxAmount, currency)}
               />
 
               <InfoRow
                 label={t("totalWithVat", "الإجمالي شامل الضريبة")}
-                value={formatMoney(total)}
+                value={formatPrice(total, currency)}
               />
             </div>
 
             <div className="mt-8 flex flex-col md:flex-row gap-3">
-              <button
-                type="button"
+              <PublicButton
+                fullWidth
                 onClick={() => navigate("/programs")}
-                className="flex-1 rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white hover:bg-emerald-800"
+                className="flex-1"
               >
                 {t("backToPrograms", "العودة للبرامج")}
-              </button>
+              </PublicButton>
 
-              <button
-                type="button"
+              <PublicButton
+                fullWidth
+                variant="secondary"
                 onClick={() => navigate("/my-bookings")}
-                className="flex-1 rounded-xl border border-slate-200 px-5 py-3 font-bold text-slate-700 hover:bg-slate-50"
+                className="flex-1"
               >
                 {t("myBookings", "حجوزاتي")}
-              </button>
+              </PublicButton>
             </div>
-          </div>
+          </PublicSectionCard>
         )}
-      </div>
-    </div>
+    </PublicPageLayout>
   );
 }
 

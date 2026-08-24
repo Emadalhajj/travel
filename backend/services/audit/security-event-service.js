@@ -15,8 +15,44 @@ Security Event Service
 - نشاط مشبوه
 =====================================================
 */
-import SecurityEvent from "../../models/audit/ecurity-event-model.js";
+import mongoose from "mongoose";
+import SecurityEvent from "../../models/audit/security-event-model.js";
 import { getRequestInfo } from "../../utils/requestInfo.js";
+import AppError from "../../utils/AppError.js";
+import { SECURITY_EVENT_TYPES_LIST } from "../../constants/audit/security-event-types.js";
+
+const MAX_PAGE_LIMIT = 100;
+const USER_POPULATE_FIELDS = "firstName lastName username email role";
+
+const parseDate = (value, field, endOfDay = false) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new AppError(`Invalid ${field}`, 400, field);
+  if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(String(value))) date.setUTCHours(23, 59, 59, 999);
+  return date;
+};
+
+export const normalizeSecurityEventPagination = ({ page = 1, limit = 20 } = {}) => ({
+  page: Math.max(1, Math.floor(Number(page) || 1)),
+  limit: Math.min(MAX_PAGE_LIMIT, Math.max(1, Math.floor(Number(limit) || 20))),
+});
+
+export const buildSecurityEventFilter = ({ type, user, dateFrom, dateTo } = {}) => {
+  const filter = {};
+  if (type) {
+    if (!SECURITY_EVENT_TYPES_LIST.includes(type)) throw new AppError("Invalid security event type", 400, "type");
+    filter.type = type;
+  }
+  if (user) {
+    if (!mongoose.Types.ObjectId.isValid(user)) throw new AppError("Invalid user", 400, "user");
+    filter.user = user;
+  }
+  const from = parseDate(dateFrom, "dateFrom");
+  const to = parseDate(dateTo, "dateTo", true);
+  if (from && to && from > to) throw new AppError("dateFrom must be before dateTo", 400, "dateFrom");
+  if (from || to) filter.createdAt = { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) };
+  return filter;
+};
 
 /*
 =====================================================
@@ -34,6 +70,7 @@ export const createSecurityEvent = async ({
   metadata = {},
 }) => {
   const requestInfo = req ? getRequestInfo(req) : {};
+  buildSecurityEventFilter({ type });
 
   const event = await SecurityEvent.create({
     type,
@@ -60,25 +97,19 @@ export const getSecurityEvents = async ({
   limit = 20,
   type,
   user,
+  dateFrom,
+  dateTo,
 }) => {
-  const skip = (page - 1) * limit;
-
-  const filter = {};
-
-  if (type) {
-    filter.type = type;
-  }
-
-  if (user) {
-    filter.user = user;
-  }
+  const pagination = normalizeSecurityEventPagination({ page, limit });
+  const skip = (pagination.page - 1) * pagination.limit;
+  const filter = buildSecurityEventFilter({ type, user, dateFrom, dateTo });
 
   const [items, total] = await Promise.all([
     SecurityEvent.find(filter)
-      .populate("user", "name email role")
+      .populate("user", USER_POPULATE_FIELDS)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(pagination.limit),
 
     SecurityEvent.countDocuments(filter),
   ]);
@@ -86,7 +117,8 @@ export const getSecurityEvents = async ({
   return {
     items,
     total,
-    page,
-    pages: Math.ceil(total / limit),
+    page: pagination.page,
+    limit: pagination.limit,
+    pages: Math.ceil(total / pagination.limit),
   };
 };

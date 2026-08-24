@@ -43,29 +43,8 @@ const initialFormData = {
   nationality: "",
 };
 
-const initialCustomer = {
-  name: "",
-  email: "",
-  phone: "",
-  nationality: "",
-};
-
-const createEmptyTraveler = (nationality = "") => ({
-  fullName: "",
-  passportNumber: "",
-  nationality,
-  birthDate: "",
-  gender: "male",
-});
-
 export default function useCustomPackageBuilder() {
   const [formData, setFormData] = useState(initialFormData);
-
-  const [customer, setCustomer] = useState(initialCustomer);
-
-  const [travelers, setTravelers] = useState([
-    createEmptyTraveler(initialFormData.nationality),
-  ]);
 
   /*
   selectedProducts شكلها:
@@ -93,75 +72,13 @@ export default function useCustomPackageBuilder() {
         [name]: value,
       };
 
-      /*
-      إذا تغير عدد المعتمرين، نحدث travelers تلقائيًا.
-      */
       if (name === "travelersCount") {
         const count = Math.max(1, Number(value) || 1);
-
-        setTravelers((prevTravelers) =>
-          Array.from({ length: count }, (_, index) => {
-            return (
-              prevTravelers[index] || createEmptyTraveler(next.nationality)
-            );
-          }),
-        );
-
         next.travelersCount = count;
-      }
-
-      /*
-      إذا تغيرت الجنسية العامة، نحدث جنسية العميل والمعتمرين
-      في حال لم تكن معبأة مسبقًا.
-      */
-      if (name === "nationality") {
-        setCustomer((prevCustomer) => ({
-          ...prevCustomer,
-          nationality: prevCustomer.nationality || value,
-        }));
-
-        setTravelers((prevTravelers) =>
-          prevTravelers.map((traveler) => ({
-            ...traveler,
-            nationality: traveler.nationality || value,
-          })),
-        );
       }
 
       return next;
     });
-  };
-
-  /*
-  =====================================================
-  handleCustomerChange
-  =====================================================
-  تعديل بيانات العميل المسؤول عن الحجز.
-  */
-  const handleCustomerChange = (name, value) => {
-    setCustomer((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  /*
-  =====================================================
-  handleTravelerChange
-  =====================================================
-  تعديل بيانات معتمر واحد.
-  */
-  const handleTravelerChange = (index, name, value) => {
-    setTravelers((prev) =>
-      prev.map((traveler, travelerIndex) =>
-        travelerIndex === index
-          ? {
-              ...traveler,
-              [name]: value,
-            }
-          : traveler,
-      ),
-    );
   };
 
   /*
@@ -457,15 +374,10 @@ export default function useCustomPackageBuilder() {
   =====================================================
   إنشاء المسودة أولًا.
 
-  حسب service الحالي:
-  createDraftBooking يحفظ:
-  - customer
-  - currentStep
-  - status
-  - expiresAt
+  ننشئ المسودة بالخطوة التالية فقط؛ بيانات العميل والمعتمرين
+  تُجمع لاحقًا في صفحة Booking Party الموحدة.
   */
   const buildDraftCreatePayload = () => ({
-    customer,
     currentStep: "customer_info",
   });
 
@@ -476,8 +388,6 @@ export default function useCustomPackageBuilder() {
   بعد إنشاء المسودة نحدثها بكامل تفاصيل البرنامج المخصص.
   */
   const buildDraftUpdatePayload = () => ({
-    customer,
-    travelers,
     program: buildProgramSnapshot(),
     hotel: buildHotelSnapshot(),
     transport: buildTransportSnapshot(),
@@ -500,25 +410,17 @@ export default function useCustomPackageBuilder() {
   */
   const resetBuilder = useCallback(() => {
     setFormData(initialFormData);
-    setCustomer(initialCustomer);
-    setTravelers([createEmptyTraveler(initialFormData.nationality)]);
     setSelectedProducts({});
   }, []);
 
   return {
     formData,
-    customer,
-    travelers,
-
     selectedProducts,
     selectedProductsList,
 
     pricing,
 
     handleFormChange,
-    handleCustomerChange,
-    handleTravelerChange,
-
     addProduct,
     removeProduct,
     clearCategory,

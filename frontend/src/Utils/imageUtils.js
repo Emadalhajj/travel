@@ -1,28 +1,30 @@
-// src/utils/imageUtils.js
-export const formatImagePath = (image) => {
-  if (!image) return null;
+const UPLOADS_BASE_URL = "http://localhost:5000/uploads";
 
-  // دعم كلا النوعين: سلسلة نصية أو كائن صورة { url, path, filename }
-  let imgStr = null;
-  if (typeof image === "string") {
-    imgStr = image;
-  } else if (typeof image === "object" && image !== null) {
-    imgStr = image.url || image.path || image.filename || null;
+export const formatImagePath = (
+  image,
+  { fallback = "/placeholder-image.png" } = {},
+) => {
+  if (!image) return fallback;
+
+  if (
+    typeof File !== "undefined" &&
+    (image instanceof File ||
+      (typeof Blob !== "undefined" && image instanceof Blob))
+  ) {
+    return URL.createObjectURL(image);
   }
 
-  if (!imgStr) return null;
+  const rawPath =
+    typeof image === "string"
+      ? image
+      : image?.url || image?.path || image?.filename;
 
-  imgStr = String(imgStr).trim();
+  if (!rawPath) return fallback;
 
-  // إذا كانت URL كاملة فأعدها كما هي
-  if (/^https?:\/\//i.test(imgStr)) return imgStr;
+  const normalizedPath = String(rawPath).trim().replace(/\\/g, "/");
+  if (!normalizedPath) return fallback;
+  if (/^(https?:|data:|blob:)/i.test(normalizedPath)) return normalizedPath;
 
-  // إزالة أي /uploads/ أو uploads/ من البداية
-  imgStr = imgStr.replace(/^\/?uploads\/?/, "");
-
-  // توحيد الفواصل
-  imgStr = imgStr.replace(/\\/g, "/");
-
-  const path = `http://localhost:5000/uploads/${imgStr}`;
-  return path;
+  const uploadPath = normalizedPath.replace(/^\/?uploads\/?/i, "");
+  return `${UPLOADS_BASE_URL}/${uploadPath.replace(/^\/+/, "")}`;
 };

@@ -36,6 +36,7 @@ import {
 } from "../../../../redux/umrah/umrahProgramSlice";
 import PackageBasicInfoForm from "./PackageBasicInfoForm";
 import DiscountSection from "./DiscountSection";
+import PageHeader from "../../../../Components/layout/PageHeader";
 
 export default function CreateUmrahPackagePage() {
   const dispatch = useDispatch();
@@ -202,23 +203,12 @@ export default function CreateUmrahPackagePage() {
 
   return (
     <div className="container-fluid py-3">
-      <div className="mb-4">
-        <h3 className="fw-bold mb-1">
-          {isArabic
-            ? isEditMode
-              ? "تعديل برنامج العمرة"
-              : "إنشاء برنامج عمرة جديد"
-            : isEditMode
-              ? "Edit Umrah Package"
-              : "Create New Umrah Package"}
-        </h3>
-
-        <p className="text-muted mb-0">
-          {isArabic
-            ? "قم بإدخال معلومات البرنامج ثم اختر الخدمات المتاحة حسب الفترة المحددة."
-            : "Enter package information, then select available services by date."}
-        </p>
-      </div>
+      <PageHeader
+        titleAr={isEditMode ? "تعديل برنامج العمرة" : "إنشاء برنامج عمرة جديد"}
+        titleEn={isEditMode ? "Edit Umrah Package" : "Create New Umrah Package"}
+        subtitleAr="قم بإدخال معلومات البرنامج ثم اختر الخدمات المتاحة حسب الفترة المحددة."
+        subtitleEn="Enter package information, then select available services by date."
+      />
 
       <Row className="g-4">
         <Col lg={8}>

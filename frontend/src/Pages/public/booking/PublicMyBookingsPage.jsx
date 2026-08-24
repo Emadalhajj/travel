@@ -15,6 +15,9 @@ import PageHeader from "../../../Components/layout/PageHeader";
 import Loader from "../../../Components/common/Loader";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import PendingBookingReviewCard from "../../../Components/shared/booking-cards/PendingBookingReviewCard";
+import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
+import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
+import PublicButton from "../../../Components/shared/buttons/PublicButton";
 
 export default function PublicMyBookingsPage() {
   const dispatch = useDispatch();
@@ -59,8 +62,7 @@ export default function PublicMyBookingsPage() {
   };
 
   return (
-  <div className="min-h-screen bg-slate-50 px-4 py-8">
-    <div className="mx-auto max-w-6xl">
+  <PublicPageLayout containerClassName="max-w-6xl">
       <PageHeader
         eyebrowAr="حجوزاتي"
         eyebrowEn="My Bookings"
@@ -69,13 +71,9 @@ export default function PublicMyBookingsPage() {
         subtitleAr="استعرض الحجوزات التي تم إنشاؤها من حسابك."
         subtitleEn="View bookings created from your account."
         actions={
-          <button
-            type="button"
-            onClick={() => navigate("/programs")}
-            className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"
-          >
+          <PublicButton onClick={() => navigate("/programs")}>
             {t("browsePrograms", "تصفح البرامج")}
-          </button>
+          </PublicButton>
         }
       />
 
@@ -88,10 +86,10 @@ export default function PublicMyBookingsPage() {
       />
 
       {!pendingReviewsLoading && pendingBookingReviews.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-4 text-xl font-extrabold text-slate-900">
-            {isArabic ? "حجوزات قيد مراجعة الدفع" : "Bookings Pending Payment Review"}
-          </h2>
+        <PublicSectionCard
+          title={isArabic ? "حجوزات قيد مراجعة الدفع" : "Bookings Pending Payment Review"}
+          className="mb-8"
+        >
           <div className="space-y-4">
             {pendingBookingReviews.map((request) => (
               <PendingBookingReviewCard
@@ -108,7 +106,7 @@ export default function PublicMyBookingsPage() {
               />
             ))}
           </div>
-        </section>
+        </PublicSectionCard>
       )}
 
       {!loading && !pendingReviewsLoading && !error &&
@@ -151,7 +149,6 @@ export default function PublicMyBookingsPage() {
           </div>
         </>
       )}
-    </div>
-  </div>
+  </PublicPageLayout>
 );
 }

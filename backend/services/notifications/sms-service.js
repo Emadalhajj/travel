@@ -20,10 +20,8 @@ export const sendSMS = async ({
   to,
   message,
 }) => {
-  console.log("SMS SENT:", {
-    to,
-    message,
-  });
+  void to;
+  void message;
 
   return {
     success: true,

@@ -1,265 +1,191 @@
-// src/pages/visas/AdminVisaList.jsx   (أو المسار الذي تستخدمه)
-import React, { use, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
 
+import {
+  createVisa,
+  deleteVisa,
+  fetchVisas,
+  setLimit,
+  setPage,
+  toggleVisa,
+  updateVisa,
+} from "../../../redux/visas/visaSlice";
+import { fetchVisaTypes } from "../../../redux/visas/visaTypeSlice";
+import { buildQuery } from "../../../Utils/buildQuery";
+import { createHandleSave } from "../../../Utils/formData/createHandleSave";
+import { normalizeForForm } from "../../../Utils/formData/normalize";
+import { handleApiError } from "../../../Utils/handleApiError";
+import { formatPrice } from "../../../Utils/roundPrice";
+import { visaFormConfig } from "../../../Components/common/ModalForms/visa/visaFormConfig";
 import PageHeader from "../../../Components/layout/PageHeader";
-import UniversalTable from "../../../Components/common/tables/UniversalTable";
-import ImagePreviewCell from "../../../Components/common/tables/ImagePreviewCell";
 import ActionButton from "../../../Components/common/buttons/ActionButton";
+import ExportTableButtons from "../../../Components/common/buttons/ExportTableButtons";
+import EntityFilter from "../../../Components/common/EntityFilter";
 import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
-import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
+import UniversalTable from "../../../Components/common/tables/UniversalTable";
+import ImagePreviewCell from "../../../Components/common/tables/ImagePreviewCell";
+import PaginationComponent from "../../../Components/common/Pagination";
 import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
+import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
-import EntityFilter from "../../../Components/common/EntityFilter";
-import ExportTableButtons from "../../../Components/common/buttons/ExportTableButtons";
+import StatusBadge from "../../../Components/shared/common/StatusBadge";
+import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
 
-import { visaFormConfig } from "../../../Components/common/ModalForms/visa/visaFormConfig"; // تأكد من المسار
-
-import {
-  fetchVisas,
-  createVisa,
-  updateVisa,
-  deleteVisa,
-  toggleVisa,
-} from "../../../redux/visas/visaSlice";
-
-import { fetchVisaTypes } from "../../../redux/visas/visaTypeSlice";
-
-import { PlusCircle } from "lucide-react";
-import { Link } from "react-router-dom";
-import { Form } from "react-bootstrap";
-import { formatImagePath } from "../../../Utils/imageUtils";
+const emptyPagination = { total: 0, page: 1, limit: 10, totalPages: 0 };
 
 export default function AdminVisaList() {
   const dispatch = useDispatch();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
-
   const {
     list: visas = [],
     loading,
     error,
+    pagination = emptyPagination,
   } = useSelector((state) => state.visas || {});
   const { visaTypes = [] } = useSelector((state) => state.visaTypes || {});
-  const { currentUser } = useSelector((state) => state.auth || {});
-
-  const [showModal, setShowModal] = useState(false);
-  const [currentVisa, setCurrentVisa] = useState(null);
-  const [formMode, setFormMode] = useState("create"); // create | update
-  console.log("visasss", visas);
-  const [showDetails, setShowDetails] = useState(false);
-  const [deleteModal, setDeleteModal] = useState({
-    show: false,
-    id: null,
-    name: "",
-  });
 
   const [filters, setFilters] = useState({
     search: "",
-    isActive: "",
     visaType: "",
+    isActive: "",
   });
 
-  // Memoized Config
-  const memoizedConfig = useMemo(() => visaFormConfig(visaTypes), [visaTypes]);
+  const formConfig = useMemo(() => visaFormConfig(visaTypes), [visaTypes]);
+  const listQuery = useMemo(
+    () => buildQuery(filters, { page: pagination.page, limit: pagination.limit }),
+    [filters, pagination.page, pagination.limit],
+  );
 
-  // Fetch data
   useEffect(() => {
-    dispatch(fetchVisas());
     dispatch(fetchVisaTypes());
   }, [dispatch]);
-  /* ================================
-     Helpers
-  ================================= */
 
-  //تحويل قبل تمريرها للفورم iamges
-  const normalizeImagesForForm = (images = []) =>
-    images.map((img) => ({
-      url: typeof img === "string" ? img : img.url,
-      preview: formatImagePath(typeof img === "string" ? img : img.url),
-      file: null, // صورة قديمة
-      isOld: true,
-    }));
-  /* ================================
-     Modal Handlers
-  ================================= */
-  // أضف هذه الدالة المساعدة
-  const normalizeVisaForForm = (visa) => {
-    if (!visa) return null;
+  useEffect(() => {
+    dispatch(fetchVisas(listQuery));
+  }, [dispatch, listQuery]);
 
-    const normalized = { ...visa };
-
-    // 1. التاريخ (يتعامل مع كل الصيغ الممكنة)
-    if (visa.startDate) {
-      const date =
-        typeof visa.startDate === "string"
-          ? visa.startDate
-          : visa.startDate.$date || visa.startDate.toISOString?.();
-      normalized.startDate = date
-        ? new Date(date).toISOString().split("T")[0]
-        : "";
-    }
-
-    if (visa.endDate) {
-      const date =
-        typeof visa.endDate === "string"
-          ? visa.endDate
-          : visa.endDate.$date || visa.endDate.toISOString?.();
-      normalized.endDate = date
-        ? new Date(date).toISOString().split("T")[0]
-        : "";
-    }
-
-    // 2. الوقت (دقائق → HH:MM)
-    if (typeof visa.startTime === "number" && !isNaN(visa.startTime)) {
-      const h = Math.floor(visa.startTime / 60)
-        .toString()
-        .padStart(2, "0");
-      const m = (visa.startTime % 60).toString().padStart(2, "0");
-      normalized.startTime = `${h}:${m}`;
-    }
-    // ← التعديل الجديد لـ vehicleType: تأكد أنها string نظيفة
-    if (visa.vehicleType) {
-      normalized.vehicleType =
-        typeof visa.vehicleType === "object"
-          ? visa.vehicleType._id?.toString() || ""
-          : visa.vehicleType?.toString() || "";
-    }
-
-    // معالجة visaType: تأكد أنها تمرر الـ ID
-    if (visa.visaType) {
-      normalized.visaType =
-        typeof visa.visaType === "object"
-          ? visa.visaType._id?.toString() || ""
-          : visa.visaType?.toString() || "";
-    }
-
-    // 3. الصور
-    normalized.images = normalizeImagesForForm(visa.images || []);
-
-    return normalized;
-  };
-
-  const openCreateModal = () => {
-    setFormMode("create");
-    setCurrentVisa(null);
-    setShowModal(true);
-  };
-
-  const openUpdateModal = (visa) => {
-    const normalized = normalizeVisaForForm(visa);
-    setFormMode("update");
-    setCurrentVisa(normalized);
-    setShowModal(true);
-  };
-  //openclone
-  const openCloneModal = (visa) => {
-    const normalized = normalizeVisaForForm(visa);
-    setFormMode("clone");
-    setShowModal(true);
-    setCurrentVisa({
+  const prepareVisaForForm = (visa) => ({
+    ...normalizeForForm(visa, formConfig),
+    visaType:
+      typeof visa.visaType === "object"
+        ? visa.visaType?._id || ""
+        : visa.visaType || "",
+  });
+  const {
+    showModal,
+    showDetails,
+    currentItem: currentVisa,
+    formMode,
+    formErrors,
+    loadingSave,
+    deleteModal,
+    openCreate: openCreateModal,
+    openEdit: openEditModal,
+    openClone: openCloneModal,
+    openDetails,
+    openDelete,
+    closeForm,
+    closeDetails,
+    closeDelete,
+    resetForm,
+    setFormErrors,
+    setLoadingSave,
+  } = useAdminEntityCrudState({
+    prepareForForm: prepareVisaForForm,
+    prepareClone: (visa, normalized) => ({
       ...normalized,
-      _id: null, // إزالة الـ ID للسماح بإنشاء نسخة جديدة
+      _id: null,
       name: {
         ar: `${visa.name?.ar || ""} (نسخة)`,
         en: `${visa.name?.en || ""} (Copy)`,
       },
-      visaType: visa.visaType?._id || visa.visaType || "", // تمرير الـ ID
-    });
-  };
+    }),
+  });
 
-  const handleSave = async (fd) => {
-    try {
-      if (formMode === "update" && currentVisa?._id) {
-        await dispatch(updateVisa({ id: currentVisa._id, data: fd })).unwrap();
-        toast.success(
-          lang === "ar" ? "تم التعديل بنجاح" : "Updated successfully",
-        );
-      } else {
-        const user =
-          currentUser || JSON.parse(localStorage.getItem("currentUser"));
-        fd.append("createdBy", user?._id);
-        await dispatch(createVisa(fd)).unwrap();
-        toast.success(
-          lang === "ar" ? "تمت الإضافة بنجاح" : "Added successfully",
-        );
-      }
-      setShowModal(false);
-      dispatch(fetchVisas());
-    } catch (err) {
-      toast.error(err?.message || "حدث خطأ أثناء الحفظ");
-    }
-  };
+  const handleSave = createHandleSave({
+    dispatch,
+    createAction: createVisa,
+    updateAction: updateVisa,
+    fetchAction: () => fetchVisas(listQuery),
+    getId: (item) => item._id,
+    formConfig,
+    toast,
+    lang,
+    closeModal: closeForm,
+    resetItem: resetForm,
+    setLoading: setLoadingSave,
+    setFormErrors,
+  });
 
   const confirmDelete = async () => {
     try {
       await dispatch(deleteVisa(deleteModal.id)).unwrap();
       toast.success(lang === "ar" ? "تم الحذف بنجاح" : "Deleted successfully");
-      dispatch(fetchVisas());
+      dispatch(fetchVisas(listQuery));
     } catch (err) {
-      toast.error("حدث خطأ أثناء الحذف");
+      toast.error(handleApiError(err, (message) => message, lang));
     } finally {
-      setDeleteModal({ show: false, id: null, name: "" });
+      closeDelete();
     }
   };
 
-  const handleToggleStatus = (id) => {
-    dispatch(toggleVisa(id));
+  const handleToggleStatus = async (visa) => {
+    try {
+      await dispatch(toggleVisa(visa._id)).unwrap();
+      toast.success(
+        lang === "ar"
+          ? visa.isActive
+            ? "تم تعطيل التأشيرة"
+            : "تم تفعيل التأشيرة"
+          : visa.isActive
+            ? "Visa deactivated"
+            : "Visa activated",
+      );
+      dispatch(fetchVisas(listQuery));
+    } catch (err) {
+      toast.error(handleApiError(err, (message) => message, lang));
+    }
   };
-  /* ================================
-       filters
-    ================================= */
-  useEffect(() => {
-    const query = new URLSearchParams(
-      Object.fromEntries(Object.entries(filters).filter(([_, v]) => v !== "")),
-    );
-    dispatch(fetchVisas(query));
-  }, [filters, dispatch]);
+
+  const getVisaTypeName = (visa) =>
+    (lang === "ar" ? visa.visaType?.nameAr : visa.visaType?.nameEn) || "-";
 
   const columns = [
     {
-      header: lang === "ar" ? "رقم" : "No",
+      header: lang === "ar" ? "الرقم" : "No",
       align: "center",
-      render: (_, i) => i + 1,
+      exportable: false,
+      render: (_, index) => index + 1,
     },
     {
       header: lang === "ar" ? "الصور" : "Images",
       align: "center",
+      exportImageAccessor: "images",
+      pdfWidth: 52,
       render: (row) => <ImagePreviewCell images={row.images || []} />,
     },
     {
       header: lang === "ar" ? "الاسم" : "Name",
-      render: (row) => (
-        <div>
-          <div className="fw-bold">
-            {lang === "ar" ? row.name?.ar : row.name?.en}
-          </div>
-          <small className="text-muted">
-            {lang === "ar"
-              ? row.description?.ar?.substring(0, 50)
-              : row.description?.en?.substring(0, 50)}
-            ...
-          </small>
-        </div>
-      ),
+      render: (row) => (lang === "ar" ? row.name?.ar : row.name?.en) || "-",
+      excelValue: (row) => (lang === "ar" ? row.name?.ar : row.name?.en) || "",
     },
     {
       header: lang === "ar" ? "نوع التأشيرة" : "Visa Type",
-      render: (row) => (
-        <span className="badge bg-info">
-          {lang === "ar" ? row.visaType?.nameAr : row.visaType?.nameEn}
-        </span>
-      ),
+      render: getVisaTypeName,
+      excelValue: getVisaTypeName,
     },
     {
       header: lang === "ar" ? "السعر" : "Price",
       align: "center",
-      render: (row) => (
-        <span className="fw-semibold text-success">{row.price} ر.س</span>
-      ),
+      render: (row) => formatPrice(row.price, row.currency || "SAR"),
+      excelValue: (row) => row.price ?? 0,
+      excelType: "number",
     },
     {
       header: lang === "ar" ? "المدة" : "Duration",
@@ -267,38 +193,41 @@ export default function AdminVisaList() {
     },
     {
       header: lang === "ar" ? "الحالة" : "Status",
+      align: "center",
       render: (row) => (
-        <Form.Check
-          type="switch"
-          checked={row.isActive}
-          onChange={() => handleToggleStatus(row._id)}
-        />
+        <div className="d-flex align-items-center justify-content-center gap-2">
+          <StatusBadge
+            value={row.isActive ? "active" : "inactive"}
+            type="user"
+            isArabic={lang === "ar"}
+          />
+          <ActionButton
+            action={row.isActive ? "deactivate" : "activate"}
+            onClick={() => handleToggleStatus(row)}
+          />
+        </div>
       ),
     },
     {
       header: lang === "ar" ? "الإجراءات" : "Actions",
       align: "center",
+      exportable: false,
       render: (row) => (
-        <div className="d-flex justify-content-center">
-          <ActionButton action="edit" onClick={() => openUpdateModal(row)} />
+        <div className="d-flex justify-content-center gap-1">
+          <ActionButton action="edit" onClick={() => openEditModal(row)} />
+          <ActionButton action="clone" onClick={() => openCloneModal(row)} />
           <ActionButton
             action="view"
             onClick={() => {
-              setCurrentVisa(row);
-              setShowDetails(true);
+              openDetails(row);
             }}
           />
           <ActionButton
             action="delete"
             onClick={() =>
-              setDeleteModal({
-                show: true,
-                id: row._id,
-                name: lang === "ar" ? row.name?.ar : row.name?.en,
-              })
+              openDelete(row, lang === "ar" ? row.name?.ar : row.name?.en)
             }
           />
-          <ActionButton action={"clone"} onClick={() => openCloneModal(row)} />
         </div>
       ),
     },
@@ -309,211 +238,113 @@ export default function AdminVisaList() {
       <PageHeader
         titleAr="إدارة خدمات التأشيرات"
         titleEn="Visa Services Management"
-        subtitleAr="إضافة، تعديل، وحذف أنواع التأشيرات"
-        subtitleEn="Add, edit, and delete available visa types"
-      />
-      {/* Action Buttons Row */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        {/* Action Buttons */}
-        <div className="w-100 d-flex justify-content-center">
-          <div className="d-inline-flex align-items-center gap-2">
+        subtitleAr="إضافة وتعديل وحذف خدمات التأشيرات"
+        subtitleEn="Create, edit, and delete visa services"
+        actions={
+          <AdminPageActions>
+          <ActionButton
+            size="md"
+            action="add"
+            label={lang === "ar" ? "إضافة تأشيرة جديدة" : "Add Visa"}
+            onClick={openCreateModal}
+          />
+          <Link to="/admin/visa-types">
             <ActionButton
               size="md"
-              action="add"
-              label="إضافة تأشيرة جديدة"
-              onClick={openCreateModal}
+              action="edit"
+              label={lang === "ar" ? "إدارة أنواع التأشيرات" : "Manage Visa Types"}
             />
-            <Link to="/admin/visa-types">
-              <ActionButton
-                size="md"
-                action="edit"
-                label={
-                  lang === "ar" ? "إدارة أنواع التأشيرات" : "Manage Visa Types"
-                }
-                // onClick={() => (window.location.href = "/admin/visa-types")}
-              />
-            </Link>
-          </div>
-        </div>
-        <ExportTableButtons
-          data={visas}
-          columns={columns}
-          lang={lang}
-          filename="Visas_List"
-          title={lang === "ar" ? "قائمة التأشيرات" : "Visas List"}
-        />
-      </div>
+          </Link>
+          <ExportTableButtons data={visas} columns={columns} fileName="visas" lang={lang} title={lang === "ar" ? "قائمة التأشيرات" : "Visas List"} />
+          </AdminPageActions>
+        }
+      />
 
-      <LoadingOverlay show={loading} />
-      <ErrorOverlay show={!!error} message={error} />
-      {/* filters */}
       <EntityFilter
         filters={filters}
         setFilters={setFilters}
         config={{
-          visaType: {
-            type: "select",
-            col: 4,
-            options: [
-              // { value: "", labelAr: "الكل", labelEn: "All" },
-              ...visaTypes.map((vt) => ({
-                value: vt._id,
-                labelAr: vt.nameAr,
-                labelEn: vt.nameEn,
-              })),
-            ],
-          },
           search: {
             type: "text",
             col: 4,
-            placeholder: lang === "ar" ? "بحث بالاسم..." : "Search by name...",
+            placeholder: lang === "ar" ? "بحث بالاسم" : "Search by name",
+          },
+          visaType: {
+            type: "select",
+            col: 4,
+            options: visaTypes.map((type) => ({
+              value: type._id,
+              labelAr: type.nameAr,
+              labelEn: type.nameEn,
+            })),
           },
           isActive: {
             type: "select",
             col: 4,
             options: [
-              // { value: "", labelAr: "الكل", labelEn: "All" },
               { value: "true", labelAr: "نشط", labelEn: "Active" },
               { value: "false", labelAr: "غير نشط", labelEn: "Inactive" },
             ],
           },
         }}
       />
+
+      <LoadingOverlay show={loading} />
+      <ErrorOverlay show={Boolean(error)} message={error} />
       <UniversalTable
         columns={columns}
         data={visas}
-        emptyMessage={lang === "ar" ? "لا توجد تأشيرات بعد" : "No visas found"}
+        lang={lang}
+        emptyMessage={lang === "ar" ? "لا توجد تأشيرات" : "No visas found"}
+      />
+      <PaginationComponent
+        total={pagination.total}
+        page={pagination.page}
+        limit={pagination.limit}
+        totalPages={pagination.totalPages}
+        onPageChange={(page) => dispatch(setPage(page))}
+        onLimitChange={(limit) => dispatch(setLimit(limit))}
       />
 
       <UniversalFormModal
         show={showModal}
-        onHide={() => setShowModal(false)}
-        onSave={handleSave}
-        config={memoizedConfig}
+        onHide={closeForm}
+        onSave={(data) => handleSave(data, { formMode, currentItem: currentVisa })}
+        config={formConfig}
         initialData={currentVisa}
-        titleAr={
-          formMode === "update" ? "تعديل التأشيرة" : "إضافة تأشيرة جديدة"
-        }
-        titleEn={formMode === "update" ? "Edit Visa" : "Add New Visa"}
+        titleAr={formMode === "edit" ? "تعديل التأشيرة" : "إضافة تأشيرة"}
+        titleEn={formMode === "edit" ? "Edit Visa" : "Add Visa"}
+        errors={formErrors}
+        loading={loadingSave}
       />
-      <ConfirmDialog
-        show={deleteModal.show}
-        onHide={() => setDeleteModal({ show: false, id: null })}
-        title={lang === "ar" ? "تأكيد الحذف" : "Confirm Delete"}
-        message={
-          lang === "ar"
-            ? `هل أنت متأكد من حذف ${deleteModal.name}?`
-            : `Are you sure you want to delete ${deleteModal.name}?`
-        }
-        onConfirm={confirmDelete}
-        confirmText={lang === "ar" ? "نعم، احذف" : "Yes, Delete"}
-        cancelText={lang === "ar" ? "إلغاء" : "Cancel"}
-        variant="danger"
-      />
+
       <EntityDetailsModal
         show={showDetails}
-        onHide={() => setShowDetails(false)}
+        onHide={closeDetails}
         title={lang === "ar" ? "تفاصيل التأشيرة" : "Visa Details"}
         images={currentVisa?.images || []}
         entity={currentVisa}
         fields={[
-          {
-            label: lang === "ar" ? "الاسم بالعربية" : "Arabic Name",
-
-            value: currentVisa?.name?.ar || "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "الاسم بالإنجليزي" : "English Name",
-
-            value: currentVisa?.name?.en || "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "الوصف بالعربي" : "Arabic Description",
-
-            value: currentVisa?.description?.ar || "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "الوصف بالإنجليزي" : "English Description",
-
-            value: currentVisa?.description?.en || "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "نوع التأشيرة" : "Visa Type",
-
-            value:
-              lang === "ar"
-                ? currentVisa?.visaType?.name?.ar ||
-                  currentVisa?.visaType?.nameAr ||
-                  "غير متوفر"
-                : currentVisa?.visaType?.name?.en ||
-                  currentVisa?.visaType?.nameEn ||
-                  "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "السعر" : "Price",
-
-            value: currentVisa?.price
-              ? `${currentVisa.price} ر.س`
-              : "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "المدة" : "Duration",
-            labelEn: "Duration",
-            value: currentVisa?.duration || "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "الصلاحية" : "Validity",
-
-            value: currentVisa?.validity || "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "الدولة" : "Country",
-
-            value:
-              lang === "ar"
-                ? currentVisa?.country?.ar || "غير متوفر"
-                : currentVisa?.country?.en || "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "الحالة" : "Status",
-
-            value: currentVisa?.isActive
-              ? lang === "ar"
-                ? "نشطة"
-                : "Active"
-              : lang === "ar"
-                ? "غير نشطة"
-                : "Inactive",
-          },
-          {
-            label: lang === "ar" ? "تاريخ الإنشاء" : "Created At",
-
-            value: currentVisa?.createdAt
-              ? new Date(currentVisa.createdAt).toLocaleString(lang)
-              : "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "تاريخ التعديل" : "Updated At",
-
-            value: currentVisa?.updatedAt
-              ? new Date(currentVisa.updatedAt).toLocaleString(lang)
-              : "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "المُنشئ" : "Created By",
-            value:
-              currentVisa?.createdBy?.nameEn ||
-              currentVisa?.createdBy?.username ||
-              "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "المعدل" : "Updated By",
-            value:
-              currentVisa?.updatedBy?.nameEn ||
-              currentVisa?.updatedBy?.username ||
-              "غير متوفر",
-          },
+          { label: lang === "ar" ? "الاسم بالعربية" : "Arabic Name", value: currentVisa?.name?.ar || "-" },
+          { label: lang === "ar" ? "الاسم بالإنجليزية" : "English Name", value: currentVisa?.name?.en || "-" },
+          { label: lang === "ar" ? "نوع التأشيرة" : "Visa Type", value: currentVisa ? getVisaTypeName(currentVisa) : "-" },
+          { label: lang === "ar" ? "السعر" : "Price", value: formatPrice(currentVisa?.price, currentVisa?.currency || "SAR") },
+          { label: lang === "ar" ? "المدة" : "Duration", value: currentVisa?.duration || "-" },
+          { label: lang === "ar" ? "الصلاحية" : "Validity", value: currentVisa?.validity || "-" },
+          { label: lang === "ar" ? "الدولة" : "Country", value: (lang === "ar" ? currentVisa?.country?.ar : currentVisa?.country?.en) || "-" },
+          { label: lang === "ar" ? "الحالة" : "Status", value: currentVisa?.isActive ? (lang === "ar" ? "نشط" : "Active") : (lang === "ar" ? "غير نشط" : "Inactive") },
         ]}
+      />
+
+      <ConfirmDialog
+        show={deleteModal.show}
+        onHide={closeDelete}
+        onConfirm={confirmDelete}
+        title={lang === "ar" ? "تأكيد الحذف" : "Confirm Delete"}
+        message={lang === "ar" ? `هل أنت متأكد من حذف ${deleteModal.name}؟` : `Are you sure you want to delete ${deleteModal.name}?`}
+        confirmText={lang === "ar" ? "نعم، احذف" : "Yes, Delete"}
+        cancelText={lang === "ar" ? "إلغاء" : "Cancel"}
+        variant="danger"
       />
     </div>
   );

@@ -48,7 +48,6 @@ test("Stripe Embedded Checkout uses manual capture", async () => {
 
   assert.equal(receivedPayload.ui_mode, "embedded");
   assert.equal(receivedPayload.payment_intent_data.capture_method, "manual");
-  assert.equal(receivedPayload.ui_mode, "embedded_page");
   assert.equal(receivedPayload.redirect_on_completion, "if_required");
   assert.equal(
     receivedPayload.return_url,
@@ -58,15 +57,10 @@ test("Stripe Embedded Checkout uses manual capture", async () => {
   assert.equal(receivedPayload.line_items[0].price_data.unit_amount, 10050);
   assert.equal(receivedRequestOptions.idempotencyKey, "PAY-1");
   assert.equal(result.checkoutId, "cs_test_1");
-<<<<<<< HEAD
   assert.equal(result.presentationMode, "EMBEDDED");
   assert.equal(result.redirectUrl, "");
   assert.equal(result.clientSecret, "cs_test_1_secret_test");
   assert.equal(result.publishableKey, "pk_test_123");
-=======
-  assert.equal(result.clientSecret, "cs_test_1_secret_test");
-  assert.equal(result.redirectUrl, "");
->>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
 });
 
 test("Stripe requires_capture normalizes to PA authorization", async () => {

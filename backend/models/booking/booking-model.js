@@ -106,6 +106,10 @@ const pilgrimSchema = new mongoose.Schema(
       default: "",
     },
 
+    personalPhoto: { type: String, trim: true, default: "" },
+    vaccinationCertificate: { type: String, trim: true, default: "" },
+    visaAttachment: { type: String, trim: true, default: "" },
+
     hostId: { type: String, trim: true, default: "" },
 
     mobile: {

@@ -35,6 +35,8 @@ export const listSecurityEvents = async (req, res, next) => {
       limit: Number(req.query.limit) || 20,
       type: req.query.type,
       user: req.query.user,
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo,
     });
 
     res.status(200).json({

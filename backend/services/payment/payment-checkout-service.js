@@ -23,6 +23,12 @@ import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import PaymentProvider from "../../models/payments/payment-provider-model.js";
 
 import { buildBookingPricingFromDraft } from "../draft-bookings/draft-booking-service.js";
+import { buildInventoryRequirementsFromDraft } from "../draft-bookings/draft-inventory-builder.js";
+import {
+  createInventoryHoldService,
+  releaseInventoryHoldService,
+  updateInventoryHoldExpiryService,
+} from "../booking/inventory-hold-service.js";
 import {
   createProviderCheckout,
   getProviderCheckoutPresentation,
@@ -44,6 +50,7 @@ import {
   PAYMENT_TRANSACTION_EVENT_CODES,
   PAYMENT_TRANSACTION_EVENT_SOURCES,
 } from "../../constants/payments/payment-transaction-events.js";
+import { sendPaymentFailedNotification } from "../notifications/payment-notification-service.js";
 
 const PAYMENT_PROVIDER_CREDENTIAL_SELECT = [
   "+credentials.entityId",
@@ -77,7 +84,6 @@ const extractCheckoutResult = (checkout = {}) => ({
     "",
   redirectUrl:
     checkout.redirectUrl || checkout.redirect?.url || "",
-  clientSecret: checkout.clientSecret || "",
   expiresAt: checkout.expiresAt || null,
   clientSecret: checkout.clientSecret || "",
   publishableKey: checkout.publishableKey || "",
@@ -97,6 +103,36 @@ const getExistingCheckoutResult = async (transaction) => {
     checkoutId: storedTransaction.checkoutId || "",
     redirectUrl: storedTransaction.redirectUrl || "",
   };
+};
+
+const ensureCheckoutInventoryHold = async ({ draft, transaction, req }) => {
+  const requirements = buildInventoryRequirementsFromDraft({ draft });
+  if (
+    !requirements.programReservation &&
+    requirements.inventoryReservations.length === 0
+  ) {
+    return null;
+  }
+
+  return createInventoryHoldService({
+    idempotencyKey: `payment:${transaction._id}`,
+    draftBooking: draft._id,
+    paymentTransaction: transaction._id,
+    user: transaction.user || draft.user || req?.user?._id || null,
+    programReservation: requirements.programReservation,
+    inventoryReservations: requirements.inventoryReservations,
+    expiresAt: transaction.expiresAt || undefined,
+    req,
+  });
+};
+
+const releaseCheckoutHoldBestEffort = async ({ hold, reason, req }) => {
+  if (!hold?._id) return;
+  try {
+    await releaseInventoryHoldService({ holdId: hold._id, reason, req });
+  } catch (releaseError) {
+    console.error("Inventory hold release failed:", releaseError);
+  }
 };
 
 const buildCheckoutResponse = ({
@@ -278,41 +314,6 @@ export const createPaymentCheckoutSessionService = async ({
   const existingCheckout = await getExistingCheckoutResult(transaction);
   const providerCode = String(provider.code || "").toUpperCase();
 
-<<<<<<< HEAD
-  if (existingCheckout) {
-    const presentation =
-      await getProviderCheckoutPresentation({
-        providerCode: provider.code,
-        checkoutId: existingCheckout.checkoutId,
-        providerConfig:
-          buildProviderConfig(provider),
-        redirectUrl:
-          existingCheckout.redirectUrl,
-      });
-
-    const embedded =
-      presentation.presentationMode ===
-      "EMBEDDED";
-
-=======
-  if (existingCheckout && providerCode !== "STRIPE") {
->>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
-    return {
-      action: embedded
-        ? "EMBEDDED_CHECKOUT"
-        : "REDIRECT",
-      paymentTransactionId: transaction._id,
-      status: String(transaction.status).toUpperCase(),
-      provider: {
-        code: provider.code,
-        environment: provider.environment,
-      },
-      paymentMethodCode,
-      ...existingCheckout,
-      ...presentation,
-    };
-  }
-
   const normalizedReturnUrl = String(
     returnUrl ||
       `${String(
@@ -325,7 +326,33 @@ export const createPaymentCheckoutSessionService = async ({
     `${normalizedReturnUrl}${separator}` +
     `transactionId=${encodeURIComponent(transaction._id)}`;
 
+  let hold = null;
+
   try {
+    hold = await ensureCheckoutInventoryHold({ draft, transaction, req });
+
+    if (existingCheckout) {
+      const presentation =
+        await getProviderCheckoutPresentation({
+          providerCode: provider.code,
+          checkoutId: existingCheckout.checkoutId,
+          providerConfig:
+            buildProviderConfig(provider),
+          redirectUrl:
+            existingCheckout.redirectUrl,
+        });
+
+      return buildCheckoutResponse({
+        transaction,
+        provider,
+        paymentMethodCode,
+        checkoutResult: {
+          ...existingCheckout,
+          ...presentation,
+        },
+      });
+    }
+
     const checkout = await createProviderCheckout({
       providerCode: provider.code,
       amount,
@@ -348,6 +375,13 @@ export const createPaymentCheckoutSessionService = async ({
         502,
         "checkoutId",
       );
+    }
+
+    if (hold?._id && checkoutResult.expiresAt) {
+      hold = await updateInventoryHoldExpiryService({
+        holdId: hold._id,
+        expiresAt: checkoutResult.expiresAt,
+      });
     }
 
     /*
@@ -385,49 +419,38 @@ export const createPaymentCheckoutSessionService = async ({
       providerReference: checkoutResult.providerReference,
       updatedBy: actorId,
     });
-
-<<<<<<< HEAD
-    const embedded =
-      checkoutResult.presentationMode ===
-      "EMBEDDED";
-
-    return {
-      action: embedded
-        ? "EMBEDDED_CHECKOUT"
-        : "REDIRECT",
-      paymentTransactionId: updatedTransaction._id,
-      status: String(updatedTransaction.status).toUpperCase(),
-      provider: {
-        code: provider.code,
-        environment: provider.environment,
-      },
-      paymentMethodCode,
-      checkoutId: checkoutResult.checkoutId,
-      redirectUrl: checkoutResult.redirectUrl,
-      ...(embedded
-        ? {
-            clientSecret:
-              checkoutResult.clientSecret,
-            publishableKey:
-              checkoutResult.publishableKey,
-          }
-        : {}),
-    };
-=======
     return buildCheckoutResponse({
       transaction: updatedTransaction,
       provider,
       paymentMethodCode,
       checkoutResult,
     });
->>>>>>> 37d0473aa4e4e14bc20efe68e7605e4e3680acfc
   } catch (checkoutError) {
-    await markPaymentTransactionFailedService({
-      transactionId: transaction._id,
-      reason:
-        checkoutError?.message || "Provider checkout creation failed",
-      source: PAYMENT_TRANSACTION_EVENT_SOURCES.PROVIDER,
-      updatedBy: actorId,
+    let failedTransaction = null;
+    try {
+      failedTransaction = await markPaymentTransactionFailedService({
+        transactionId: transaction._id,
+        reason:
+          checkoutError?.message || "Provider checkout creation failed",
+        source: PAYMENT_TRANSACTION_EVENT_SOURCES.PROVIDER,
+        updatedBy: actorId,
+      });
+    } catch (transactionError) {
+      console.error("Payment transaction failure update failed:", transactionError);
+    }
+
+    if (failedTransaction) {
+      await sendPaymentFailedNotification({
+        transaction: failedTransaction,
+        recipientEmail: draft.customer?.email || "",
+        req,
+      });
+    }
+
+    await releaseCheckoutHoldBestEffort({
+      hold,
+      reason: "Provider checkout creation failed",
+      req,
     });
 
     throw checkoutError;

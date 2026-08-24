@@ -29,7 +29,6 @@ router.put(
     protect,
     authorize("admin"),
     validate(updateVisaTypeSchema),
-    validate(updateVisaTypeSchema),
     updateVisaType
 )
 
