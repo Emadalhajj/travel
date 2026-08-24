@@ -2,23 +2,16 @@ import asyncHandler from "express-async-handler";
 import mongoose from "mongoose";
 import RoomType from "../../models/hotels/roomType-model.js";
 
-import {
-  extractUploadedImages,
-  deleteImagesFromDisk,
-  deleteAttachmentsFromDisk,
-  updateImageArray,
-} from "../../utils/imageManager.js";
+import { deleteImagesFromDisk } from "../../utils/imageManager.js";
 import { normalizeString } from "../../utils/generic/normalizeString.js";
 import { normalizeArray } from "../../utils/generic/normalizeArray.js";
 import { normalizeBoolean } from "../../utils/generic/normalizeBoolean.js";
 import { buildSearchQuery } from "../../utils/Builders/buildSearchQuery.js";
-import { buildSort } from "../../utils/Builders/buildSort.js";
 import { buildPagination } from "../../utils/Builders/buildPagination.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 import { safeJsonParse } from "../../utils/generic/safeJsonParse.js";
 import { validateUniqueFields } from "../../validators/validateUniqueFields.js";
 import { processImages } from "../../utils/domain/processImages.js";
-// import { calculateBookingPrice, checkAvailability } from "../../services/pricing/service.js";
 import { calculateBookingPrice } from "../../services/pricing/index.js";
 import { validatePricingPeriods } from "../../services/validators/roomType-validation.js";
 import { checkAvailability } from "../../services/booking/availability.js";
@@ -75,7 +68,7 @@ const normalizeAvailablePeriods = (periods = []) =>
 // ====================== GET ALL ROOM TYPES ======================
 
 export const getAllRoomType = asyncHandler(async (req, res) => {
-  const { search, isActive, bedType, sort, order } = req.query;
+  const { search, isActive, bedType, sort } = req.query;
 
   const filter = {
     ...buildSearchQuery({
@@ -217,7 +210,6 @@ export const previewBookingPrice = asyncHandler(async (req, res) => {
     checkOut,
     requestedRooms: 1,
     RoomType,
-    Booking,
     req,
   });
 

@@ -73,13 +73,8 @@ import {
   logBookingCancelled,
 } from "../../services/booking/booking-log-service.js";
 
-// الاسعارات
-import Notification from "../../models/notification-model.js";
-
-import { sendNotification } from "../../services/notifications/notification-service.js";
-
 import {
-  sendBookingCreatedNotification,
+  sendInitialBookingNotification,
   sendBookingConfirmedNotification,
   sendBookingCancelledNotification,
 } from "../../services/notifications/booking-notification-service.js";
@@ -424,11 +419,9 @@ export const createBooking = asyncHandler(async (req, res) => {
     req,
   });
 
-  await sendBookingCreatedNotification({
-  Notification,
+  await sendInitialBookingNotification({
   booking: newBooking,
   req,
-  sendNotification,
 });
 
   await newBooking.populate(bookingPopulate);
@@ -645,10 +638,8 @@ export const cancelBooking = asyncHandler(async (req, res) => {
   });
 
 await sendBookingCancelledNotification({
-  Notification,
   booking,
   req,
-  sendNotification,
 });
 
   res.status(200).json({
@@ -747,10 +738,8 @@ export const confirmBooking = asyncHandler(async (req, res) => {
   await booking.save();
 
 await sendBookingConfirmedNotification({
-  Notification,
   booking,
   req,
-  sendNotification,
 });
   res.status(200).json({
     success: true,

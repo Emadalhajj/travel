@@ -1,6 +1,8 @@
 import BookingStatusBadge from "./BookingStatusBadge";
+import ActionButton from "../../common/buttons/ActionButton";
+import { formatDate } from "../../../Utils/dateUtils";
 
-export default function BookingCard({ booking, onView }) {
+export default function BookingCard({ booking, onView, isArabic = true, t }) {
   const bookingNumber =
     booking?.bookingNumber || booking?.code || booking?._id || "-";
 
@@ -26,21 +28,19 @@ export default function BookingCard({ booking, onView }) {
         <div>
           <div className="flex items-center gap-3">
             <h3 className="font-semibold text-gray-800">
-              حجز رقم {bookingNumber}
+              {t?.("bookingNumber", "رقم الحجز") || "رقم الحجز"} {bookingNumber}
             </h3>
 
             <BookingStatusBadge status={status} />
           </div>
 
           <p className="text-sm text-gray-500 mt-2">
-            العميل: {customerName}
+            {t?.("customer", "العميل") || "العميل"}: {customerName}
           </p>
 
           <p className="text-sm text-gray-500 mt-1">
-            تاريخ الإنشاء:{" "}
-            {booking?.createdAt
-              ? new Date(booking.createdAt).toLocaleDateString("ar-SA")
-              : "-"}
+            {t?.("createdAt", "تاريخ الإنشاء") || "تاريخ الإنشاء"}:{" "}
+            {formatDate(booking?.createdAt, { isArabic })}
           </p>
         </div>
 
@@ -50,13 +50,13 @@ export default function BookingCard({ booking, onView }) {
           </div>
 
           {onView && (
-            <button
-              type="button"
+            <ActionButton
+              action="view"
+              showLabel
+              label={t?.("viewDetails", "عرض التفاصيل") || "عرض التفاصيل"}
               onClick={() => onView(booking)}
-              className="mt-3 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
-            >
-              عرض التفاصيل
-            </button>
+              className="mt-3"
+            />
           )}
         </div>
       </div>

@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from "react";
-
-import { Trans, useTranslation } from "react-i18next";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
@@ -9,13 +8,13 @@ import {
   updateExistingTransport,
   deleteTransportById,
 } from "../../../redux/transports/transportSlice";
-// import { deleteTransport } from "../../../redux/transports/transportSlice";
 
 import { toast } from "react-toastify";
-import { motion } from "framer-motion";
-
-import UniversalCard from "../../../Components/common/cards/UniversalCard";
 import { formatImagePath } from "../../../Utils/imageUtils";
+import { buildQuery } from "../../../Utils/buildQuery";
+import { normalizeForForm } from "../../../Utils/formData/normalize";
+import { createHandleSave } from "../../../Utils/formData/createHandleSave";
+import { handleApiError } from "../../../Utils/handleApiError";
 import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
 import { transportFormConfig } from "../../../Components/common/ModalForms/transport/transportFormConfig";
 import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
@@ -26,163 +25,95 @@ import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import EntityFilter from "../../../Components/common/EntityFilter";
 import UniversalCardsContainer from "../../../Components/common/cards/UniversalCardsContainer";
+import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
 
 export default function AdminTransportList() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
-  const lang = i18n.language || "ar"; // ar أو en
-  const [showModal, setShowModal] = useState(false);
-  const [currentTransport, setCurrentTransport] = useState(null);
-  const [showDetails, setShowDetails] = useState(false);
-  const [formModel, setFormModel] = useState("create"); // create  or update or clone
-
-  //   const [formData, setFormData] = useState({
-  //     vehicleType: "", // مهم جدًا
-  //   });
-
+  const { i18n } = useTranslation();
+  const lang = i18n.language || "ar";
   const {
     transportList = [],
     loading,
     error,
   } = useSelector((state) => state.transport);
 
-  // للحذف
-  const [deleteModal, setDeleteModal] = useState({
-    show: false,
-    id: null,
-    name: "",
-  });
-  //filters
   const [filters, setFilters] = useState({
     search: "",
-    vehicleType: "",
-    fromCity: "",
-    toCity: "",
-    isActive: "", // "" = الكل، "true" = نشط، "false" = غير نشط
+    type: "",
+    isActive: "",
   });
-
-  //تحويل قبل تمريرها للفورم iamges
-  const normalizeImagesForForm = (images = []) =>
-    images.map((img) => ({
-      url: typeof img === "string" ? img : img.url,
-      preview: formatImagePath(typeof img === "string" ? img : img.url),
-      file: null, // صورة قديمة
-      isOld: true,
-    }));
-
-  const openCreateModal = () => {
-    setFormModel("create");
-    setCurrentTransport(null);
-    setShowModal(true);
-  };
-  const openUpdateModal = (transport) => {
-    setFormModel("update");
-    setShowModal(true);
-    setCurrentTransport({
-      ...transport,
-      images: normalizeImagesForForm(transport.images),
-    });
-  };
-  const openCloneModal = (transport) => {
-    setFormModel("clone");
-    setShowModal(true);
-    setCurrentTransport({
-      ...transport,
+  const memoizedConfig = useMemo(() => transportFormConfig, []);
+  const listQuery = useMemo(() => buildQuery(filters), [filters]);
+  const {
+    showModal,
+    showDetails,
+    currentItem: currentTransport,
+    formMode,
+    formErrors,
+    loadingSave,
+    deleteModal,
+    openCreate: openCreateModal,
+    openEdit: openUpdateModal,
+    openClone: openCloneModal,
+    openDetails,
+    openDelete,
+    closeForm,
+    closeDetails,
+    closeDelete,
+    resetForm,
+    setFormErrors,
+    setLoadingSave,
+  } = useAdminEntityCrudState({
+    prepareForForm: (transport) => normalizeForForm(transport, memoizedConfig),
+    prepareClone: (transport, normalized) => ({
+      ...normalized,
+      _id: null,
       nameAr: `${transport.nameAr} (نسخة)`,
       nameEn: `${transport.nameEn} (Copy)`,
-      images: normalizeImagesForForm(transport.images),
-    });
-  };
+    }),
+  });
   useEffect(() => {
-    dispatch(fetchTransports());
-  }, [dispatch]);
+    dispatch(fetchTransports(listQuery));
+  }, [dispatch, listQuery]);
 
-  const handleSave = async (fd) => {
-    // console.log("handleSave called → mode:", formModel);
-    // console.log("FormData entries:", [...fd.entries()]); // ← مهم جداً
-    // ← fd هو FormData
-    try {
-      let resultAction;
-      if (formModel === "update") {
-        // console.log("Updating ID:", currentTransport._id);
-        resultAction = await dispatch(
-          updateExistingTransport({ id: currentTransport._id, payload: fd }),
-        ).unwrap();
-        toast.success(
-          lang === "ar" ? "تم التحديث بنجاح" : "Updated successfully",
-        );
-      } else {
-        // create or clone
-        resultAction = await dispatch(createNewTransport(fd)).unwrap();
+  const handleSave = createHandleSave({
+    dispatch,
+    createAction: createNewTransport,
+    updateAction: updateExistingTransport,
+    fetchAction: () => fetchTransports(listQuery),
+    getId: (item) => item._id,
+    formConfig: memoizedConfig,
+    toast,
+    lang,
+    closeModal: closeForm,
+    resetItem: resetForm,
+    setLoading: setLoadingSave,
+    setFormErrors,
+  });
 
-        // console.log("Mutation نجح → result:", resultAction);
-
-        toast.success(
-          formModel === "create"
-            ? lang === "ar"
-              ? "تم إضافة وسيلة النقل بنجاح"
-              : "Transport added successfully"
-            : toast.success(
-                lang === "ar"
-                  ? "تم استنساخ وسيلة النقل بنجاح"
-                  : "Transport cloned successfully",
-              ),
-        );
-      }
-
-      setShowModal(false);
-      setCurrentTransport(null);
-      setFormModel("create");
-      // مهم: إعادة جلب البيانات بعد النجاح
-      dispatch(fetchTransports());
-    } catch (err) {
-      //console.error("Save error:", err);
-      const msg = err?.data?.message || err?.message || "حدث خطأ غير متوقع";
-      toast.error(lang === "ar" ? msg : msg);
-    }
-  };
-
-  //delete
   const confirmDelete = async () => {
     try {
       await dispatch(deleteTransportById(deleteModal.id)).unwrap();
       toast.success(lang === "ar" ? "تم الحذف بنجاح" : "Deleted successfully");
-      // مهم: إعادة جلب القائمة
-      dispatch(fetchTransports());
+      dispatch(fetchTransports(listQuery));
     } catch (err) {
-      toast.error(lang === "ar" ? "حدث خطا ما" : "An error occurred");
+      toast.error(handleApiError(err, (message) => message, lang));
     } finally {
-      setDeleteModal({
-        show: false,
-        id: null,
-        name: "",
-      });
+      closeDelete();
     }
   };
 
-  //filters
-  useEffect(() => {
-    const query = new URLSearchParams(
-      Object.fromEntries(Object.entries(filters).filter(([_, v]) => v !== "")),
-    );
-    dispatch(fetchTransports(query));
-  }, [filters, dispatch]);
-
   return (
     <div className="container py-3">
-      {/* Header */}
       <PageHeader
-        // titleAr="إدارة النقل"
-        // titleEn="Transport Management"
+        titleAr="إدارة وسائل النقل"
+        titleEn="Transport Management"
         subtitleAr="إدارة كاملة لوسائل النقل، المرافق، أنواع السيارات والسياسات"
         subtitleEn="Full management of transport, facilities, car types and policies"
-      />
-
-      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-        {/* Action Buttons */}
-        <div className="w-100 d-flex justify-content-center">
-          <div className="d-inline-flex align-items-center gap-2">
+        actions={
+          <AdminPageActions>
             <ActionButton
               action="add"
               onClick={() => openCreateModal()}
@@ -203,17 +134,14 @@ export default function AdminTransportList() {
             size="md"
             className="bg-blue-100 text-blue-700 hover:bg-blue-200"
             />
-          </div>
-        </div>
-      </div>
-      {/* loadign */}
+          </AdminPageActions>
+        }
+      />
       <LoadingOverlay
         show={loading}
         text={lang === "ar" ? "جاري التحميل..." : "Loading..."}
       />
       <ErrorOverlay show={!!error} message={error} />
-      {/* filters */}
-
       <EntityFilter
         filters={filters}
         setFilters={setFilters}
@@ -227,7 +155,7 @@ export default function AdminTransportList() {
               { value: "car", labelAr: "سيارة", labelEn: "Car" },
               { value: "plane", labelAr: "طائرة", labelEn: "Plane" },
               { value: "ship", labelAr: "سفينة", labelEn: "Ship" },
-              { value: "train", labelAr: "قطار", labelEn: "train" },
+              { value: "train", labelAr: "قطار", labelEn: "Train" },
             ],
           },
 
@@ -242,12 +170,11 @@ export default function AdminTransportList() {
         }}
       />
 
-      {/* {trasport cards} */}
       <UniversalCardsContainer
         items={transportList}
         lang={lang}
-        emptyMessageAr="لا توجد فنادق مضافة بعد"
-        emptyMessageEn="No hotels added yet"
+        emptyMessageAr="لا توجد وسائل نقل مضافة بعد"
+        emptyMessageEn="No transports added yet"
         getImage={(transport) =>
           transport.images?.[0] ? formatImagePath(transport.images[0]) : null
         }
@@ -263,41 +190,37 @@ export default function AdminTransportList() {
           },
         ]}
         onView={(transport) => {
-          setCurrentTransport(transport);
-          setShowDetails(true);
+          openDetails(transport);
         }}
         onDuplicate={openCloneModal}
         onEdit={(transport) => openUpdateModal(transport)}
         onDelete={(transport) =>
-          setDeleteModal({
-            show: true,
-            id: transport._id,
-            name: lang === "ar" ? transport.nameAr : transport.nameEn,
-          })
+          openDelete(
+            transport,
+            lang === "ar" ? transport.nameAr : transport.nameEn,
+          )
         }
         onNavigate={(transport) =>
           navigate(`/admin/transport/${transport._id}/MeansOfTransportation`)
         }
       />
    
-      {/* modal for editing and adding transport */}
       <UniversalFormModal
         show={showModal}
-        onHide={() => setShowModal(false)}
+        onHide={closeForm}
         onSave={handleSave}
         config={transportFormConfig}
-        //    formData={formData}
-        //   setFormData={setFormData}
-
         initialData={currentTransport}
         titleAr={
-          formModel === "update" ? "تعديل وسيلة النقل" : "إضافة وسيلة نقل"
+          formMode === "edit" ? "تعديل وسيلة النقل" : "إضافة وسيلة نقل"
         }
-        titleEn={formModel === "update" ? "Edit Transport" : "Add Transport"}
+        titleEn={formMode === "edit" ? "Edit Transport" : "Add Transport"}
+        errors={formErrors}
+        loading={loadingSave}
       />
       <EntityDetailsModal
         show={showDetails}
-        onHide={() => setShowDetails(false)}
+        onHide={closeDetails}
         title={lang === "ar" ? "عرض التفاصيل" : "Transport details show"}
         images={currentTransport?.images || []}
         fields={[
@@ -317,28 +240,12 @@ export default function AdminTransportList() {
             label: lang === "en" ? "الوصف (إنجليزي)" : "Description (English)",
             value: currentTransport?.descriptionEn || "غير متوفر",
           },
-          {
-            label: lang === "ar" ? "" : "",
-            value: "",
-          },
-          {
-            label: lang === "ar" ? "" : "",
-            value: "",
-          },
-          {
-            label: lang === "ar" ? "" : "",
-            value: "",
-          },
-          {
-            label: lang === "ar" ? "" : "",
-            value: "",
-          },
         ]}
         entity={currentTransport}
       />
       <ConfirmDialog
         show={deleteModal.show}
-        onHide={() => setDeleteModal({ show: false, id: null })}
+        onHide={closeDelete}
         title={lang === "ar" ? "تأكيد الحذف" : "Confirm Delete"}
         message={
           lang === "ar"

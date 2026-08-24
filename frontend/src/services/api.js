@@ -25,17 +25,26 @@ api.interceptors.request.use((config)=>{
 api.interceptors.response.use(
     (response) => response , 
     (error) => {
-         if (error.response?.status === 401) {
+      const publicAuthPaths = ["/login", "/register", "/forgot-password", "/reset-password", "/auth/google/exchange"];
+      const requestPath = String(error.config?.url || "");
+      const isPublicAuthRequest = publicAuthPaths.some((path) => requestPath.includes(path));
+      if (error.response?.status === 401 && !isPublicAuthRequest) {
       console.warn("⚠️ Unauthorized, logging out...");
       localStorage.removeItem("currentUser");
       localStorage.removeItem("token");
-      window.location.href = "/login";
+      window.location.href = "/authpage";
          }
            return Promise.reject(error);
   }
 )
 export const register = (userData) => api.post("/register", userData);
 export const loging = (loginData) => api.post("/login" , loginData)
+export const requestPasswordReset = (email) => api.post("/forgot-password", { email });
+export const resetPassword = (token, password, confirmPassword) =>
+  api.post(`/reset-password/${encodeURIComponent(token)}`, {
+    password,
+    confirmPassword,
+  });
 
 // const  API_BASC_URL = 'http://localhost:5000/api';
 // export const register = (userData) => axios.post(`${API_BASC_URL}/register`, userData);

@@ -81,26 +81,125 @@ export const getOrCreateInventory = async ({
   userId,
 }) => {
   const normalizedDate = normalizeInventoryDate(date);
+  const initialTotal = Number(total) || 0;
 
-  let inventory = await Inventory.findOne({
+  return Inventory.findOneAndUpdate(
+    { inventoryType, itemId, date: normalizedDate },
+    {
+      $setOnInsert: {
+        inventoryType,
+        itemId,
+        date: normalizedDate,
+        total: initialTotal,
+        reserved: 0,
+        blocked: 0,
+        available: initialTotal,
+        isActive: true,
+        isDeleted: false,
+        createdBy: userId,
+      },
+    },
+    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+  );
+};
+
+const reserveInventoryDateAtomic = async ({
+  Inventory,
+  inventoryType,
+  itemId,
+  date,
+  requested,
+  defaultTotal,
+  userId,
+}) => {
+  const normalizedDate = normalizeInventoryDate(date);
+
+  await getOrCreateInventory({
+    Inventory,
     inventoryType,
     itemId,
     date: normalizedDate,
+    total: defaultTotal,
+    userId,
   });
 
-  if (!inventory) {
-    inventory = await Inventory.create({
+  return Inventory.findOneAndUpdate(
+    {
       inventoryType,
       itemId,
       date: normalizedDate,
-      total: Number(total) || 0,
-      reserved: 0,
-      blocked: 0,
-      createdBy: userId,
-    });
-  }
+      isActive: true,
+      isDeleted: { $ne: true },
+      available: { $gte: requested },
+    },
+    {
+      $inc: { reserved: requested, available: -requested },
+      ...(userId ? { $set: { updatedBy: userId } } : {}),
+    },
+    { new: true, runValidators: true },
+  );
+};
 
-  return inventory;
+const rollbackReservedInventoryDates = async ({
+  Inventory,
+  inventoryType,
+  itemId,
+  dates,
+  quantity,
+  userId,
+}) => {
+  for (const date of dates) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const normalizedDate = normalizeInventoryDate(date);
+      const before = await Inventory.findOne({
+        inventoryType,
+        itemId,
+        date: normalizedDate,
+      }).lean();
+
+      if (!before || Number(before.reserved || 0) < quantity) {
+        throw new AppError(
+          "تعذر التراجع عن حجز المخزون بالكامل",
+          409,
+          "inventory",
+        );
+      }
+
+      const total = Number(before.total || 0);
+      const reserved = Number(before.reserved || 0);
+      const blocked = Number(before.blocked || 0);
+      const available = Number(before.available || 0);
+      const updated = await Inventory.findOneAndUpdate(
+        {
+          _id: before._id,
+          total,
+          reserved,
+          blocked,
+          available,
+        },
+        {
+          $set: {
+            reserved: reserved - quantity,
+            available: Math.min(
+              available + quantity,
+              Math.max(total - blocked, 0),
+            ),
+            ...(userId ? { updatedBy: userId } : {}),
+          },
+        },
+        { new: true, runValidators: true },
+      );
+
+      if (updated) break;
+      if (attempt === 4) {
+        throw new AppError(
+          "تعذر التراجع عن حجز المخزون بسبب تغيره أثناء العملية",
+          409,
+          "inventory",
+        );
+      }
+    }
+  }
 };
 
 /*
@@ -186,27 +285,68 @@ export const reserveInventory = async ({
   defaultTotal = 0,
   req = null,
 }) => {
-  const availability = await checkInventoryAvailability({
-    Inventory,
-    inventoryType,
-    itemId,
-    startDate,
-    endDate,
-    requested,
-    defaultTotal,
-    req,
-  });
+  const isArabic = getLanguage(req);
+  const dates = getDatesBetween({ startDate, endDate });
+  const quantity = Number(requested);
 
-  for (const inventory of availability.dates) {
-    inventory.reserved += requested;
-    inventory.updatedBy = req?.user?._id;
-    await inventory.save();
+  if (!dates.length) {
+    throw new AppError(
+      isArabic ? "تواريخ المخزون غير صحيحة" : "Invalid inventory dates",
+      400,
+      "dates",
+    );
   }
 
-  return {
-    success: true,
-    reservedDates: availability.dates.length,
-  };
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new AppError(
+      isArabic ? "الكمية المطلوبة غير صحيحة" : "Invalid requested quantity",
+      400,
+      "requested",
+    );
+  }
+
+  const reservedDates = [];
+
+  try {
+    for (const date of dates) {
+      const inventory = await reserveInventoryDateAtomic({
+        Inventory,
+        inventoryType,
+        itemId,
+        date,
+        requested: quantity,
+        defaultTotal,
+        userId: req?.user?._id,
+      });
+
+      if (!inventory) {
+        const dateLabel = date.toISOString().split("T")[0];
+        throw new AppError(
+          isArabic
+            ? `لا يوجد توفر كافي بتاريخ ${dateLabel}`
+            : `Not enough availability on ${dateLabel}`,
+          400,
+          "inventory",
+        );
+      }
+
+      reservedDates.push(date);
+    }
+
+    return { success: true, reservedDates: reservedDates.length, dates: reservedDates };
+  } catch (error) {
+    if (reservedDates.length) {
+      await rollbackReservedInventoryDates({
+        Inventory,
+        inventoryType,
+        itemId,
+        dates: reservedDates,
+        quantity,
+        userId: req?.user?._id,
+      });
+    }
+    throw error;
+  }
 };
 
 /*
@@ -230,20 +370,67 @@ export const releaseInventory = async ({
     startDate,
     endDate,
   });
+  const quantity = Number(released);
+
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new AppError(
+      getLanguage(req) ? "الكمية المطلوب إرجاعها غير صحيحة" : "Invalid released quantity",
+      400,
+      "released",
+    );
+  }
 
   for (const date of dates) {
-    const inventory = await Inventory.findOne({
-      inventoryType,
-      itemId,
-      date: normalizeInventoryDate(date),
-    });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const before = await Inventory.findOne({
+        inventoryType,
+        itemId,
+        date: normalizeInventoryDate(date),
+      }).lean();
 
-    if (!inventory) continue;
+      if (!before) break;
 
-    inventory.reserved = Math.max(0, inventory.reserved - released);
-    inventory.updatedBy = req?.user?._id;
+      const total = Number(before.total || 0);
+      const reserved = Number(before.reserved || 0);
+      const blocked = Number(before.blocked || 0);
+      const available = Number(before.available || 0);
+      const actualReleased = Math.min(quantity, reserved);
 
-    await inventory.save();
+      if (actualReleased <= 0) break;
+
+      const nextAvailable = Math.min(
+        available + actualReleased,
+        Math.max(total - blocked, 0),
+      );
+      const updated = await Inventory.findOneAndUpdate(
+        {
+          _id: before._id,
+          total,
+          reserved,
+          blocked,
+          available,
+        },
+        {
+          $set: {
+            reserved: reserved - actualReleased,
+            available: nextAvailable,
+            ...(req?.user?._id ? { updatedBy: req.user._id } : {}),
+          },
+        },
+        { new: true, runValidators: true },
+      );
+
+      if (updated) break;
+      if (attempt === 4) {
+        throw new AppError(
+          getLanguage(req)
+            ? "تعذر إرجاع المخزون بسبب تغيره أثناء العملية"
+            : "Unable to release inventory because it changed concurrently",
+          409,
+          "inventory",
+        );
+      }
+    }
   }
 
   return {
@@ -290,20 +477,35 @@ export const createRoomTypeInventoryForPeriod = async ({
           itemId: roomTypeId,
           date: new Date(current),
         },
-        update: {
-          $setOnInsert: {
-            inventoryType: "roomType",
-            itemId: roomTypeId,
-            date: new Date(current),
-            booked: 0,
-            createdBy,
-          },
+        update: [{
           $set: {
+            inventoryType: { $ifNull: ["$inventoryType", "roomType"] },
+            itemId: { $ifNull: ["$itemId", roomTypeId] },
+            date: { $ifNull: ["$date", new Date(current)] },
             total: Number(totalRooms),
-            available: Number(totalRooms),
+            reserved: { $ifNull: ["$reserved", 0] },
+            blocked: { $ifNull: ["$blocked", 0] },
+            available: {
+              $max: [
+                {
+                  $subtract: [
+                    Number(totalRooms),
+                    {
+                      $add: [
+                        { $ifNull: ["$reserved", 0] },
+                        { $ifNull: ["$blocked", 0] },
+                      ],
+                    },
+                  ],
+                },
+                0,
+              ],
+            },
             isActive: true,
+            isDeleted: { $ifNull: ["$isDeleted", false] },
+            createdBy: { $ifNull: ["$createdBy", createdBy] },
           },
-        },
+        }],
         upsert: true,
       },
     });

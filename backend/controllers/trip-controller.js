@@ -52,7 +52,9 @@ export const getAllTrips = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total,
-    package: Number(req.query.page) || 1,
+    page: Number(req.query.page) || 1,
+    limit,
+    totalPages: Math.ceil(total / limit),
     trips,
   });
 });
@@ -277,7 +279,8 @@ export const updateTrip = asyncHandler(async (req, res) => {
   const newImages = extractUploadedImages(req, "transport");
 
   /* 3️⃣ الصور المراد حذفها */
-  let imagesTodelete = req.body["deletedImages[]"] ?? [];
+  let imagesTodelete =
+    req.body["imagesDeleted[]"] ?? req.body["deletedImages[]"] ?? [];
 
   if (!Array.isArray(imagesTodelete)) {
     imagesTodelete = [imagesTodelete];
@@ -296,6 +299,7 @@ export const updateTrip = asyncHandler(async (req, res) => {
   /* 6️⃣ تنظيف البيانات */
 
   delete updateTrip.images;
+  delete updateTrip["imagesDeleted[]"];
   delete updateTrip["deletedImages[]"];
 
   //* 7️⃣ تحديث باقي الحقول */

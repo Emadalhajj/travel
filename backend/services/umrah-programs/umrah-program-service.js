@@ -30,6 +30,7 @@ import UmrahProgram from "../../models/umrah-programs/umrah-program-model.js";
 
 import { buildUmrahProgramFilter } from "../../utils/buildUmrahProgramFilter.js";
 import { buildUmrahProgramSort } from "../../utils/buildUmrahProgramSort.js";
+import AppError from "../../utils/AppError.js";
 
 import {
   softDeleteDocument,
@@ -320,76 +321,103 @@ export const changeUmrahProgramStatus = async ({
   return program;
 };
 
-/*
-=====================================================
-reserveProgramSeats
-=====================================================
+const PROGRAM_CAPACITY_UPDATE_RETRIES = 5;
 
-حجز عدد مقاعد من البرنامج.
+const normalizeRequestedSeats = (value) => {
+  const seats = Number(value);
 
-تستخدم لاحقًا عند إنشاء Booking.
+  if (!Number.isFinite(seats) || seats <= 0 || !Number.isInteger(seats)) {
+    throw new AppError(
+      "عدد المقاعد يجب أن يكون رقمًا صحيحًا أكبر من صفر",
+      400,
+      "seats",
+    );
+  }
 
-الخطوات:
------------------------------------------------------
-1. جلب البرنامج
-2. التأكد أن البرنامج نشط
-3. التأكد من توفر مقاعد كافية
-4. زيادة bookedSeats
-5. تقليل availableSeats
-6. إذا انتهت المقاعد يتم تغيير الحالة إلى sold_out
-=====================================================
-*/
+  return seats;
+};
 
 export const reserveProgramSeats = async ({
   programId,
   seats = 1,
   req,
 }) => {
-  const program = await UmrahProgram.findOne({
-    _id: programId,
-    isDeleted: false,
-    isActive: true,
-  });
+  const requestedSeats = normalizeRequestedSeats(seats);
 
-  if (!program) {
-    throw new Error("Umrah program not found");
-  }
+  for (let attempt = 0; attempt < PROGRAM_CAPACITY_UPDATE_RETRIES; attempt += 1) {
+    const before = await UmrahProgram.findOne({
+      _id: programId,
+      isDeleted: false,
+      isActive: true,
+    }).lean();
 
-  if (program.status !== UMRAH_PROGRAM_STATUS.ACTIVE) {
-    throw new Error("Umrah program is not active");
-  }
+    if (!before) {
+      throw new AppError("برنامج العمرة غير موجود", 404, "program");
+    }
 
-  if (program.capacity.availableSeats < seats) {
-    throw new Error(
-      `المقاعد المتاحة في هذا البرنامج ${program.capacity.availableSeats} فقط، ولا يمكن حجز ${seats} معتمر`,
+    if (before.status !== UMRAH_PROGRAM_STATUS.ACTIVE) {
+      throw new AppError("برنامج العمرة غير متاح للحجز", 400, "program");
+    }
+
+    const totalSeats = Number(before.capacity?.totalSeats || 0);
+    const availableSeats = Number(before.capacity?.availableSeats || 0);
+    const bookedSeats = Number(before.capacity?.bookedSeats || 0);
+
+    if (availableSeats < requestedSeats) {
+      throw new AppError(
+        `المقاعد المتاحة في هذا البرنامج ${availableSeats} فقط، ولا يمكن حجز ${requestedSeats} معتمر`,
+        400,
+        "seats",
+      );
+    }
+
+    const nextAvailableSeats = availableSeats - requestedSeats;
+    const update = {
+      $set: {
+        "capacity.bookedSeats": bookedSeats + requestedSeats,
+        "capacity.availableSeats": nextAvailableSeats,
+        status: nextAvailableSeats === 0
+          ? UMRAH_PROGRAM_STATUS.SOLD_OUT
+          : UMRAH_PROGRAM_STATUS.ACTIVE,
+      },
+    };
+
+    if (req?.user?._id) update.$set.updatedBy = req.user._id;
+
+    const program = await UmrahProgram.findOneAndUpdate(
+      {
+        _id: programId,
+        isDeleted: false,
+        isActive: true,
+        status: UMRAH_PROGRAM_STATUS.ACTIVE,
+        "capacity.totalSeats": totalSeats,
+        "capacity.availableSeats": { $eq: availableSeats, $gte: requestedSeats },
+        "capacity.bookedSeats": bookedSeats,
+      },
+      update,
+      { new: true, runValidators: true },
     );
+
+    if (!program) continue;
+
+    await createAuditLog({
+      req,
+      action: AUDIT_ACTIONS.UPDATE,
+      entity: AUDIT_ENTITIES.UMRAH_PROGRAM,
+      entityId: program._id,
+      before,
+      after: program.toObject(),
+      metadata: { operation: "reserve_seats", seats: requestedSeats },
+    });
+
+    return program;
   }
 
-  const before = program.toObject();
-
-  program.capacity.bookedSeats += seats;
-  program.capacity.availableSeats -= seats;
-
-  if (program.capacity.availableSeats <= 0) {
-    program.status = UMRAH_PROGRAM_STATUS.SOLD_OUT;
-  }
-
-  await program.save();
-
-  await createAuditLog({
-    req,
-    action: AUDIT_ACTIONS.UPDATE,
-    entity: AUDIT_ENTITIES.UMRAH_PROGRAM,
-    entityId: program._id,
-    before,
-    after: program.toObject(),
-    metadata: {
-      operation: "reserve_seats",
-      seats,
-    },
-  });
-
-  return program;
+  throw new AppError(
+    "تعذر حجز المقاعد بسبب تغير السعة أثناء العملية، يرجى المحاولة مرة أخرى",
+    409,
+    "seats",
+  );
 };
 
 /*
@@ -419,50 +447,79 @@ export const releaseProgramSeats = async ({
   seats = 1,
   req,
 }) => {
-  const program = await UmrahProgram.findOne({
-    _id: programId,
-    isDeleted: false,
-  });
+  const requestedSeats = normalizeRequestedSeats(seats);
 
-  if (!program) {
-    throw new Error("Umrah program not found");
+  for (let attempt = 0; attempt < PROGRAM_CAPACITY_UPDATE_RETRIES; attempt += 1) {
+    const before = await UmrahProgram.findOne({
+      _id: programId,
+      isDeleted: false,
+    }).lean();
+
+    if (!before) {
+      throw new AppError("برنامج العمرة غير موجود", 404, "program");
+    }
+
+    const totalSeats = Number(before.capacity?.totalSeats || 0);
+    const bookedSeats = Number(before.capacity?.bookedSeats || 0);
+    const availableSeats = Number(before.capacity?.availableSeats || 0);
+    const actualReleasedSeats = Math.min(requestedSeats, bookedSeats);
+
+    if (actualReleasedSeats <= 0) return UmrahProgram.findById(programId);
+
+    const nextAvailableSeats = Math.min(
+      availableSeats + actualReleasedSeats,
+      totalSeats,
+    );
+    const nextStatus =
+      before.status === UMRAH_PROGRAM_STATUS.SOLD_OUT && nextAvailableSeats > 0
+        ? UMRAH_PROGRAM_STATUS.ACTIVE
+        : before.status;
+    const update = {
+      $set: {
+        "capacity.bookedSeats": bookedSeats - actualReleasedSeats,
+        "capacity.availableSeats": nextAvailableSeats,
+        status: nextStatus,
+      },
+    };
+
+    if (req?.user?._id) update.$set.updatedBy = req.user._id;
+
+    const program = await UmrahProgram.findOneAndUpdate(
+      {
+        _id: programId,
+        isDeleted: false,
+        "capacity.totalSeats": totalSeats,
+        "capacity.bookedSeats": bookedSeats,
+        "capacity.availableSeats": availableSeats,
+      },
+      update,
+      { new: true, runValidators: true },
+    );
+
+    if (!program) continue;
+
+    await createAuditLog({
+      req,
+      action: AUDIT_ACTIONS.UPDATE,
+      entity: AUDIT_ENTITIES.UMRAH_PROGRAM,
+      entityId: program._id,
+      before,
+      after: program.toObject(),
+      metadata: {
+        operation: "release_seats",
+        requestedSeats,
+        releasedSeats: actualReleasedSeats,
+      },
+    });
+
+    return program;
   }
 
-  const before = program.toObject();
-
-  program.capacity.bookedSeats = Math.max(
-    program.capacity.bookedSeats - seats,
-    0,
+  throw new AppError(
+    "تعذر إرجاع المقاعد بسبب تغير السعة أثناء العملية، يرجى المحاولة مرة أخرى",
+    409,
+    "seats",
   );
-
-  program.capacity.availableSeats = Math.min(
-    program.capacity.availableSeats + seats,
-    program.capacity.totalSeats,
-  );
-
-  if (
-    program.status === UMRAH_PROGRAM_STATUS.SOLD_OUT &&
-    program.capacity.availableSeats > 0
-  ) {
-    program.status = UMRAH_PROGRAM_STATUS.ACTIVE;
-  }
-
-  await program.save();
-
-  await createAuditLog({
-    req,
-    action: AUDIT_ACTIONS.UPDATE,
-    entity: AUDIT_ENTITIES.UMRAH_PROGRAM,
-    entityId: program._id,
-    before,
-    after: program.toObject(),
-    metadata: {
-      operation: "release_seats",
-      seats,
-    },
-  });
-
-  return program;
 };
 
 /*

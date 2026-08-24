@@ -16,6 +16,7 @@ Security Event Routes
 import express from "express";
 
 import { protect, authorize } from "../../middleware/authMiddleware.js";
+import { AUDIT_READ_ROLES } from "../../constants/audit/audit-access.js";
 
 import {
   listSecurityEvents,
@@ -26,7 +27,7 @@ const SecurityEventRoute = express.Router();
 SecurityEventRoute.get(
   "/security-events",
   protect,
-  authorize("admin", "superAdmin"),
+  authorize(AUDIT_READ_ROLES),
   listSecurityEvents,
 );
 

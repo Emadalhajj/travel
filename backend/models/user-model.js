@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { USER_ROLES, USER_ROLE_VALUES } from "../constants/auth/roles.js";
 
 const userModel = new mongoose.Schema(
   {
@@ -20,6 +21,7 @@ const userModel = new mongoose.Schema(
       required: true,
       trim: true,
       unique: true,
+      lowercase: true,
     },
     password: {
       type: String,
@@ -42,8 +44,8 @@ const userModel = new mongoose.Schema(
     // إذا كان المستخدم نشطًا، يمكنه تسجيل الدخول واستخدام التطبيق
     role: {
       type: String,
-      enum: ["user", "admin", "superAdmin"],
-      default: "user",
+      enum: USER_ROLE_VALUES,
+      default: USER_ROLES.USER,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

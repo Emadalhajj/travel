@@ -1,11 +1,9 @@
+import PublicSectionCard from "../../layout/PublicSectionCard";
+
 export default function DraftBookingInfoCard({ title, items = [] }) {
   return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm border border-slate-100">
-      <h2 className="mb-5 text-xl font-bold text-slate-900">
-        {title}
-      </h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <PublicSectionCard title={title}>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {items.map((item) => (
           <div
             key={item.label}
@@ -16,11 +14,11 @@ export default function DraftBookingInfoCard({ title, items = [] }) {
             </p>
 
             <p className="mt-1 font-bold text-slate-900">
-              {item.value || "-"}
+              {item.value ?? "-"}
             </p>
           </div>
         ))}
       </div>
-    </section>
+    </PublicSectionCard>
   );
 }

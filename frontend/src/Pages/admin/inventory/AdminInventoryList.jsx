@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Badge } from "react-bootstrap";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { useTranslation } from "react-i18next";
@@ -12,70 +11,90 @@ import {
   setLimit,
   fetchInventoryPeriods,
 } from "../../../redux/inventory/inventorySlice";
-
 import { fetchRoomTypes } from "../../../redux/hotels/roomtypeSlice";
 import { fetchTrips } from "../../../redux/transports/tripSlice";
 import { fetchTransports } from "../../../redux/transports/transportSlice";
 import { fetchVehicleRentals } from "../../../redux/transports/vehicleRentalSlice";
 import { fetchExtraServices } from "../../../redux/extraServices/extraServiceSlice";
 import { fetchVisas } from "../../../redux/visas/visaSlice";
-
 import { inventoryFormConfig } from "../../../Components/common/ModalForms/inventory/inventoryFormConfig";
-
 import { buildQuery } from "../../../Utils/buildQuery";
 import { normalizeForForm } from "../../../Utils/formData/normalize";
 import { createHandleSave } from "../../../Utils/formData/createHandleSave";
-
+import { handleApiError } from "../../../Utils/handleApiError";
+import { formatDate } from "../../../Utils/dateUtils";
+import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
 import PageHeader from "../../../Components/layout/PageHeader";
 import ActionButton from "../../../Components/common/buttons/ActionButton";
 import EntityFilter from "../../../Components/common/EntityFilter";
 import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
+import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
 import UniversalTable from "../../../Components/common/tables/UniversalTable";
 import PaginationComponent from "../../../Components/common/Pagination";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
+import StatusBadge from "../../../Components/shared/common/StatusBadge";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
+
+const INITIAL_INVENTORY = {
+  inventoryType: "roomType",
+  itemId: "",
+  startDate: "",
+  endDate: "",
+  total: 1,
+  blocked: 0,
+  notes: "",
+  isActive: true,
+};
+const INITIAL_FILTERS = { inventoryType: "", startDate: "", endDate: "" };
+const INVENTORY_TYPE_OPTIONS = [
+  { value: "roomType", labelAr: "نوع غرفة", labelEn: "Room Type" },
+  { value: "trip", labelAr: "رحلة", labelEn: "Trip" },
+  { value: "transport", labelAr: "وسيلة نقل", labelEn: "Transport" },
+  { value: "vehicleRental", labelAr: "تأجير نقل", labelEn: "Vehicle Rental" },
+  { value: "extraService", labelAr: "خدمة إضافية", labelEn: "Extra Service" },
+  { value: "visa", labelAr: "تأشيرة", labelEn: "Visa" },
+];
+const prepareInventoryForForm = (item, formConfig) => ({
+  ...normalizeForForm(item, formConfig),
+  itemId: item?.itemId?._id || item?.itemId?.id || item?.itemId || "",
+});
 
 export default function AdminInventoryList() {
   const dispatch = useDispatch();
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
-
+  const isArabic = lang === "ar";
   const {
-    inventoryList = [],
-    loading,
+    inventoryList = [], loading, error,
     pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
   } = useSelector((state) => state.inventory || {});
-
   const { roomTypesList = [] } = useSelector((state) => state.roomTypes || {});
-
   const { tripList = [] } = useSelector((state) => state.trip || {});
   const { transportList = [] } = useSelector((state) => state.transport || {});
   const { list: visasList = [] } = useSelector((state) => state.visas || {});
-
-  const { vehicleRentalsList = [] } = useSelector(
-    (state) => state.vehicleRentals || {},
+  const { vehicleRentalsList = [] } = useSelector((state) => state.vehicleRentals || {});
+  const { extraServicesList = [] } = useSelector((state) => state.extraServices || {});
+  const [filters, setFilters] = useState(INITIAL_FILTERS);
+  const crud = useAdminEntityCrudState();
+  const {
+    showModal, currentItem, formMode, formErrors, loadingSave, deleteModal,
+    openCreate, openEdit, openDelete, closeForm, closeDelete,
+    resetForm, setFormErrors, setLoadingSave,
+  } = crud;
+  const formConfig = useMemo(() => inventoryFormConfig({
+    roomTypes: roomTypesList,
+    trips: tripList,
+    transports: transportList,
+    vehicleRentals: vehicleRentalsList,
+    extraServices: extraServicesList,
+    visas: visasList,
+  }), [roomTypesList, tripList, transportList, vehicleRentalsList, extraServicesList, visasList]);
+  const query = useMemo(
+    () => buildQuery(filters, { page: pagination.page, limit: pagination.limit }),
+    [filters, pagination.page, pagination.limit],
   );
-  const { extraServicesList = [] } = useSelector(
-    (state) => state.extraServices || {},
-  );
-
-  const [showModal, setShowModal] = useState(false);
-  const [currentInventory, setCurrentInventory] = useState(null);
-  const [formMode, setFormMode] = useState("create");
-  const [formErrors, setFormErrors] = useState({});
-  const [loadingSave, setLoadingSave] = useState(false);
-
-  const [deleteModal, setDeleteModal] = useState({
-    show: false,
-    id: null,
-  });
-
-  const [filters, setFilters] = useState({
-    inventoryType: "",
-    itemId: "",
-    startDate: "",
-    endDate: "",
-  });
+  const refreshInventory = () => fetchInventoryPeriods(query);
 
   useEffect(() => {
     dispatch(fetchRoomTypes({ page: 1, limit: 1000 }));
@@ -85,303 +104,72 @@ export default function AdminInventoryList() {
     dispatch(fetchExtraServices({ page: 1, limit: 1000 }));
     dispatch(fetchVisas({ page: 1, limit: 1000 }));
   }, [dispatch]);
-
-  useEffect(() => {
-    const query = buildQuery(filters, pagination);
-    dispatch(fetchInventoryPeriods(query));
-  }, [dispatch, filters, pagination.page, pagination.limit]);
-
-  const memoizedConfig = useMemo(
-    () =>
-      inventoryFormConfig({
-        roomTypes: roomTypesList,
-        trips: tripList,
-        transports: transportList,
-        vehicleRentals: vehicleRentalsList,
-        extraServices: extraServicesList,
-        visas: visasList,
-      }),
-    [
-      roomTypesList,
-      tripList,
-      transportList,
-      vehicleRentalsList,
-      extraServicesList,
-      visasList,
-    ],
-  );
-
-  const openCreateModal = () => {
-    setFormMode("create");
-    setCurrentInventory({
-      inventoryType: "roomType",
-      itemId: "",
-      startDate: "",
-      endDate: "",
-      total: 1,
-      reserved: 0,
-      blocked: 0,
-      notes: "",
-      isActive: true,
-    });
-
-    setFormErrors({});
-    setShowModal(true);
-  };
-
-
-  const openEditModal = (item) => {
-    setFormMode("edit");
-    setCurrentInventory(normalizeForForm(item, memoizedConfig));
-    setFormErrors({});
-    setShowModal(true);
-  };
+  useEffect(() => { dispatch(fetchInventoryPeriods(query)); }, [dispatch, query]);
 
   const handleSave = createHandleSave({
     dispatch,
     createAction: upsertInventoryPeriod,
     updateAction: updateInventory,
-    fetchAction: fetchInventoryPeriods,
+    fetchAction: refreshInventory,
     getId: (item) => item._id,
-    formConfig: memoizedConfig,
+    formConfig,
     toast,
     lang,
-    closeModal: () => setShowModal(false),
-    resetItem: () => setCurrentInventory(null),
-    resetMode: () => setFormMode("create"),
+    closeModal: closeForm,
+    resetItem: resetForm,
     setLoading: setLoadingSave,
     setFormErrors,
     useFormData: false,
+    onError: (err) => toast.error(handleApiError(err, (message) => message, lang)),
   });
-
   const confirmDelete = async () => {
     try {
       await dispatch(deleteInventory(deleteModal.id)).unwrap();
-      toast.success(lang === "ar" ? "تم حذف المخزون" : "Inventory deleted");
-    } catch {
-      toast.error(lang === "ar" ? "حدث خطأ أثناء الحذف" : "Delete failed");
-    } finally {
-      setDeleteModal({ show: false, id: null });
+      toast.success(isArabic ? "تم حذف المخزون" : "Inventory deleted");
+      closeDelete();
+      await dispatch(fetchInventoryPeriods(query)).unwrap();
+    } catch (err) {
+      toast.error(handleApiError(err, (message) => message, lang));
     }
   };
-
   const typeLabel = (type) => {
-    const labels = {
-      roomType: lang === "ar" ? "نوع غرفة" : "Room Type",
-      trip: lang === "ar" ? "رحلة" : "Trip",
-      transport: lang === "ar" ? "وسيلة نقل" : "Transport",
-      vehicleRental: lang === "ar" ? "تأجير نقل" : "Vehicle Rental",
-      extraService: lang === "ar" ? "خدمة إضافية" : "Extra Service",
-      visa: lang === "ar" ? "تأشيرة" : "Visa",
-    };
-
-    return labels[type] || type;
+    const option = INVENTORY_TYPE_OPTIONS.find((item) => item.value === type);
+    return option ? (isArabic ? option.labelAr : option.labelEn) : type || "-";
   };
-
+  const productLabel = (row) => {
+    const item = row.itemId;
+    if (!item) return "-";
+    if (typeof item !== "object") return item;
+    return (isArabic ? item.nameAr || item.titleAr || item.nameEn || item.titleEn : item.nameEn || item.titleEn || item.nameAr || item.titleAr) || item._id || "-";
+  };
   const columns = [
-    {
-      header: lang === "ar" ? "النوع" : "Type",
-      render: (row) => typeLabel(row.inventoryType),
-    },
-    {
-      header: lang === "ar" ? "المنتج" : "Product",
-      // render: (row) => row.itemId || "-",
-      render: (row) => {
-        const item = row.itemId;
-
-        if (!item) return "-";
-
-        if (typeof item === "object") {
-          return (
-            item.nameAr ||
-            item.nameEn ||
-            item.titleAr ||
-            item.titleEn ||
-            item._id ||
-            "-"
-          );
-        }
-
-        return item;
-      },
-    },
-    // {
-    //   header: lang === "ar" ? "التاريخ" : "Date",
-    //   render: (row) =>
-    //     row.date
-    //       ? new Date(row.date).toLocaleDateString(
-    //           lang === "ar" ? "ar-SA" : "en-US",
-    //         )
-    //       : "-",
-    // },
-    {
-  header: lang === "ar" ? "الفترة" : "Period",
-  render: (row) => {
-    const start = row.startDate
-      ? new Date(row.startDate).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US")
-      : "-";
-
-    const end = row.endDate
-      ? new Date(row.endDate).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US")
-      : "-";
-
-    return `${start} - ${end}`;
-  },
-},
-{
-  header: lang === "ar" ? "عدد الأيام" : "Days",
-  render: (row) => row.daysCount ?? 0,
-},
-    {
-      header: lang === "ar" ? "الإجمالي" : "Total",
-      render: (row) => row.total ?? 0,
-    },
-    {
-      header: lang === "ar" ? "المحجوز" : "Reserved",
-      render: (row) => row.reserved ?? 0,
-    },
-    {
-      header: lang === "ar" ? "الموقوف" : "Blocked",
-      render: (row) => row.blocked ?? 0,
-    },
-    {
-      header: lang === "ar" ? "المتاح" : "Available",
-      render: (row) => (
-        <Badge bg={(row.available ?? 0) > 0 ? "success" : "danger"}>
-          {row.available ?? 0}
-        </Badge>
-      ),
-    },
-    {
-      header: lang === "ar" ? "الحالة" : "Status",
-      render: (row) => (
-        <Badge bg={row.isActive ? "success" : "secondary"}>
-          {row.isActive
-            ? lang === "ar"
-              ? "نشط"
-              : "Active"
-            : lang === "ar"
-              ? "غير نشط"
-              : "Inactive"}
-        </Badge>
-      ),
-    },
-    {
-      header: lang === "ar" ? "الإجراءات" : "Actions",
-      align: "center",
-      render: (row) => (
-        <div className="d-flex gap-1 justify-content-center">
-          <ActionButton action="edit" onClick={() => openEditModal(row)} />
-          <ActionButton
-            action="delete"
-            onClick={() => setDeleteModal({ show: true, id: row._id })}
-          />
-        </div>
-      ),
-    },
+    { header: isArabic ? "النوع" : "Type", render: (row) => typeLabel(row.inventoryType) },
+    { header: isArabic ? "المنتج" : "Product", render: productLabel },
+    { header: isArabic ? "الفترة" : "Period", render: (row) => `${formatDate(row.startDate, { isArabic })} - ${formatDate(row.endDate, { isArabic })}` },
+    { header: isArabic ? "عدد الأيام" : "Days", align: "center", render: (row) => row.daysCount ?? 0 },
+    { header: isArabic ? "الإجمالي" : "Total", align: "center", render: (row) => row.total ?? 0 },
+    { header: isArabic ? "المحجوز" : "Reserved", align: "center", render: (row) => row.reserved ?? 0 },
+    { header: isArabic ? "الموقوف" : "Blocked", align: "center", render: (row) => row.blocked ?? 0 },
+    { header: isArabic ? "المتاح" : "Available", align: "center", render: (row) => <span className={(row.available ?? 0) > 0 ? "fw-semibold text-success" : "fw-semibold text-danger"}>{row.available ?? 0}</span> },
+    { header: isArabic ? "الحالة" : "Status", align: "center", render: (row) => <StatusBadge value={row.isActive ? "active" : "inactive"} type="user" isArabic={isArabic} /> },
+    { header: isArabic ? "الإجراءات" : "Actions", align: "center", render: (row) => <div className="d-flex gap-1 justify-content-center">
+      <ActionButton action="edit" onClick={() => openEdit(prepareInventoryForForm(row, formConfig))} />
+      <ActionButton action="delete" onClick={() => openDelete(row, productLabel(row))} />
+    </div> },
   ];
-  return (
-    <div className="container py-2">
-      <PageHeader
-        subtitleAr="إدارة مخزون المنتجات والخدمات"
-        subtitleEn="Manage Inventory"
-      />
 
-      <div className="d-flex justify-content-center mb-4">
-        <ActionButton
-          action="add"
-          label={lang === "ar" ? "إضافة مخزون لفترة" : "Add Inventory Period"}
-          onClick={openCreateModal}
-        />
-      </div>
-
-      <LoadingOverlay show={loading} />
-
-      <EntityFilter
-        filters={filters}
-        setFilters={setFilters}
-        config={{
-          inventoryType: {
-            type: "select",
-            col: 3,
-            placeholder: lang === "ar" ? "نوع المخزون" : "Inventory Type",
-            options: [
-              { value: "roomType", labelAr: "نوع غرفة", labelEn: "Room Type" },
-              { value: "trip", labelAr: "رحلة", labelEn: "Trip" },
-              {
-                value: "transport",
-                labelAr: "وسيلة نقل",
-                labelEn: "Transport",
-              },
-              {
-                value: "vehicleRental",
-                labelAr: "تأجير نقل",
-                labelEn: "Vehicle Rental",
-              },
-              {
-                value: "extraService",
-                labelAr: "خدمة إضافية",
-                labelEn: "Extra Service",
-              },
-              { value: "visa", labelAr: "تأشيرة", labelEn: "Visa" },
-            ],
-          },
-          startDate: {
-            type: "date",
-            col: 3,
-            placeholder: lang === "ar" ? "من تاريخ" : "From Date",
-          },
-          endDate: {
-            type: "date",
-            col: 3,
-            placeholder: lang === "ar" ? "إلى تاريخ" : "To Date",
-          },
-        }}
-      />
-
-      <UniversalFormModal
-        show={showModal}
-        onHide={() => setShowModal(false)}
-        onSave={(data) =>
-          handleSave(data?.formState || data, {
-            formMode,
-            currentItem: currentInventory,
-          })
-        }
-        config={memoizedConfig}
-        initialData={currentInventory}
-        titleAr="إضافة مخزون لفترة"
-        titleEn="Add Inventory Period"
-        errors={formErrors}
-        loading={loadingSave}
-      />
-
-      <PaginationComponent
-        total={pagination.total}
-        page={pagination.page}
-        limit={pagination.limit}
-        totalPages={pagination.totalPages}
-        onPageChange={(newPage) => dispatch(setPage(newPage))}
-        onLimitChange={(newLimit) => dispatch(setLimit(newLimit))}
-      />
-
-      <UniversalTable
-        columns={columns}
-        data={inventoryList}
-        lang={lang}
-        emptyMessage={lang === "ar" ? "لا يوجد مخزون" : "No inventory found"}
-      />
-
-      <ConfirmDialog
-        show={deleteModal.show}
-        onHide={() => setDeleteModal({ show: false, id: null })}
-        onConfirm={confirmDelete}
-        title={lang === "ar" ? "حذف المخزون؟" : "Delete Inventory?"}
-        message={lang === "ar" ? "هل أنت متأكد من الحذف؟" : "Are you sure?"}
-        confirmText={lang === "ar" ? "نعم، احذف" : "Yes, Delete"}
-        cancelText={lang === "ar" ? "إلغاء" : "Cancel"}
-        variant="delete"
-      />
-    </div>
-  );
+  return <div className="container-fluid py-4">
+    <PageHeader titleAr="إدارة المخزون" titleEn="Inventory Management" subtitleAr="إدارة فترات مخزون المنتجات والخدمات مع إبقاء المحجوز والمتاح قيمًا مشتقة" subtitleEn="Manage product and service inventory periods while keeping reserved and available quantities derived" actions={<AdminPageActions><ActionButton action="add" showLabel label={isArabic ? "إضافة مخزون لفترة" : "Add Inventory Period"} onClick={openCreate} /></AdminPageActions>} />
+    <EntityFilter filters={filters} setFilters={(next) => { setFilters(next); dispatch(setPage(1)); }} config={{
+      inventoryType: { type: "select", col: 3, placeholder: isArabic ? "نوع المخزون" : "Inventory Type", options: INVENTORY_TYPE_OPTIONS },
+      startDate: { type: "date", col: 3, placeholder: isArabic ? "من تاريخ" : "From Date" },
+      endDate: { type: "date", col: 3, placeholder: isArabic ? "إلى تاريخ" : "To Date" },
+    }} />
+    <LoadingOverlay show={loading} text={isArabic ? "جارٍ تحميل المخزون..." : "Loading inventory..."} />
+    <ErrorOverlay show={Boolean(error)} message={error?.message || error} />
+    <UniversalTable columns={columns} data={inventoryList} lang={lang} emptyMessage={isArabic ? "لا يوجد مخزون" : "No inventory found"} />
+    <PaginationComponent total={pagination.total} page={pagination.page} limit={pagination.limit} totalPages={pagination.totalPages} onPageChange={(page) => dispatch(setPage(page))} onLimitChange={(limit) => dispatch(setLimit(limit))} />
+    <UniversalFormModal show={showModal} onHide={closeForm} onSave={(data) => handleSave(data, { formMode, currentItem })} config={formConfig} initialData={currentItem || INITIAL_INVENTORY} titleAr={formMode === "edit" ? "تعديل المخزون" : "إضافة مخزون لفترة"} titleEn={formMode === "edit" ? "Edit Inventory" : "Add Inventory Period"} errors={formErrors} loading={loadingSave} />
+    <ConfirmDialog show={deleteModal.show} onHide={closeDelete} onConfirm={confirmDelete} title={isArabic ? "حذف المخزون؟" : "Delete Inventory?"} message={isArabic ? `هل أنت متأكد من حذف مخزون ${deleteModal.name}؟` : `Are you sure you want to delete ${deleteModal.name} inventory?`} confirmText={isArabic ? "نعم، احذف" : "Yes, Delete"} cancelText={isArabic ? "إلغاء" : "Cancel"} variant="delete" />
+  </div>;
 }

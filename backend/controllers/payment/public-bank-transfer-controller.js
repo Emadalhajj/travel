@@ -22,6 +22,7 @@ export const submitBankTransferProof = async (req, res, next) => {
       uploadedFiles,
 
       userId: req.user?._id || req.user?.id || null,
+      req,
     });
 
     return res.status(200).json({

@@ -1,13 +1,10 @@
 import React, { lazy, Suspense } from "react";
 import "./App.css";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
-import { useSelector } from "react-redux";
 
-// import { Elements } from "@stripe/react-stripe-js";
 import Loader from "../Components/common/Loader";
 import Header from "../Components/layout/Header";
-// import Adminlayout from "../Pages/admin/AdminLayout";
 import DashboardOverview from "../Pages/admin/DashboardOverview";
 import AdminLayout from "../Pages/admin/AdminLayout";
 import PublicProgramListPage from "../Pages/public/programs/PublicProgramListPage";
@@ -16,17 +13,18 @@ import PublicBookingPage from "../Pages/public/booking/PublicBookingPage";
 import PublicBookingSuccessPage from "../Pages/public/booking/PublicBookingSuccessPage";
 import PublicBookingDetailsPage from "../Pages/public/booking/PublicBookingDetailsPage";
 import PublicMyDraftBookingsPage from "../Pages/public/booking/PublicMyDraftBookingsPage";
-// import AdminPaymentMethodsPage from "./Pages/admin/payments/AdminPaymentMethodsPage";
+import ProtectedRoute from "../Components/auth/ProtectedRoute";
+import { ADMIN_ROLES } from "../constants/auth/roles";
 
 const Home = lazy(() => import("../Pages/client/Home"));
 const AuthPage = lazy(() => import("../Pages/Auth/AuthPage"));
+const PasswordRecoveryPage = lazy(
+  () => import("../Pages/Auth/PasswordRecoveryPage"),
+);
 const MyBookings = lazy(() => import("../Pages/client/MyBookings"));
 const Profile = lazy(() => import("../Pages/client/Profile"));
-const AdminDashboard = lazy(() => import("../Pages/admin/AdminDashboad"));
-const AllProducts = lazy(() => import("../Pages/admin/AllProducts"));
-// const AdminVisaForm = lazy(() => import("../Pages/admin/AdminVisaForm"));
 const AdminUsersPage = lazy(
-  () => import("../Pages/admin/Users/ManagemintUsers"),
+  () => import("../Pages/admin/Users/AdminUsersPage"),
 );
 const AdminVisaTypeList = lazy(
   () => import("../Pages/admin/visas/AdminVisaTypeList"),
@@ -46,19 +44,15 @@ const AdminHotelRooms = lazy(
 const AdminExtraServiceList = lazy(
   () => import("../Pages/admin/extraServices/AdminExtraServiceList"),
 );
-// البرامج
 const AdminUmrahProgramList = lazy(
   () => import("../Pages/admin/umrah/AdminUmrahProgramList"),
 );
-// إنشاء وتعديل البرامج
 const CreateUmrahPackagePage = lazy(
   () => import("../Pages/admin/umrah/packages/CreateUmrahPackagePage"),
 );
-//
 const PublicCustomPackageBuilderPage = lazy(
   () => import("../Pages/public/custom-package/PublicCustomPackageBuilderPage"),
 );
-//المخزون
 const AdminInventoryList = lazy(
   () => import("../Pages/admin/inventory/AdminInventoryList"),
 );
@@ -73,9 +67,6 @@ const TransportTrips = lazy(
 
 const AdminVehicleRentalList = lazy(
   () => import("../Pages/admin/transport/AdminVehicleRentalList"),
-);
-const PublicBookingWizardPage = lazy(
-  () => import("../Pages/booking/PublicBookingWizardPage"),
 );
 const PublicDraftBookingDetailsPage = lazy(
   () => import("../Pages/public/booking/PublicDraftBookingDetailsPage"),
@@ -95,6 +86,13 @@ const PublicPaymentRedirectPage = lazy(
 const PublicCustomBookingCustomerPage = lazy(
   () =>
     import("../Pages/public/custom-package/PublicCustomBookingCustomerPage"),
+);
+const PublicBookingPartyPage = lazy(
+  () => import("../Pages/public/booking/PublicBookingPartyPage"),
+);
+const PublicCustomBookingTravelersPage = lazy(
+  () =>
+    import("../Pages/public/custom-package/PublicCustomBookingTravelersPage"),
 );
 
 // طرق الدفع
@@ -122,37 +120,42 @@ const AdminPaymentTransactionsPage = lazy(
 const AdminPaymentTransactionDetailsPage = lazy(
   () => import("../Pages/admin/payments/AdminPaymentTransactionDetailsPage"),
 );
+const AdminOperationsPage = lazy(
+  () => import("../Pages/admin/operations/AdminOperationsPage"),
+);
+const AdminBookingOperationsDetailsPage = lazy(
+  () => import("../Pages/admin/operations/AdminBookingOperationsDetailsPage"),
+);
+const AdminReportsPage = lazy(
+  () => import("../Pages/admin/reports/AdminReportsPage"),
+);
+const AdminDocumentBrandingPage = lazy(
+  () => import("../Pages/admin/settings/AdminDocumentBrandingPage"),
+);
 const PublicPaymentResultPage = lazy(
   () => import("../Pages/public/payment/PublicPaymentResultPage"),
 );
 
 
 
-// const AdminBankAccountFormPage = lazy(
-//   () => import("../Pages/admin/payments/AdminBankAccountFormPage"),
-// );
-/*
-إضافة حارس صلاحيات للمسارات (AdminOnlyRoute) في
-[App.tsx](C:/Users/User/Desktop/All Projects/myreact/travel/travel-app/frontend/src/app/App.tsx)
-يحول غير المسجل إلى /authpage
-يحول غير admin إلى /
-تم تطبيقه على:
-المسار الأب /admin
-المسارات القديمة مثل /adminDashboard, /adminVisaList ... إلخ
+function LegacyBookingWizardRedirect(): JSX.Element {
+  const { programId } = useParams();
+  return (
+    <Navigate
+      to={programId ? `/booking/program/${programId}` : "/programs"}
+      replace
+    />
+  );
+}
 
-لو المستخدم ليس admin يتم إعادة توجيهه مباشرة خارج لوحة الإدارة
-
-*/
-function AdminOnlyRoute({ children }: { children: JSX.Element }): JSX.Element {
-  const currentUser = useSelector((state: any) => state.auth.currentUser);
-  const user = currentUser?.user || currentUser;
-
-  if (!user) return <Navigate to="/authpage" replace />;
-  if (user.role !== "admin" && user.role !== "superAdmin") {
-    return <Navigate to="/" replace />;
-  }
-
-  return children;
+function LegacyAdminHotelRoomsRedirect(): JSX.Element {
+  const { hotelId } = useParams();
+  return (
+    <Navigate
+      to={hotelId ? `/admin/hotel/${hotelId}/rooms` : "/admin/hotels"}
+      replace
+    />
+  );
 }
 
 function App() {
@@ -173,6 +176,9 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/authpage" element={<AuthPage />} />
+        <Route path="/forgotPassword" element={<PasswordRecoveryPage />} />
+        <Route path="/forgot-password" element={<PasswordRecoveryPage />} />
+        <Route path="/reset-password/:token" element={<PasswordRecoveryPage />} />
         <Route
           path="/myBookings"
           element={<Navigate to="/my-bookings" replace />}
@@ -180,7 +186,6 @@ function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/programs" element={<PublicProgramListPage />} />
         <Route path="/programs/:id" element={<PublicProgramDetailsPage />} />
-        {/* <Route path="/booking" element={<PublicBookingPage />} /> */}
         <Route
           path="/booking/program/:programId"
           element={<PublicBookingPage />}
@@ -206,10 +211,10 @@ function App() {
           path="/custom-package"
           element={<PublicCustomPackageBuilderPage />}
         />
-        <Route path="/booking-wizard" element={<PublicBookingWizardPage />} />
+        <Route path="/booking-wizard" element={<LegacyBookingWizardRedirect />} />
         <Route
           path="/booking-wizard/program/:programId"
-          element={<PublicBookingWizardPage />}
+          element={<LegacyBookingWizardRedirect />}
         />
         <Route
           path="/draft-booking/:draftId"
@@ -238,25 +243,28 @@ function App() {
         />
 
         <Route
+          path="/booking/draft/:draftId/details"
+          element={<PublicBookingPartyPage />}
+        />
+
+        <Route
           path="/booking/custom/:draftId/travelers"
-          element={<PublicCustomBookingCustomerPage />}
+          element={<PublicCustomBookingTravelersPage />}
         />
 
         {/* Admin Routes توحيد المسارات تحت /admin/... */}
         <Route
           path="/admin"
           element={
-            <AdminOnlyRoute>
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
               <AdminLayout />
-            </AdminOnlyRoute>
+            </ProtectedRoute>
           }
         >
           <Route index element={<DashboardOverview />} /> {/* /admin */}
           <Route path="dashboard" element={<DashboardOverview />} />{" "}
           {/* /admin/dashboard */}
-          <Route path="products" element={<AllProducts />} />{" "}
-          {/* /admin/products */}
-          {/* <Route path="orders" element={<OrdersManagement />} />            {/* /admin/orders */}
+          <Route path="products" element={<Navigate to="/admin" replace />} />{" "}
           <Route path="users" element={<AdminUsersPage />} />{" "}
           {/*  admin/users */}
           <Route path="hotels" element={<AdminHotelList />} />{" "}
@@ -265,8 +273,6 @@ function App() {
           {/* /admin/visas */}
           <Route path="visa-types" element={<AdminVisaTypeList />} />{" "}
           {/* /admin/visa-types */}
-          {/* <Route path="visa-form" element={<AdminVisaForm />} />{" "} */}
-          {/* /admin/visa-form */}
           <Route path="room-types" element={<AdminRoomTypeList />} />{" "}
           {/* Umrah Pages */}
           <Route
@@ -335,73 +341,46 @@ function App() {
             path="payments/payment-transactions/:transactionId"
             element={<AdminPaymentTransactionDetailsPage />}
           />
+          <Route path="operations" element={<AdminOperationsPage />} />
+          <Route
+            path="operations/bookings/:bookingId"
+            element={<AdminBookingOperationsDetailsPage />}
+          />
+          <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="settings/document-branding" element={<AdminDocumentBrandingPage />} />
 
 
  
         </Route>
 
-        {/* <Route path="/" element={<Home />} /> */}
-        {/* <Route path="/authpage" element={<AuthPage />} /> */}
-        {/* <Route path="/myBookings" element={<MyBookings />} /> */}
         <Route
           path="/adminDashboard"
-          element={
-            <AdminOnlyRoute>
-              <AdminDashboard />
-            </AdminOnlyRoute>
-          }
+          element={<Navigate to="/admin" replace />}
         />
         <Route
           path="/allProducts"
-          element={
-            <AdminOnlyRoute>
-              <AllProducts />
-            </AdminOnlyRoute>
-          }
+          element={<Navigate to="/admin" replace />}
         />
 
-        {/* <Route path="/adminVisaForm" element={<AdminOnlyRoute><AdminVisaForm /></AdminOnlyRoute>} /> */}
         <Route
           path="/adminVisaTypeList"
-          element={
-            <AdminOnlyRoute>
-              <AdminVisaTypeList />
-            </AdminOnlyRoute>
-          }
+          element={<Navigate to="/admin/visa-types" replace />}
         />
-        {/* <Route path="/adminRoomTypeList" element={<AdminOnlyRoute><AdminRoomTypeList /></AdminOnlyRoute>} /> */}
-        {/* <Route path="/adminVisaList" element={<AdminOnlyRoute><AdminVisaList /></AdminOnlyRoute>} /> */}
         <Route
           path="/adminHotelList"
-          element={
-            <AdminOnlyRoute>
-              <AdminHotelList />
-            </AdminOnlyRoute>
-          }
+          element={<Navigate to="/admin/hotels" replace />}
         />
         <Route
           path="/adminHotelRooms/:hotelId/rooms"
-          element={
-            <AdminOnlyRoute>
-              <AdminHotelRooms />
-            </AdminOnlyRoute>
-          }
+          element={<LegacyAdminHotelRoomsRedirect />}
         />
         <Route
           path="/adminTransportList"
-          element={
-            <AdminOnlyRoute>
-              <AdminTransportList />
-            </AdminOnlyRoute>
-          }
+          element={<Navigate to="/admin/transports" replace />}
         />
         <Route
           path="/transportTrips/"
-          element={
-            <AdminOnlyRoute>
-              <TransportTrips />
-            </AdminOnlyRoute>
-          }
+          element={<Navigate to="/admin/trips" replace />}
         />
       </Routes>
     </Suspense>

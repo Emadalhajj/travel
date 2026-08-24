@@ -6,6 +6,7 @@ export default function ConfigFieldsRenderer({
   isArabic = true,
   getValue,
   values = {},
+  errors = {},
   onChange,
 }) {
   const resolveValue =
@@ -21,6 +22,7 @@ export default function ConfigFieldsRenderer({
             field={field}
             isArabic={isArabic}
             value={resolveValue(field.name)}
+            error={errors[field.name]}
             onChange={(value) => onChange?.(field.name, value)}
           />
         ))}

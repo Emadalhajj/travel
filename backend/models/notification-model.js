@@ -24,6 +24,14 @@ whatsapp  => واتساب
 */
 
 import mongoose from "mongoose";
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_CHANNEL_VALUES,
+  NOTIFICATION_STATUS,
+  NOTIFICATION_STATUS_VALUES,
+  NOTIFICATION_TYPES,
+  NOTIFICATION_TYPE_VALUES,
+} from "../constants/notifications/notification-constants.js";
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -63,28 +71,26 @@ const notificationSchema = new mongoose.Schema(
 
     channel: {
       type: String,
-      enum: ["database", "email", "sms", "whatsapp"],
-      default: "database",
+      enum: NOTIFICATION_CHANNEL_VALUES,
+      default: NOTIFICATION_CHANNELS.DATABASE,
     },
 
     type: {
       type: String,
-      enum: [
-        "booking_created",
-        "booking_confirmed",
-        "booking_cancelled",
-        "payment_received",
-        "payment_failed",
-        "documents_ready",
-        "general",
-      ],
-      default: "general",
+      enum: NOTIFICATION_TYPE_VALUES,
+      default: NOTIFICATION_TYPES.GENERAL,
     },
 
     status: {
       type: String,
-      enum: ["pending", "sent", "failed"],
-      default: "pending",
+      enum: NOTIFICATION_STATUS_VALUES,
+      default: NOTIFICATION_STATUS.PENDING,
+    },
+
+    deduplicationKey: {
+      type: String,
+      default: null,
+      trim: true,
     },
 
     isRead: {
@@ -141,6 +147,17 @@ notificationSchema.index({
   isRead: 1,
   createdAt: -1,
 });
+
+notificationSchema.index(
+  { deduplicationKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      deduplicationKey: { $type: "string" },
+    },
+    name: "unique_notification_deduplication_key",
+  },
+);
 
 notificationSchema.index({
   booking: 1,

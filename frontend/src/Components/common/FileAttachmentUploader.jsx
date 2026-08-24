@@ -1,9 +1,11 @@
 // src/Components/common/FileAttachmentUploader.jsx
 // src/Components/common/FileAttachmentUploader.jsx
 import React, { useState, useEffect } from "react";
-import { Form, Button, ListGroup, Badge } from "react-bootstrap";
+import { Form, ListGroup, Badge } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
-import { FaUpload, FaTrash, FaFilePdf, FaFileWord } from "react-icons/fa";
+import { FaUpload, FaFilePdf, FaFileWord } from "react-icons/fa";
+import ActionButton from "./buttons/ActionButton";
+import { formatImagePath } from "../../Utils/imageUtils";
 
 const FileAttachmentUploader = ({
   labelAr = "الملفات المرفقة",
@@ -106,6 +108,15 @@ const FileAttachmentUploader = ({
     onDeleteExisting?.(file);
   };
 
+  const previewFile = (file) => {
+    const isLocalFile = file instanceof File;
+    const previewUrl = isLocalFile ? URL.createObjectURL(file) : formatImagePath(file);
+    if (!previewUrl) return;
+
+    window.open(previewUrl, "_blank", "noopener,noreferrer");
+    if (isLocalFile) window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
+  };
+
   const getFileIcon = (file) => {
     const fileName = file.name || file.originalName || file.url || "";
     if (fileName.toLowerCase().endsWith(".pdf"))
@@ -144,24 +155,30 @@ const FileAttachmentUploader = ({
               {existingFiles.map((file, index) => (
                 <ListGroup.Item
                   key={`exist-${index}`}
-                  className="d-flex justify-content-between align-items-center"
+                  className="d-flex align-items-center gap-2 overflow-hidden"
+                  style={{ minWidth: 0, width: "100%" }}
                 >
-                  <div className="d-flex align-items-center gap-2 flex-grow-1">
-                    {getFileIcon(file)}
+                  <div className="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden" style={{ minWidth: 0 }}>
+                    <span className="flex-shrink-0">{getFileIcon(file)}</span>
                     <span
-                      className="text-truncate"
-                      style={{ maxWidth: "280px" }}
+                      className="d-block flex-grow-1 text-truncate"
+                      style={{ minWidth: 0, direction: "ltr" }}
+                      title={file.originalName || file.url || file}
                     >
                       {file.originalName || file.url || file}
                     </span>
                   </div>
-                  <Button
-                    variant="outline-danger"
-                    size="sm"
-                    onClick={() => removeExistingFile(index, file)}
-                  >
-                    <FaTrash />
-                  </Button>
+                  <div className="d-flex flex-shrink-0 align-items-center gap-1">
+                    <ActionButton
+                      action="view"
+                      onClick={() => previewFile(file)}
+                      tooltip={isArabic ? "عرض أو تحميل المرفق" : "View or download attachment"}
+                    />
+                    <ActionButton
+                      action="delete"
+                      onClick={() => removeExistingFile(index, file)}
+                    />
+                  </div>
                 </ListGroup.Item>
               ))}
             </ListGroup>
@@ -178,27 +195,33 @@ const FileAttachmentUploader = ({
               {newFiles.map((file, index) => (
                 <ListGroup.Item
                   key={`new-${index}`}
-                  className="d-flex justify-content-between align-items-center"
+                  className="d-flex align-items-center gap-2 overflow-hidden"
+                  style={{ minWidth: 0, width: "100%" }}
                 >
-                  <div className="d-flex align-items-center gap-2 flex-grow-1">
-                    {getFileIcon(file)}
+                  <div className="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden" style={{ minWidth: 0 }}>
+                    <span className="flex-shrink-0">{getFileIcon(file)}</span>
                     <span
-                      className="text-truncate"
-                      style={{ maxWidth: "280px" }}
+                      className="d-block flex-grow-1 text-truncate"
+                      style={{ minWidth: 0, direction: "ltr" }}
+                      title={file.name}
                     >
                       {file.name}
                     </span>
-                    <Badge bg="secondary" className="ms-2">
+                    <Badge bg="secondary" className="ms-2 flex-shrink-0">
                       {formatFileSize(file)}
                     </Badge>
                   </div>
-                  <Button
-                    variant="outline-danger"
-                    size="sm"
-                    onClick={() => removeNewFile(index)}
-                  >
-                    <FaTrash />
-                  </Button>
+                  <div className="d-flex flex-shrink-0 align-items-center gap-1">
+                    <ActionButton
+                      action="view"
+                      onClick={() => previewFile(file)}
+                      tooltip={isArabic ? "عرض أو تحميل المرفق" : "View or download attachment"}
+                    />
+                    <ActionButton
+                      action="delete"
+                      onClick={() => removeNewFile(index)}
+                    />
+                  </div>
                 </ListGroup.Item>
               ))}
             </ListGroup>

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import PageHeader from "../../../Components/layout/PageHeader";
+import StatusBadge from "../../../Components/shared/common/StatusBadge";
 
 /*
 =====================================================
@@ -254,11 +255,10 @@ export default function AdminPaymentManagementPage() {
                         <Icon size={28} />
                       </div>
 
-                      <span className="badge rounded-pill bg-light text-secondary">
-                        {isArabic
-                          ? section.badgeAr
-                          : section.badgeEn}
-                      </span>
+                      <StatusBadge
+                        value={isArabic ? section.badgeAr : section.badgeEn}
+                        isArabic={isArabic}
+                      />
                     </div>
 
                     <h2 className="h5 fw-bold mt-4">

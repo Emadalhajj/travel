@@ -1,12 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Badge } from "react-bootstrap";
 import { toast } from "react-toastify";
 
 import {
   fetchUmrahPrograms,
-  createUmrahProgram,
-  updateUmrahProgram,
   deleteUmrahProgram,
   toggleUmrahProgramStatus,
   setPage,
@@ -14,30 +11,31 @@ import {
 } from "../../../redux/umrah/umrahProgramSlice";
 
 import { buildQuery } from "../../../Utils/buildQuery";
-import { normalizeForForm } from "../../../Utils/formData/normalize";
-import { createHandleSave } from "../../../Utils/formData/createHandleSave";
+import { formatDate } from "../../../Utils/dateUtils";
+import { handleApiError } from "../../../Utils/handleApiError";
+import { formatPrice } from "../../../Utils/roundPrice";
 
 import PageHeader from "../../../Components/layout/PageHeader";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
 import ActionButton from "../../../Components/common/buttons/ActionButton";
 import ExportTableButtons from "../../../Components/common/buttons/ExportTableButtons";
 import EntityFilter from "../../../Components/common/EntityFilter";
 import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
-import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
+import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import UniversalTable from "../../../Components/common/tables/UniversalTable";
 import PaginationComponent from "../../../Components/common/Pagination";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
 import ImagePreviewCell from "../../../Components/common/tables/ImagePreviewCell";
 
-// import { umrahProgramFormConfig } from "../../../Components/common/ModalForms/umrah/umrahProgramFormConfig";
-import { umrahProgramFormConfig } from "../../../Components/common/umrah/umrahProgramFormConfig";
-
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
+import StatusBadge from "../../../Components/shared/common/StatusBadge";
+import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
 
 export default function AdminUmrahProgramList() {
   const dispatch = useDispatch();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
 
   const {
@@ -47,33 +45,29 @@ export default function AdminUmrahProgramList() {
     pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
   } = useSelector((state) => state.umrahPrograms || {});
 
-  const [showModal, setShowModal] = useState(false);
-  const [currentProgram, setCurrentProgram] = useState(null);
-  const [formMode, setFormMode] = useState("create");
-  const [formErrors, setFormErrors] = useState({});
-  const [loadingSave, setLoadingSave] = useState(false);
-
   const navigate = useNavigate();
-
-  const [deleteModal, setDeleteModal] = useState({
-    show: false,
-    id: null,
-    name: "",
-  });
+  const {
+    currentItem: currentProgram,
+    showDetails,
+    deleteModal,
+    openDetails,
+    openDelete,
+    closeDetails,
+    closeDelete,
+  } = useAdminEntityCrudState();
 
   const [filters, setFilters] = useState({
     search: "",
     status: "",
     sort: "createdAt_desc",
   });
-  const [showDetails, setShowDetails] = useState(false);
-
-  const memoizedConfig = useMemo(() => umrahProgramFormConfig(), []);
+  const currentPage = pagination.page;
+  const currentLimit = pagination.limit;
 
   useEffect(() => {
-    const query = buildQuery(filters, pagination);
+    const query = buildQuery(filters, { page: currentPage, limit: currentLimit });
     dispatch(fetchUmrahPrograms(query));
-  }, [dispatch, filters, pagination.page, pagination.limit]);
+  }, [currentLimit, currentPage, dispatch, filters]);
 
   const openCreatePage = () => {
     navigate("/admin/umrah-program/create");
@@ -87,146 +81,27 @@ export default function AdminUmrahProgramList() {
     navigate(`/admin/umrah-program/clone/${program._id}`);
   };
 
-  const handleSave = createHandleSave({
-    dispatch,
-    createAction: createUmrahProgram,
-    updateAction: updateUmrahProgram,
-    fetchAction: fetchUmrahPrograms,
-    getId: (item) => item._id,
-    formConfig: memoizedConfig,
-    toast,
-    lang,
-    closeModal: () => setShowModal(false),
-    resetItem: () => setCurrentProgram(null),
-    resetMode: () => setFormMode("create"),
-    setLoading: setLoadingSave,
-    setFormErrors,
-  });
-
-  const formatPrice = (amount, currency = "SAR") =>
-    `${Number(amount || 0).toLocaleString(lang === "ar" ? "ar-SA" : "en-US")} ${currency}`;
-
-  const getServiceName = (item) =>
-    lang === "ar"
-      ? item.nameAr || item.name || item.nameEn || "-"
-      : item.nameEn || item.name || item.nameAr || "-";
-
-  const getServiceDescription = (item) =>
-    lang === "ar"
-      ? item.descriptionAr || item.description || item.descriptionEn || ""
-      : item.descriptionEn || item.description || item.descriptionAr || "";
-
-  const getServiceExtraDetails = (item) => {
-    const snapshot = item.productSnapshot || {};
-    const ignoredKeys = new Set([
-      "_id",
-      "id",
-      "__v",
-      "name",
-      "nameAr",
-      "nameEn",
-      "description",
-      "descriptionAr",
-      "descriptionEn",
-      "images",
-      "image",
-      "mainImage",
-      "price",
-      "basePrice",
-      "pricing",
-      "currency",
-      "createdAt",
-      "updatedAt",
-      "isDeleted",
-    ]);
-
-    return Object.entries(snapshot)
-      .filter(([key, value]) => {
-        if (ignoredKeys.has(key)) return false;
-        if (value === null || value === undefined || value === "") return false;
-        if (typeof value === "object") return false;
-        return true;
-      })
-      .slice(0, 8);
-  };
-
-  // const renderSelectedServices = () => {
-  //   if (!currentProgram?.items?.length) {
-  //     return lang === "ar" ? "لا توجد خدمات" : "No services";
-  //   }
-
-  //   return (
-  //     <div className="d-flex flex-column gap-3">
-  //       {currentProgram.items.map((item, index) => {
-  //         const currency = item.currency || "SAR";
-  //         const unitPrice = Number(item.priceAtTime || 0);
-  //         const quantity = Number(item.quantity || 1);
-  //         const extraDetails = getServiceExtraDetails(item);
-
-  //         return (
-  //           <div
-  //             key={`${item.productId || index}-${item.category || ""}`}
-  //             className="border rounded bg-white p-3"
-  //           >
-  //             <div className="d-flex justify-content-between align-items-start gap-3 flex-wrap">
-  //               <div>
-  //                 <Badge bg="info" className="mb-2">
-  //                   {item.categoryLabel || item.category || "-"}
-  //                 </Badge>
-  //                 <div className="fw-bold">{getServiceName(item)}</div>
-  //                 {getServiceDescription(item) && (
-  //                   <div className="text-muted small mt-1">
-  //                     {getServiceDescription(item)}
-  //                   </div>
-  //                 )}
-  //               </div>
-
-  //               <div className="text-end">
-  //                 <div>{formatPrice(unitPrice, currency)}</div>
-  //                 <small className="text-muted">
-  //                   {lang === "ar" ? "الكمية" : "Qty"}: {quantity}
-  //                 </small>
-  //                 <div className="fw-bold text-success">
-  //                   {formatPrice(unitPrice * quantity, currency)}
-  //                 </div>
-  //               </div>
-  //             </div>
-
-  //             <div className="row g-2 mt-2 small">
-  //               <div className="col-md-6">
-  //                 <span className="text-muted">
-  //                   {lang === "ar" ? "النوع" : "Type"}:
-  //                 </span>{" "}
-  //                 {item.category || "-"}
-  //               </div>
-  //               <div className="col-md-6">
-  //                 <span className="text-muted">
-  //                   {lang === "ar" ? "معرّف المنتج" : "Product ID"}:
-  //                 </span>{" "}
-  //                 {item.productId || "-"}
-  //               </div>
-
-  //               {extraDetails.map(([key, value]) => (
-  //                 <div className="col-md-6" key={key}>
-  //                   <span className="text-muted">{key}:</span> {String(value)}
-  //                 </div>
-  //               ))}
-  //             </div>
-  //           </div>
-  //         );
-  //       })}
-  //     </div>
-  //   );
-  // };
 
   const confirmDelete = async () => {
     try {
       await dispatch(deleteUmrahProgram(deleteModal.id)).unwrap();
       toast.success(lang === "ar" ? "تم حذف البرنامج" : "Program deleted");
-    } catch {
-      toast.error(lang === "ar" ? "حدث خطأ أثناء الحذف" : "Delete failed");
+      await dispatch(fetchUmrahPrograms(buildQuery(filters, pagination))).unwrap();
+    } catch (deleteError) {
+      toast.error(handleApiError(deleteError, (message) => message, lang));
     } finally {
-      setDeleteModal({ show: false, id: null, name: "" });
+      closeDelete();
+    }
+  };
+
+  const toggleStatus = async (row) => {
+    try {
+      await dispatch(toggleUmrahProgramStatus({
+        id: row._id,
+        status: row.status === "active" ? "inactive" : "active",
+      })).unwrap();
+    } catch (toggleError) {
+      toast.error(handleApiError(toggleError, (message) => message, lang));
     }
   };
 
@@ -240,6 +115,8 @@ export default function AdminUmrahProgramList() {
     {
       header: lang === "ar" ? "الصور" : "Images",
       align: "center",
+      exportImageAccessor: "images",
+      pdfWidth: 52,
       render: (row) => <ImagePreviewCell images={row.images} />,
     },
     {
@@ -248,35 +125,29 @@ export default function AdminUmrahProgramList() {
     },
     {
       header: lang === "ar" ? "تاريخ البداية" : "Start Date",
-      render: (row) =>
-        row.startDate
-          ? new Date(row.startDate).toLocaleDateString(
-              lang === "ar" ? "ar-SA" : "en-US",
-            )
-          : "-",
+      render: (row) => formatDate(row.startDate, { isArabic: lang === "ar" }),
     },
     {
       header: lang === "ar" ? "تاريخ النهاية" : "End Date",
-      render: (row) =>
-        row.endDate
-          ? new Date(row.endDate).toLocaleDateString(
-              lang === "ar" ? "ar-SA" : "en-US",
-            )
-          : "-",
+      render: (row) => formatDate(row.endDate, { isArabic: lang === "ar" }),
     },
     {
       header: lang === "ar" ? "السعر" : "Price",
       align: "center",
+      excelValue: (row) => row.pricing?.basePrice ?? 0,
+      pdfValue: (row) => row.pricing?.basePrice ?? 0,
+      excelType: "number",
       render: (row) => {
         const price = row.pricing?.basePrice || 0;
         const currency = row.pricing?.currency || "SAR";
-        return (
-          <span className="fw-bold text-success">
-            {price} {currency}
-          </span>
-        );
+        return <span className="fw-bold text-success">{formatPrice(price, currency)}</span>;
       },
     },
+    // {
+    //   header: lang === "ar" ? "العملة" : "Currency",
+    //   accessor: "pricing.currency",
+    //   align: "center",
+    // },
     {
       header: lang === "ar" ? "المقاعد" : "Seats",
       align: "center",
@@ -289,29 +160,9 @@ export default function AdminUmrahProgramList() {
     {
       header: lang === "ar" ? "الحالة" : "Status",
       align: "center",
-      render: (row) => {
-        const statusLabels = {
-          draft: lang === "ar" ? "مسودة" : "Draft",
-          active: lang === "ar" ? "نشط" : "Active",
-          inactive: lang === "ar" ? "غير نشط" : "Inactive",
-          sold_out: lang === "ar" ? "مكتمل العدد" : "Sold Out",
-          expired: lang === "ar" ? "منتهي" : "Expired",
-        };
-
-        const statusVariants = {
-          draft: "warning",
-          active: "success",
-          inactive: "secondary",
-          sold_out: "danger",
-          expired: "dark",
-        };
-
-        return (
-          <Badge bg={statusVariants[row.status] || "secondary"}>
-            {statusLabels[row.status] || row.status || "-"}
-          </Badge>
-        );
-      },
+      render: (row) => (
+        <StatusBadge value={row.status} type="program" isArabic={lang === "ar"} />
+      ),
     },
     {
       header: lang === "ar" ? "الإجراءات" : "Actions",
@@ -322,31 +173,15 @@ export default function AdminUmrahProgramList() {
           <ActionButton action="clone" onClick={() => openClonePage(row)} />
           <ActionButton
             action={row.status === "active" ? "hide" : "show"}
-            onClick={() =>
-              dispatch(
-                toggleUmrahProgramStatus({
-                  id: row._id,
-                  status: row.status === "active" ? "inactive" : "active",
-                }),
-              )
-            }
+            onClick={() => toggleStatus(row)}
           />
           <ActionButton
             action="view"
-            onClick={() => {
-              setCurrentProgram(row);
-              setShowDetails(true);
-            }}
+            onClick={() => openDetails(row)}
           />
           <ActionButton
             action="delete"
-            onClick={() =>
-              setDeleteModal({
-                show: true,
-                id: row._id,
-                name: lang === "ar" ? row.nameAr : row.nameEn,
-              })
-            }
+            onClick={() => openDelete(row, lang === "ar" ? row.nameAr : row.nameEn)}
           />
         </div>
       ),
@@ -356,36 +191,29 @@ export default function AdminUmrahProgramList() {
   return (
     <div className="container py-2">
       <PageHeader
+        titleAr="إدارة برامج العمرة"
+        titleEn="Umrah Programs Management"
         subtitleAr="إدارة برامج وباقات العمرة"
         subtitleEn="Manage Umrah Programs and Packages"
-      />
-      {/* Action Buttons Row */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        {/* Action Buttons */}
-        <div className="w-100 d-flex justify-content-center">
-          <div className="d-inline-flex align-items-center gap-2">
+        actions={
+          <AdminPageActions>
             <ActionButton
               size="md"
               action="add"
               label={lang === "ar" ? "إضافة برنامج عمرة" : "Add Umrah Program"}
               onClick={openCreatePage}
             />
-          </div>
-        </div>
-        <ExportTableButtons
-          data={umrahProgramsList}
-          columns={columns}
-          lang={lang}
-          filename="Packages List"
-          title={lang === "ar" ? "قائمة البرامج" : "Packages List"}
-        />
-      </div>
+            <ExportTableButtons data={umrahProgramsList} columns={columns} lang={lang} fileName="Packages List" title={lang === "ar" ? "قائمة البرامج" : "Packages List"} />
+          </AdminPageActions>
+        }
+      />
 
       <LoadingOverlay show={loading} />
+      <ErrorOverlay show={!loading && Boolean(error)} message={error} />
 
       <EntityDetailsModal
         show={showDetails}
-        onHide={() => setShowDetails(false)}
+        onHide={closeDetails}
         title={lang === "ar" ? "تفاصيل برنامج العمرة" : "Umrah Program Details"}
         images={currentProgram?.images || []}
         fields={[
@@ -413,19 +241,17 @@ export default function AdminUmrahProgramList() {
           },
           {
             label: lang === "ar" ? "تاريخ البداية" : "Start Date",
-            value: currentProgram?.startDate
-              ? new Date(currentProgram.startDate).toLocaleDateString(
-                  lang === "ar" ? "ar-SA" : "en-US",
-                )
-              : "غير متوفر",
+            value: formatDate(currentProgram?.startDate, {
+              isArabic: lang === "ar",
+              fallback: lang === "ar" ? "غير متوفر" : "Not available",
+            }),
           },
           {
             label: lang === "ar" ? "تاريخ النهاية" : "End Date",
-            value: currentProgram?.endDate
-              ? new Date(currentProgram.endDate).toLocaleDateString(
-                  lang === "ar" ? "ar-SA" : "en-US",
-                )
-              : "غير متوفر",
+            value: formatDate(currentProgram?.endDate, {
+              isArabic: lang === "ar",
+              fallback: lang === "ar" ? "غير متوفر" : "Not available",
+            }),
           },
           {
             label: lang === "ar" ? "عدد الأيام" : "Duration Days",
@@ -462,26 +288,20 @@ export default function AdminUmrahProgramList() {
           },
           {
             label: lang === "ar" ? "السعر الأساسي" : "Base Price",
-            value: currentProgram?.pricing?.basePrice
-              ? `${currentProgram.pricing.basePrice} ${
-                  currentProgram.pricing.currency || "SAR"
-                }`
+            value: currentProgram?.pricing?.basePrice != null
+              ? formatPrice(currentProgram.pricing.basePrice, currentProgram.pricing.currency || "SAR")
               : "غير متوفر",
           },
           {
             label: lang === "ar" ? "الإجمالي قبل الخصم" : "Total Price",
-            value: currentProgram?.pricing?.totalPrice
-              ? `${currentProgram.pricing.totalPrice} ${
-                  currentProgram.pricing.currency || "SAR"
-                }`
+            value: currentProgram?.pricing?.totalPrice != null
+              ? formatPrice(currentProgram.pricing.totalPrice, currentProgram.pricing.currency || "SAR")
               : "غير متوفر",
           },
           {
             label: lang === "ar" ? "السعر النهائي" : "Final Price",
-            value: currentProgram?.pricing?.finalPrice
-              ? `${currentProgram.pricing.finalPrice} ${
-                  currentProgram.pricing.currency || "SAR"
-                }`
+            value: currentProgram?.pricing?.finalPrice != null
+              ? formatPrice(currentProgram.pricing.finalPrice, currentProgram.pricing.currency || "SAR")
               : "غير متوفر",
           },
           {
@@ -505,7 +325,7 @@ export default function AdminUmrahProgramList() {
 
                       <div className="col-md-3">
                         <strong>{lang === "ar" ? "السعر:" : "Price:"}</strong>{" "}
-                        {item.priceAtTime || 0} {item.currency || "SAR"}
+                        {formatPrice(item.priceAtTime || 0, item.currency || "SAR")}
                       </div>
 
                       <div className="col-md-3">
@@ -519,13 +339,10 @@ export default function AdminUmrahProgramList() {
                         <strong>
                           {lang === "ar" ? "الإجمالي:" : "Total:"}
                         </strong>{" "}
-                        {(
-                          Number(item.priceAtTime || 0) *
-                          Number(item.quantity || 1)
-                        ).toLocaleString(
-                          lang === "ar" ? "ar-SA" : "en-US",
-                        )}{" "}
-                        {item.currency || "SAR"}
+                        {formatPrice(
+                          Number(item.priceAtTime || 0) * Number(item.quantity || 1),
+                          item.currency || "SAR",
+                        )}
                       </div>
                     </div>
 
@@ -545,19 +362,17 @@ export default function AdminUmrahProgramList() {
           },
           {
             label: lang === "ar" ? "تاريخ الإنشاء" : "Created At",
-            value: currentProgram?.createdAt
-              ? new Date(currentProgram.createdAt).toLocaleString(
-                  lang === "ar" ? "ar-SA" : "en-US",
-                )
-              : "غير متوفر",
+            value: formatDate(currentProgram?.createdAt, {
+              isArabic: lang === "ar",
+              fallback: lang === "ar" ? "غير متوفر" : "Not available",
+            }),
           },
           {
             label: lang === "ar" ? "آخر تحديث" : "Updated At",
-            value: currentProgram?.updatedAt
-              ? new Date(currentProgram.updatedAt).toLocaleString(
-                  lang === "ar" ? "ar-SA" : "en-US",
-                )
-              : "غير متوفر",
+            value: formatDate(currentProgram?.updatedAt, {
+              isArabic: lang === "ar",
+              fallback: lang === "ar" ? "غير متوفر" : "Not available",
+            }),
           },
         ]}
       />
@@ -617,48 +432,29 @@ export default function AdminUmrahProgramList() {
           },
         }}
       />
-      <UniversalFormModal
-        show={showModal}
-        onHide={() => setShowModal(false)}
-        onSave={(data) =>
-          handleSave(data, {
-            formMode,
-            currentItem: currentProgram,
-          })
-        }
-        config={memoizedConfig}
-        initialData={currentProgram}
-        titleAr={
-          formMode === "edit" ? "تعديل برنامج العمرة" : "إضافة برنامج عمرة"
-        }
-        titleEn={
-          formMode === "edit" ? "Edit Umrah Program" : "Add Umrah Program"
-        }
-        errors={formErrors}
-        loading={loadingSave}
-      />
+      {!error && (
+        <UniversalTable
+          columns={columns}
+          data={umrahProgramsList}
+          lang={lang}
+          emptyMessage={lang === "ar" ? "لا توجد برامج عمرة" : "No Umrah programs found"}
+        />
+      )}
 
-      <PaginationComponent
-        total={pagination.total}
-        page={pagination.page}
-        limit={pagination.limit}
-        totalPages={pagination.totalPages}
-        onPageChange={(newPage) => dispatch(setPage(newPage))}
-        onLimitChange={(newLimit) => dispatch(setLimit(newLimit))}
-      />
-
-      <UniversalTable
-        columns={columns}
-        data={umrahProgramsList}
-        lang={lang}
-        emptyMessage={
-          lang === "ar" ? "لا توجد برامج عمرة" : "No Umrah programs found"
-        }
-      />
+      {!error && (
+        <PaginationComponent
+          total={pagination.total}
+          page={pagination.page}
+          limit={pagination.limit}
+          totalPages={pagination.totalPages}
+          onPageChange={(newPage) => dispatch(setPage(newPage))}
+          onLimitChange={(newLimit) => dispatch(setLimit(newLimit))}
+        />
+      )}
 
       <ConfirmDialog
         show={deleteModal.show}
-        onHide={() => setDeleteModal({ show: false, id: null, name: "" })}
+        onHide={closeDelete}
         onConfirm={confirmDelete}
         title={lang === "ar" ? "حذف برنامج العمرة؟" : "Delete Umrah Program?"}
         message={

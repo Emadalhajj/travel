@@ -1,1221 +1,199 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Form,
-  Spinner,
-} from "react-bootstrap";
-
 import { useDispatch, useSelector } from "react-redux";
-
 import { useTranslation } from "react-i18next";
-
-import {
-  toast,
-} from "react-toastify";
-
-/*
-=============================================================================
-Shared Components
-=============================================================================
-*/
+import { toast } from "react-toastify";
 
 import PageHeader from "../../../Components/layout/PageHeader";
-
 import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
-
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
-
 import UniversalTable from "../../../Components/common/tables/UniversalTable";
-
 import ActionButton from "../../../Components/common/buttons/ActionButton";
-
 import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
-
 import EntityFilter from "../../../Components/common/EntityFilter";
-
-/*
-=============================================================================
-Form Config
-=============================================================================
-*/
-
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
+import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
+import PaginationComponent from "../../../Components/common/Pagination";
+import StatusBadge from "../../../Components/shared/common/StatusBadge";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
 import buildPaymentConfigurationFormConfig from "../../../Components/common/ModalForms/payments/paymentConfigurationFormConfig";
-
-/*
-=============================================================================
-Payment Configuration Redux
-=============================================================================
-*/
+import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
+import { handleApiError } from "../../../Utils/handleApiError";
+import { buildQuery } from "../../../Utils/buildQuery";
 
 import {
-  fetchPaymentConfigurations,
-  createPaymentConfiguration,
-  updatePaymentConfiguration,
-  updatePaymentConfigurationStatus,
-  deletePaymentConfiguration,
-  clearPaymentConfigurationError,
-  clearPaymentConfigurationSuccess,
-  selectPaymentConfigurations,
-  selectPaymentConfigurationPagination,
-  selectPaymentConfigurationLoading,
-  selectPaymentConfigurationActionLoading,
-  selectPaymentConfigurationError,
-  selectPaymentConfigurationFieldErrors,
-  selectPaymentConfigurationSuccess,
+  fetchPaymentConfigurations, createPaymentConfiguration, updatePaymentConfiguration,
+  updatePaymentConfigurationStatus, deletePaymentConfiguration,
+  selectPaymentConfigurations, selectPaymentConfigurationPagination,
+  selectPaymentConfigurationLoading, selectPaymentConfigurationActionLoading,
+  selectPaymentConfigurationError, selectPaymentConfigurationFieldErrors,
 } from "../../../redux/payments/paymentConfigurationSlice";
-
-/*
-=============================================================================
-Related Data Redux
-=============================================================================
-
-عدّل أسماء الاستيرادات فقط إذا كانت مختلفة في مشروعك.
-=============================================================================
-*/
-
 import { fetchPaymentMethods } from "../../../redux/payments/paymentMethodSlice";
-
 import { fetchPaymentProviders } from "../../../redux/payments/paymentProviderSlice";
-
 import { fetchBankAccounts } from "../../../redux/payments/bankAccountSlice";
-
-import {
-  PAYMENT_SECTION_OPTIONS,
-  isPaymentMethodAvailableForConfiguration,
-} from "../../../constants/payments/paymentConfigurationConstants";
-
-/*
-=============================================================================
-Constants
-=============================================================================
-*/
+import { PAYMENT_SECTION_OPTIONS, isPaymentMethodAvailableForConfiguration } from "../../../constants/payments/paymentConfigurationConstants";
 
 const PAGE_LIMIT = 10;
-
-const EMPTY_FILTERS = {
-  search: "",
-  sectionCode: "",
-  paymentMethodCode: "",
-  configurationType: "",
-  isActive: "",
+const EMPTY_FILTERS = { search: "", sectionCode: "", paymentMethodCode: "", configurationType: "", isActive: "" };
+const getId = (item) => item?._id || item?.id || null;
+const relationId = (value) => value?._id || value?.id || value || "";
+const relationIds = (values) => Array.isArray(values) ? values.map(relationId).filter(Boolean) : [];
+const dateForForm = (value) => value ? String(value).slice(0, 10) : "";
+const prepareForForm = (item = {}) => ({
+  ...item,
+  providerId: relationId(item.providerId),
+  bankAccountIds: relationIds(item.bankAccountIds),
+  supportedCurrencies: Array.isArray(item.supportedCurrencies) ? item.supportedCurrencies : ["SAR"],
+  availableFrom: dateForForm(item.availableFrom),
+  availableUntil: dateForForm(item.availableUntil),
+});
+const prepareClone = (item) => {
+  const prepared = prepareForForm(item);
+  ["_id", "id", "createdAt", "updatedAt", "createdBy", "updatedBy"].forEach((key) => delete prepared[key]);
+  return { ...prepared, isActive: false };
 };
-
-/*
-=============================================================================
-Helpers
-=============================================================================
-*/
-
-const getItemId = (item) => item?._id || item?.id || null;
-
-const normalizeRelationId = (value) => value?._id || value?.id || value || "";
-
-const normalizeRelationIds = (values) => {
-  if (!Array.isArray(values)) {
-    return [];
-  }
-
-  return values.map(normalizeRelationId).filter(Boolean);
-};
-
-const normalizeDateForForm = (value) => {
-  if (!value) {
-    return "";
-  }
-
-  return String(value).slice(0, 10);
-};
-
-const removeEmptyOptionalStrings = (payload) => {
-  const result = {
-    ...payload,
+const preparePayload = (formData) => {
+  const state = formData?.formState || formData || {};
+  const payload = {
+    ...state,
+    providerId: relationId(state.providerId) || null,
+    bankAccountIds: Array.isArray(state.bankAccountIds) ? state.bankAccountIds : [],
+    supportedCurrencies: Array.isArray(state.supportedCurrencies) ? state.supportedCurrencies : [],
+    minimumAmount: state.minimumAmount === "" || state.minimumAmount == null ? null : Number(state.minimumAmount),
+    maximumAmount: state.maximumAmount === "" || state.maximumAmount == null ? null : Number(state.maximumAmount),
+    sortOrder: Number(state.sortOrder) || 0,
+    availableFrom: state.availableFrom || null,
+    availableUntil: state.availableUntil || null,
+    isActive: state.isActive !== false,
+    requiresAttachment: Boolean(state.requiresAttachment),
+    requiresReference: Boolean(state.requiresReference),
   };
-
-  [
-    "displayNameAr",
-    "displayNameEn",
-    "instructionsAr",
-    "instructionsEn",
-  ].forEach((fieldName) => {
-    if (
-      typeof result[fieldName] === "string" &&
-      result[fieldName].trim() === ""
-    ) {
-      delete result[fieldName];
-    }
+  ["displayNameAr", "displayNameEn", "instructionsAr", "instructionsEn"].forEach((key) => {
+    if (typeof payload[key] === "string" && !payload[key].trim()) delete payload[key];
   });
-
-  return result;
+  return payload;
 };
-
-/*
-=============================================================================
-Component
-=============================================================================
-*/
 
 export default function AdminPaymentConfigurationsPage() {
   const dispatch = useDispatch();
-
   const { i18n } = useTranslation();
-
-  const isArabic = i18n.language === "ar";
-
-  /*
-  ===========================================================================
-  Payment Configuration State
-  ===========================================================================
-  */
-
+  const lang = i18n.language || "ar";
+  const isArabic = lang === "ar";
   const configurations = useSelector(selectPaymentConfigurations);
-
   const pagination = useSelector(selectPaymentConfigurationPagination);
-
   const loading = useSelector(selectPaymentConfigurationLoading);
-
   const actionLoading = useSelector(selectPaymentConfigurationActionLoading);
-
   const error = useSelector(selectPaymentConfigurationError);
-
-  const fieldErrors = useSelector(selectPaymentConfigurationFieldErrors);
-
-  const successMessage = useSelector(selectPaymentConfigurationSuccess);
-
-  /*
-  ===========================================================================
-  Related State
-  ===========================================================================
-
-  عدّل مسارات state فقط لتطابق أسماء reducers الموجودة في store.
-  ===========================================================================
-  */
-
-  const paymentMethods = useSelector(
-    (state) =>
-      state.paymentMethods
-        ?.paymentMethodsList || [],
-  );
-
-  const paymentProviders = useSelector(
-    (state) =>
-      state.paymentProviders
-        ?.paymentProvidersList || [],
-  );
-
-  const bankAccounts = useSelector(
-    (state) =>
-      state.bankAccounts
-        ?.bankAccountsList || [],
-  );
-
-  /*
-  ===========================================================================
-  Local State
-  ===========================================================================
-  */
-
-  const [showFormModal, setShowFormModal] = useState(false);
-
-  const [selectedConfiguration, setSelectedConfiguration] = useState(null);
-
-  const [deleteTarget, setDeleteTarget] = useState(null);
-
-  const [detailsConfiguration, setDetailsConfiguration] = useState(null);
-
+  const sliceFieldErrors = useSelector(selectPaymentConfigurationFieldErrors);
+  const paymentMethods = useSelector((state) => state.paymentMethods?.paymentMethodsList || []);
+  const paymentProviders = useSelector((state) => state.paymentProviders?.paymentProvidersList || []);
+  const bankAccounts = useSelector((state) => state.bankAccounts?.bankAccountsList || []);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
-
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageLimit, setPageLimit] = useState(PAGE_LIMIT);
+  const crud = useAdminEntityCrudState();
+  const {
+    showModal, showDetails, currentItem, formMode, formErrors, loadingSave,
+    deleteModal, openCreate, openEdit, openClone, openDetails, openDelete,
+    closeForm, closeDetails, closeDelete, setFormErrors, setLoadingSave,
+  } = crud;
+  const query = useMemo(() => buildQuery(filters, { page: currentPage, limit: pageLimit }), [filters, currentPage, pageLimit]);
+  const loadConfigurations = useCallback(() => dispatch(fetchPaymentConfigurations(query)), [dispatch, query]);
+  const formConfig = useMemo(() => buildPaymentConfigurationFormConfig({ paymentMethods, paymentProviders, bankAccounts }), [paymentMethods, paymentProviders, bankAccounts]);
+  const mergedErrors = useMemo(() => {
+    const errors = { ...(sliceFieldErrors || {}), ...(formErrors || {}) };
+    if (errors.configurationType && !errors.paymentMethodCode) errors.paymentMethodCode = errors.configurationType;
+    return errors;
+  }, [sliceFieldErrors, formErrors]);
 
-  /*
-  ===========================================================================
-  Query
-  ===========================================================================
-  */
-
-  const query = useMemo(
-    () => ({
-      page: currentPage,
-      limit: PAGE_LIMIT,
-
-      search: filters.search || undefined,
-
-      sectionCode: filters.sectionCode || undefined,
-
-      paymentMethodCode: filters.paymentMethodCode || undefined,
-
-      configurationType: filters.configurationType || undefined,
-
-      isActive: filters.isActive === "" ? undefined : filters.isActive,
-    }),
-    [currentPage, filters],
-  );
-
-  /*
-  ===========================================================================
-  Load Data
-  ===========================================================================
-  */
-
-  const loadConfigurations = useCallback(() => {
-    return dispatch(
-      fetchPaymentConfigurations(query),
-    );
-  }, [dispatch, query]);
-
+  useEffect(() => { loadConfigurations(); }, [loadConfigurations]);
   useEffect(() => {
-    loadConfigurations();
-  }, [loadConfigurations]);
-
-  useEffect(() => {
-    dispatch(
-      fetchPaymentMethods({
-        page: 1,
-        limit: 100,
-        isActive: true,
-      }),
-    );
-
-    dispatch(
-      fetchPaymentProviders({
-        page: 1,
-        limit: 100,
-        isActive: true,
-      }),
-    );
-
-    dispatch(
-      fetchBankAccounts({
-        page: 1,
-        limit: 100,
-        isActive: true,
-      }),
-    );
+    dispatch(fetchPaymentMethods({ page: 1, limit: 100, isActive: true }));
+    dispatch(fetchPaymentProviders({ page: 1, limit: 100, isActive: true }));
+    dispatch(fetchBankAccounts({ page: 1, limit: 100, isActive: true }));
   }, [dispatch]);
 
-  /*
-  ===========================================================================
-  Form Config
-  ===========================================================================
-  */
-
-  const formConfig = useMemo(
-    () =>
-      buildPaymentConfigurationFormConfig({
-        paymentMethods,
-        paymentProviders,
-        bankAccounts,
-      }),
-    [paymentMethods, paymentProviders, bankAccounts],
-  );
-
-  const formFieldErrors = useMemo(
-    () => {
-      if (
-        !fieldErrors
-          ?.configurationType
-      ) {
-        return fieldErrors;
-      }
-
-      return {
-        ...fieldErrors,
-        paymentMethodCode:
-          fieldErrors.configurationType,
-      };
-    },
-    [fieldErrors],
-  );
-
-  /*
-  ===========================================================================
-  Initial Form Data
-  ===========================================================================
-  */
-
-  const formInitialData = useMemo(() => {
-    if (!selectedConfiguration) {
-      return {};
-    }
-
-    return {
-      ...selectedConfiguration,
-
-      providerId: normalizeRelationId(selectedConfiguration.providerId),
-
-      bankAccountIds: normalizeRelationIds(
-        selectedConfiguration.bankAccountIds,
-      ),
-
-      supportedCurrencies: Array.isArray(
-        selectedConfiguration.supportedCurrencies,
-      )
-        ? selectedConfiguration.supportedCurrencies
-        : ["SAR"],
-
-      availableFrom: normalizeDateForForm(selectedConfiguration.availableFrom),
-
-      availableUntil: normalizeDateForForm(
-        selectedConfiguration.availableUntil,
-      ),
-    };
-  }, [selectedConfiguration]);
-
-  /*
-  ===========================================================================
-  Modal Actions
-  ===========================================================================
-  */
-
-  const handleOpenCreate = () => {
-    dispatch(clearPaymentConfigurationError());
-
-    dispatch(clearPaymentConfigurationSuccess());
-
-    setSelectedConfiguration(null);
-
-    setShowFormModal(true);
-  };
-
-  const handleOpenEdit = (configuration) => {
-    dispatch(clearPaymentConfigurationError());
-
-    dispatch(clearPaymentConfigurationSuccess());
-
-    setSelectedConfiguration(configuration);
-
-    setShowFormModal(true);
-  };
-
-  const handleClone = (configuration) => {
-    dispatch(clearPaymentConfigurationError());
-
-    dispatch(clearPaymentConfigurationSuccess());
-
-    const {
-      _id,
-      id,
-      createdAt,
-      updatedAt,
-      createdBy,
-      updatedBy,
-      ...cloneData
-    } = configuration;
-
-    setSelectedConfiguration({
-      ...cloneData,
-
-      providerId: normalizeRelationId(configuration.providerId),
-
-      bankAccountIds: normalizeRelationIds(configuration.bankAccountIds),
-
-      isActive: false,
-    });
-
-    setShowFormModal(true);
-  };
-
-  const handleCloseForm = () => {
-    if (actionLoading) {
-      return;
-    }
-
-    setShowFormModal(false);
-
-    setSelectedConfiguration(null);
-
-    dispatch(clearPaymentConfigurationError());
-  };
-
-  /*
-  ===========================================================================
-  Prepare Payload
-  ===========================================================================
-  */
-
-  const preparePayload = (formState) => {
-    const payload = {
-      ...formState,
-
-      providerId:
-        normalizeRelationId(
-          formState.providerId,
-        ) || null,
-
-      bankAccountIds: Array.isArray(formState.bankAccountIds)
-        ? formState.bankAccountIds
-        : [],
-
-      supportedCurrencies: Array.isArray(formState.supportedCurrencies)
-        ? formState.supportedCurrencies
-        : [],
-
-      minimumAmount:
-        formState.minimumAmount === "" ||
-        formState.minimumAmount === null ||
-        formState.minimumAmount === undefined
-          ? null
-          : Number(formState.minimumAmount),
-
-      maximumAmount:
-        formState.maximumAmount === "" ||
-        formState.maximumAmount === null ||
-        formState.maximumAmount === undefined
-          ? null
-          : Number(formState.maximumAmount),
-
-      sortOrder: Number(formState.sortOrder) || 0,
-
-      availableFrom: formState.availableFrom || null,
-
-      availableUntil: formState.availableUntil || null,
-
-      // إعدادات الدفع الجديدة تكون مفعلة افتراضيًا؛
-      // false الصريحة فقط هي التي تعطل السجل.
-      isActive:
-        formState.isActive !== false,
-
-      requiresAttachment: Boolean(formState.requiresAttachment),
-
-      requiresReference: Boolean(formState.requiresReference),
-    };
-
-    return removeEmptyOptionalStrings(payload);
-  };
-
-  /*
-  ===========================================================================
-  Save
-  ===========================================================================
-  */
-
-  const handleSave = async (formData) => {
-    /*
-    UniversalForm يرجع formState مباشرة عند عدم وجود صور،
-    ويرجع { formState, imageState } عند وجود مرفقات.
-    */
-
-    const rawFormState = formData?.formState || formData;
-
-    const payload = preparePayload(rawFormState);
-
+  const reportError = (err, fallback) => toast.error(handleApiError(err, (message) => message, lang) || fallback);
+  const handleSave = async (data) => {
+    setLoadingSave(true); setFormErrors({});
     try {
-      const configurationId = getItemId(selectedConfiguration);
-
-      if (configurationId) {
-        await dispatch(
-          updatePaymentConfiguration({
-            configurationId,
-            payload,
-          }),
-        ).unwrap();
-      } else {
-        await dispatch(createPaymentConfiguration(payload)).unwrap();
-      }
-
+      const payload = preparePayload(data);
+      if (formMode === "edit") await dispatch(updatePaymentConfiguration({ configurationId: getId(currentItem), payload })).unwrap();
+      else await dispatch(createPaymentConfiguration(payload)).unwrap();
+      toast.success(isArabic ? "تم حفظ إعداد الدفع" : "Payment configuration saved");
+      closeForm(); await loadConfigurations().unwrap();
+    } catch (err) {
+      const errors = err?.errors || err?.data?.errors;
+      if (errors && typeof errors === "object") setFormErrors(errors);
+      reportError(err, isArabic ? "تعذر حفظ إعداد الدفع" : "Failed to save payment configuration");
+    } finally { setLoadingSave(false); }
+  };
+  const handleToggle = async (item) => {
+    try {
+      await dispatch(updatePaymentConfigurationStatus({ configurationId: getId(item), isActive: !item.isActive })).unwrap();
+      toast.success(isArabic ? "تم تحديث حالة الإعداد" : "Configuration status updated");
       await loadConfigurations().unwrap();
-
-      setShowFormModal(false);
-
-      setSelectedConfiguration(null);
-    } catch (saveError) {
-      toast.error(
-        saveError?.message ||
-          (isArabic
-            ? "تعذر حفظ إعداد الدفع"
-            : "Failed to save payment configuration"),
-      );
-    }
+    } catch (err) { reportError(err, isArabic ? "تعذر تحديث الحالة" : "Failed to update status"); }
   };
-
-  /*
-  ===========================================================================
-  Status
-  ===========================================================================
-  */
-
-  const handleToggleStatus = async (configuration) => {
-    const configurationId = getItemId(configuration);
-
-    if (!configurationId) {
-      return;
-    }
-
+  const confirmDelete = async () => {
     try {
-      await dispatch(
-        updatePaymentConfigurationStatus({
-          configurationId,
-
-          isActive: !configuration.isActive,
-        }),
-      ).unwrap();
-
-      loadConfigurations();
-    } catch {
-      // Redux يعرض الخطأ.
-    }
+      await dispatch(deletePaymentConfiguration(deleteModal.id)).unwrap();
+      toast.success(isArabic ? "تم حذف إعداد الدفع" : "Payment configuration deleted");
+      closeDelete(); await loadConfigurations().unwrap();
+    } catch (err) { reportError(err, isArabic ? "تعذر حذف الإعداد" : "Failed to delete configuration"); }
   };
-
-  /*
-  ===========================================================================
-  Delete
-  ===========================================================================
-  */
-
-  const handleConfirmDelete = async () => {
-    const configurationId = getItemId(deleteTarget);
-
-    if (!configurationId) {
-      return;
-    }
-
-    try {
-      await dispatch(deletePaymentConfiguration(configurationId)).unwrap();
-
-      setDeleteTarget(null);
-
-      loadConfigurations();
-    } catch {
-      // Redux يعرض الخطأ.
-    }
+  const sectionLabel = (code) => {
+    const option = PAYMENT_SECTION_OPTIONS.find((item) => item.value === code);
+    return option ? (isArabic ? option.labelAr : option.labelEn) : code || "—";
   };
-
-  /*
-  ===========================================================================
-  Filters
-  ===========================================================================
-  */
-
-  const handleFiltersChange = (
-    nextFilters,
-  ) => {
-    setFilters(nextFilters);
-    setCurrentPage(1);
+  const methodLabel = (item) => {
+    const method = item.paymentMethod || paymentMethods.find((value) => value.code === item.paymentMethodCode);
+    return isArabic ? method?.nameAr || method?.nameEn || item.paymentMethodCode : method?.nameEn || method?.nameAr || item.paymentMethodCode;
   };
-
-  /*
-  ===========================================================================
-  Labels
-  ===========================================================================
-  */
-
-  const getSectionLabel = (sectionCode) => {
-    const section = PAYMENT_SECTION_OPTIONS.find(
-      (item) => item.value === sectionCode,
-    );
-
-    if (!section) {
-      return sectionCode || "—";
-    }
-
-    return isArabic ? section.labelAr : section.labelEn;
+  const typeLabel = (type) => ({ PROVIDER: isArabic ? "مزود دفع" : "Provider", BANK_ACCOUNT: isArabic ? "حساب بنكي" : "Bank account", MANUAL: isArabic ? "يدوي" : "Manual" }[type] || type || "—");
+  const providerLabel = (item) => {
+    const provider = typeof item.providerId === "object" ? item.providerId : paymentProviders.find((value) => String(value._id) === String(item.providerId));
+    return provider ? (isArabic ? provider.nameAr || provider.nameEn || provider.code : provider.nameEn || provider.nameAr || provider.code) : "—";
   };
-
-  const getPaymentMethodLabel = (configuration) => {
-    const populatedMethod = configuration.paymentMethod;
-
-    if (populatedMethod) {
-      return isArabic
-        ? populatedMethod.nameAr ||
-            populatedMethod.nameEn ||
-            populatedMethod.code
-        : populatedMethod.nameEn ||
-            populatedMethod.nameAr ||
-            populatedMethod.code;
-    }
-
-    const method = paymentMethods.find(
-      (item) => item.code === configuration.paymentMethodCode,
-    );
-
-    return isArabic
-      ? method?.nameAr || method?.nameEn || configuration.paymentMethodCode
-      : method?.nameEn || method?.nameAr || configuration.paymentMethodCode;
-  };
-
-  const getConfigurationTypeLabel = (
-    configurationType,
-  ) => {
-    const labels = {
-      PROVIDER: isArabic
-        ? "مزود دفع"
-        : "Provider",
-      BANK_ACCOUNT: isArabic
-        ? "حساب بنكي"
-        : "Bank account",
-      MANUAL: isArabic
-        ? "يدوي"
-        : "Manual",
-    };
-
-    return labels[configurationType] || configurationType || "—";
-  };
-
-  const getProviderLabel = (
-    configuration,
-  ) => {
-    const provider =
-      configuration?.providerId;
-
-    if (!provider) {
-      return "—";
-    }
-
-    if (typeof provider === "string") {
-      const matchedProvider =
-        paymentProviders.find(
-          (item) =>
-            String(item?._id) ===
-            String(provider),
-        );
-
-      if (!matchedProvider) {
-        return provider;
-      }
-
-      return isArabic
-        ? matchedProvider.nameAr ||
-            matchedProvider.nameEn ||
-            matchedProvider.code
-        : matchedProvider.nameEn ||
-            matchedProvider.nameAr ||
-            matchedProvider.code;
-    }
-
-    return isArabic
-      ? provider.nameAr ||
-          provider.nameEn ||
-          provider.code ||
-          "—"
-      : provider.nameEn ||
-          provider.nameAr ||
-          provider.code ||
-          "—";
-  };
-
   const columns = [
-    {
-      header: "#",
-      align: "center",
-      render: (row, index) =>
-        (currentPage - 1) *
-          PAGE_LIMIT +
-        index +
-        1,
-    },
-    {
-      header: isArabic
-        ? "القسم"
-        : "Section",
-      render: (row) => (
-        <div>
-          <div className="fw-semibold">
-            {getSectionLabel(
-              row.sectionCode,
-            )}
-          </div>
-          <small className="text-muted">
-            {row.sectionCode}
-          </small>
-        </div>
-      ),
-    },
-    {
-      header: isArabic
-        ? "طريقة الدفع"
-        : "Payment Method",
-      render: (row) => (
-        <div>
-          <div className="fw-semibold">
-            {getPaymentMethodLabel(
-              row,
-            )}
-          </div>
-          <small className="text-muted">
-            {row.paymentMethodCode}
-          </small>
-        </div>
-      ),
-    },
-    {
-      header: isArabic
-        ? "نوع الإعداد"
-        : "Configuration Type",
-      align: "center",
-      render: (row) => (
-        <Badge bg="secondary">
-          {getConfigurationTypeLabel(
-            row.configurationType,
-          )}
-        </Badge>
-      ),
-    },
-    {
-      header: isArabic
-        ? "مزود الدفع"
-        : "Payment Provider",
-      render: (row) => (
-        <div>
-          <div className="fw-semibold">
-            {getProviderLabel(row)}
-          </div>
-          {row.providerId?.code && (
-            <small className="text-muted">
-              {row.providerId.code}
-            </small>
-          )}
-        </div>
-      ),
-    },
-    {
-      header: isArabic
-        ? "العملات"
-        : "Currencies",
-      render: (row) => (
-        <div className="d-flex flex-wrap justify-content-center gap-1">
-          {Array.isArray(
-            row.supportedCurrencies,
-          ) &&
-          row.supportedCurrencies.length ? (
-            row.supportedCurrencies.map(
-              (currency) => (
-                <Badge
-                  bg="info"
-                  text="dark"
-                  key={currency}
-                >
-                  {currency}
-                </Badge>
-              ),
-            )
-          ) : (
-            <span className="text-muted">
-              —
-            </span>
-          )}
-        </div>
-      ),
-    },
-    {
-      header: isArabic
-        ? "الترتيب"
-        : "Order",
-      align: "center",
-      render: (row) =>
-        row.sortOrder ?? 0,
-    },
-    {
-      header: isArabic
-        ? "الحالة"
-        : "Status",
-      align: "center",
-      render: (row) => (
-        <div className="d-flex flex-column align-items-center gap-1">
-          <Badge
-            bg={
-              row.isActive
-                ? "success"
-                : "secondary"
-            }
-          >
-            {row.isActive
-              ? isArabic
-                ? "مفعّل"
-                : "Active"
-              : isArabic
-                ? "غير مفعّل"
-                : "Inactive"}
-          </Badge>
-          <Form.Check
-            type="switch"
-            checked={Boolean(
-              row.isActive,
-            )}
-            disabled={actionLoading}
-            onChange={() =>
-              handleToggleStatus(
-                row,
-              )
-            }
-          />
-        </div>
-      ),
-    },
-    {
-      header: isArabic
-        ? "الإجراءات"
-        : "Actions",
-      align: "center",
-      render: (row) => (
-        <div className="d-flex justify-content-center gap-1">
-          <ActionButton
-            action="edit"
-            onClick={() =>
-              handleOpenEdit(row)
-            }
-          />
-          <ActionButton
-            action="clone"
-            onClick={() =>
-              handleClone(row)
-            }
-          />
-          <ActionButton
-            action="view"
-            onClick={() =>
-              setDetailsConfiguration(
-                row,
-              )
-            }
-          />
-          <ActionButton
-            action="delete"
-            onClick={() =>
-              setDeleteTarget(row)
-            }
-          />
-        </div>
-      ),
-    },
+    { header: "#", align: "center", render: (_row, index) => (currentPage - 1) * pageLimit + index + 1 },
+    { header: isArabic ? "القسم" : "Section", render: (row) => <><strong>{sectionLabel(row.sectionCode)}</strong><div className="small text-muted">{row.sectionCode}</div></> },
+    { header: isArabic ? "طريقة الدفع" : "Payment method", render: (row) => <><strong>{methodLabel(row)}</strong><div className="small text-muted">{row.paymentMethodCode}</div></> },
+    { header: isArabic ? "نوع الإعداد" : "Type", align: "center", render: (row) => <StatusBadge value={typeLabel(row.configurationType)} isArabic={isArabic} /> },
+    { header: isArabic ? "المزود" : "Provider", render: providerLabel },
+    { header: isArabic ? "العملات" : "Currencies", render: (row) => (row.supportedCurrencies || []).join(", ") || "—" },
+    { header: isArabic ? "الحالة" : "Status", align: "center", render: (row) => <StatusBadge value={row.isActive ? "active" : "inactive"} type="user" isArabic={isArabic} /> },
+    { header: isArabic ? "الإجراءات" : "Actions", align: "center", render: (row) => <div className="d-flex justify-content-center gap-1">
+      <ActionButton action="edit" onClick={() => openEdit(prepareForForm(row))} />
+      <ActionButton action="clone" onClick={() => openClone(prepareClone(row))} />
+      <ActionButton action="view" onClick={() => openDetails(row)} />
+      <ActionButton action={row.isActive ? "deactivate" : "activate"} disabled={actionLoading} onClick={() => handleToggle(row)} />
+      <ActionButton action="delete" onClick={() => openDelete(row, methodLabel(row))} />
+    </div> },
   ];
+  const filterConfig = {
+    search: { type: "text", col: 4, placeholder: isArabic ? "البحث بالاسم أو الطريقة" : "Search name or method" },
+    sectionCode: { type: "select", col: 2, placeholder: isArabic ? "القسم" : "Section", options: PAYMENT_SECTION_OPTIONS },
+    paymentMethodCode: { type: "select", col: 2, placeholder: isArabic ? "طريقة الدفع" : "Payment method", options: paymentMethods.filter(isPaymentMethodAvailableForConfiguration).map((method) => ({ value: method.code, labelAr: method.nameAr || method.nameEn || method.code, labelEn: method.nameEn || method.nameAr || method.code })) },
+    configurationType: { type: "select", col: 2, placeholder: isArabic ? "نوع الإعداد" : "Type", options: [{ value: "PROVIDER", labelAr: "مزود دفع", labelEn: "Provider" }, { value: "BANK_ACCOUNT", labelAr: "حساب بنكي", labelEn: "Bank Account" }, { value: "MANUAL", labelAr: "يدوي", labelEn: "Manual" }] },
+    isActive: { type: "select", col: 2, placeholder: isArabic ? "الحالة" : "Status", options: [{ value: "true", labelAr: "مفعّل", labelEn: "Active" }, { value: "false", labelAr: "غير مفعّل", labelEn: "Inactive" }] },
+  };
 
-  /*
-  ===========================================================================
-  Render
-  ===========================================================================
-  */
-
-  return (
-    <div className="container-fluid py-4">
-      <PageHeader
-        title={isArabic ? "إعدادات الدفع" : "Payment configurations"}
-        subtitle={
-          isArabic
-            ? "ربط طرق الدفع بالأقسام ومزودي الخدمات والحسابات البنكية"
-            : "Connect payment methods with sections, providers and bank accounts"
-        }
-        actions={
-          <Button variant="primary" onClick={handleOpenCreate}>
-            {isArabic ? "إضافة إعداد دفع" : "Add payment configuration"}
-          </Button>
-        }
-      />
-
-      {successMessage && (
-        <Alert
-          variant="success"
-          dismissible
-          onClose={() => dispatch(clearPaymentConfigurationSuccess())}
-        >
-          {successMessage}
-        </Alert>
-      )}
-
-      {error && (
-        <Alert
-          variant="danger"
-          dismissible
-          onClose={() => dispatch(clearPaymentConfigurationError())}
-        >
-          {error}
-        </Alert>
-      )}
-
-      {/* ===============================================================
-          Filters
-      =============================================================== */}
-
-      <EntityFilter
-        filters={filters}
-        setFilters={
-          handleFiltersChange
-        }
-        config={{
-          search: {
-            type: "text",
-            col: 4,
-            placeholder: isArabic
-              ? "البحث بالاسم أو الطريقة"
-              : "Search name or method",
-          },
-          sectionCode: {
-            type: "select",
-            col: 2,
-            placeholder: isArabic
-              ? "القسم"
-              : "Section",
-            options:
-              PAYMENT_SECTION_OPTIONS,
-          },
-          paymentMethodCode: {
-            type: "select",
-            col: 2,
-            placeholder: isArabic
-              ? "طريقة الدفع"
-              : "Payment Method",
-            options:
-              paymentMethods
-                .filter(
-                  isPaymentMethodAvailableForConfiguration,
-                )
-                .map((method) => ({
-                  value:
-                    method.code,
-                  labelAr:
-                    method.nameAr ||
-                    method.nameEn ||
-                    method.code,
-                  labelEn:
-                    method.nameEn ||
-                    method.nameAr ||
-                    method.code,
-                })),
-          },
-          configurationType: {
-            type: "select",
-            col: 2,
-            placeholder: isArabic
-              ? "نوع الإعداد"
-              : "Configuration Type",
-            options: [
-              {
-                value: "PROVIDER",
-                labelAr: "مزود دفع",
-                labelEn: "Provider",
-              },
-              {
-                value:
-                  "BANK_ACCOUNT",
-                labelAr:
-                  "حساب بنكي",
-                labelEn:
-                  "Bank Account",
-              },
-              {
-                value: "MANUAL",
-                labelAr: "يدوي",
-                labelEn: "Manual",
-              },
-            ],
-          },
-          isActive: {
-            type: "select",
-            col: 2,
-            placeholder: isArabic
-              ? "حالة التفعيل"
-              : "Active Status",
-            options: [
-              {
-                value: "true",
-                labelAr: "مفعّل",
-                labelEn: "Active",
-              },
-              {
-                value: "false",
-                labelAr:
-                  "غير مفعّل",
-                labelEn:
-                  "Inactive",
-              },
-            ],
-          },
-        }}
-      />
-
-      {/* ===============================================================
-          Table
-      =============================================================== */}
-
-      <Card className="border-0 shadow-sm rounded-4">
-        <Card.Body className="p-0">
-          {loading ? (
-            <div className="text-center py-5">
-              <Spinner />
-
-              <div className="mt-3">
-                {isArabic
-                  ? "جارٍ تحميل إعدادات الدفع..."
-                  : "Loading payment configurations..."}
-              </div>
-            </div>
-          ) : (
-            <UniversalTable
-              columns={columns}
-              data={configurations}
-              lang={
-                isArabic
-                  ? "ar"
-                  : "en"
-              }
-              emptyMessage={
-                isArabic
-                  ? "لا توجد إعدادات دفع"
-                  : "No payment configurations found"
-              }
-            />
-          )}
-        </Card.Body>
-
-        {pagination.totalPages > 1 && (
-          <Card.Footer className="bg-white">
-            <div className="d-flex justify-content-between align-items-center">
-              <Button
-                variant="outline-secondary"
-                disabled={currentPage <= 1 || loading}
-                onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
-              >
-                {isArabic ? "السابق" : "Previous"}
-              </Button>
-
-              <span>
-                {isArabic
-                  ? `الصفحة ${currentPage} من ${pagination.totalPages}`
-                  : `Page ${currentPage} of ${pagination.totalPages}`}
-              </span>
-
-              <Button
-                variant="outline-secondary"
-                disabled={currentPage >= pagination.totalPages || loading}
-                onClick={() => setCurrentPage((page) => page + 1)}
-              >
-                {isArabic ? "التالي" : "Next"}
-              </Button>
-            </div>
-          </Card.Footer>
-        )}
-      </Card>
-
-      <EntityDetailsModal
-        show={Boolean(
-          detailsConfiguration,
-        )}
-        onHide={() =>
-          setDetailsConfiguration(
-            null,
-          )
-        }
-        title={
-          isArabic
-            ? "تفاصيل إعداد الدفع"
-            : "Payment Configuration Details"
-        }
-        fields={
-          detailsConfiguration
-            ? [
-                {
-                  label: isArabic
-                    ? "القسم"
-                    : "Section",
-                  value:
-                    getSectionLabel(
-                      detailsConfiguration.sectionCode,
-                    ),
-                },
-                {
-                  label: isArabic
-                    ? "طريقة الدفع"
-                    : "Payment Method",
-                  value:
-                    getPaymentMethodLabel(
-                      detailsConfiguration,
-                    ),
-                },
-                {
-                  label: isArabic
-                    ? "نوع الإعداد"
-                    : "Configuration Type",
-                  value:
-                    getConfigurationTypeLabel(
-                      detailsConfiguration.configurationType,
-                    ),
-                },
-                {
-                  label: isArabic
-                    ? "مزود الدفع"
-                    : "Payment Provider",
-                  value:
-                    getProviderLabel(
-                      detailsConfiguration,
-                    ),
-                },
-                {
-                  label: isArabic
-                    ? "العملات"
-                    : "Currencies",
-                  value:
-                    detailsConfiguration.supportedCurrencies?.join(
-                      ", ",
-                    ) || "—",
-                },
-                {
-                  label: isArabic
-                    ? "الترتيب"
-                    : "Order",
-                  value:
-                    detailsConfiguration.sortOrder ??
-                    0,
-                },
-                {
-                  label: isArabic
-                    ? "الحالة"
-                    : "Status",
-                  value:
-                    detailsConfiguration.isActive
-                      ? isArabic
-                        ? "مفعّل"
-                        : "Active"
-                      : isArabic
-                        ? "غير مفعّل"
-                        : "Inactive",
-                },
-              ]
-            : []
-        }
-      />
-
-      {/* ===============================================================
-          Form Modal
-      =============================================================== */}
-
-      <UniversalFormModal
-        show={showFormModal}
-        onHide={handleCloseForm}
-        onSave={handleSave}
-        config={formConfig}
-        initialData={formInitialData}
-        errors={formFieldErrors}
-        loading={actionLoading}
-        titleAr={
-          getItemId(selectedConfiguration)
-            ? "تعديل إعداد الدفع"
-            : "إضافة إعداد دفع"
-        }
-        titleEn={
-          getItemId(selectedConfiguration)
-            ? "Edit payment configuration"
-            : "Create payment configuration"
-        }
-      />
-
-      {/* ===============================================================
-          Delete Confirmation
-      =============================================================== */}
-
-      <ConfirmDialog
-        show={Boolean(deleteTarget)}
-        onHide={() => setDeleteTarget(null)}
-        onConfirm={handleConfirmDelete}
-        loading={actionLoading}
-        title={isArabic ? "حذف إعداد الدفع" : "Delete payment configuration"}
-        message={
-          isArabic
-            ? "هل أنت متأكد من حذف إعداد الدفع؟"
-            : "Are you sure you want to delete this payment configuration?"
-        }
-      />
-    </div>
-  );
+  return <div className="container-fluid py-4">
+    <PageHeader titleAr="إعدادات الدفع" titleEn="Payment Configurations" subtitleAr="ربط طرق الدفع بالأقسام والمزودين والحسابات البنكية" subtitleEn="Assign payment methods to sections, providers, and bank accounts" actions={<AdminPageActions><ActionButton action="add" showLabel label={isArabic ? "إضافة إعداد دفع" : "Add Configuration"} onClick={openCreate} /></AdminPageActions>} />
+    <EntityFilter filters={filters} setFilters={(next) => { setFilters(next); setCurrentPage(1); }} config={filterConfig} />
+    <LoadingOverlay show={loading} text={isArabic ? "جارٍ تحميل إعدادات الدفع..." : "Loading payment configurations..."} />
+    <ErrorOverlay show={Boolean(error)} message={error?.message || error} />
+    <UniversalTable columns={columns} data={configurations} lang={lang} emptyMessage={isArabic ? "لا توجد إعدادات دفع" : "No payment configurations found"} />
+    <PaginationComponent total={pagination.total || 0} page={pagination.page || currentPage} limit={pagination.limit || pageLimit} totalPages={pagination.totalPages || 0} onPageChange={setCurrentPage} onLimitChange={(limit) => { setPageLimit(limit); setCurrentPage(1); }} />
+    <UniversalFormModal show={showModal} onHide={closeForm} onSave={handleSave} config={formConfig} initialData={currentItem || {}} errors={mergedErrors} loading={loadingSave || actionLoading} titleAr={formMode === "edit" ? "تعديل إعداد الدفع" : formMode === "clone" ? "نسخ إعداد الدفع" : "إضافة إعداد دفع"} titleEn={formMode === "edit" ? "Edit Payment Configuration" : formMode === "clone" ? "Clone Payment Configuration" : "Create Payment Configuration"} />
+    <EntityDetailsModal show={showDetails} onHide={closeDetails} title={isArabic ? "تفاصيل إعداد الدفع" : "Payment Configuration Details"} entity={currentItem} fields={[
+      { label: isArabic ? "القسم" : "Section", value: sectionLabel(currentItem?.sectionCode) },
+      { label: isArabic ? "طريقة الدفع" : "Payment method", value: currentItem ? methodLabel(currentItem) : "—" },
+      { label: isArabic ? "نوع الإعداد" : "Type", value: typeLabel(currentItem?.configurationType) },
+      { label: isArabic ? "مزود الدفع" : "Provider", value: currentItem ? providerLabel(currentItem) : "—" },
+      { label: isArabic ? "العملات" : "Currencies", value: (currentItem?.supportedCurrencies || []).join(", ") || "—" },
+      { label: isArabic ? "الحالة" : "Status", value: currentItem?.isActive ? (isArabic ? "مفعّل" : "Active") : (isArabic ? "غير مفعّل" : "Inactive") },
+    ]} />
+    <ConfirmDialog show={deleteModal.show} onHide={closeDelete} onConfirm={confirmDelete} loading={actionLoading} title={isArabic ? "حذف إعداد الدفع" : "Delete Payment Configuration"} message={isArabic ? `هل أنت متأكد من حذف ${deleteModal.name}؟` : `Are you sure you want to delete ${deleteModal.name}?`} confirmText={isArabic ? "نعم، احذف" : "Yes, Delete"} cancelText={isArabic ? "إلغاء" : "Cancel"} variant="delete" />
+  </div>;
 }

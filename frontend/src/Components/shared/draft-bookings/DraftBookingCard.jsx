@@ -1,4 +1,6 @@
 import StatusBadge from "../common/StatusBadge";
+import ActionButton from "../../common/buttons/ActionButton";
+import { formatDate } from "../../../Utils/dateUtils";
 
 export default function DraftBookingCard({
   draft,
@@ -30,7 +32,7 @@ export default function DraftBookingCard({
           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
             <MiniInfo
               label={t("createdAt", "تاريخ الإنشاء")}
-              value={formatDate(draft.createdAt)}
+              value={formatDate(draft.createdAt, { isArabic })}
             />
 
             <MiniInfo
@@ -45,13 +47,13 @@ export default function DraftBookingCard({
           </div>
         </div>
 
-        <button
-          type="button"
+        <ActionButton
+          action="view"
           onClick={onView}
-          className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
-        >
-          {t("viewDraft", "عرض المسودة")}
-        </button>
+          showLabel
+          label={t("viewDraft", "عرض المسودة")}
+          size="lg"
+        />
       </div>
     </div>
   );
@@ -65,7 +67,7 @@ function MiniInfo({ label, value }) {
       </p>
 
       <p className="mt-1 font-bold text-slate-900">
-        {value || "-"}
+        {value ?? "-"}
       </p>
     </div>
   );
@@ -75,14 +77,4 @@ function getProgramName(draft, isArabic) {
   return isArabic
     ? draft.program?.nameAr || draft.program?.nameEn
     : draft.program?.nameEn || draft.program?.nameAr;
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "-";
-
-  return date.toLocaleDateString("en-CA");
 }

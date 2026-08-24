@@ -1,3 +1,5 @@
+import PublicSectionCard from "../../layout/PublicSectionCard";
+
 export default function DraftSelectedProductsCard({
   title,
   items = [],
@@ -6,11 +8,7 @@ export default function DraftSelectedProductsCard({
   if (!items.length) return null;
 
   return (
-    <section className="rounded-2xl bg-white p-6 shadow-sm border border-slate-100">
-      <h2 className="mb-5 text-xl font-bold text-slate-900">
-        {title}
-      </h2>
-
+    <PublicSectionCard title={title}>
       <div className="space-y-3">
         {items.map((item, index) => (
           <div
@@ -36,7 +34,7 @@ export default function DraftSelectedProductsCard({
 
               <strong className="text-sm text-emerald-700">
                 {Number(item.priceAtTime || 0).toLocaleString(
-                  isArabic ? "ar-SA" : "en-US"
+                  isArabic ? "en-US" : "en-US"
                 )}{" "}
                 {item.currency || "SAR"}
               </strong>
@@ -44,7 +42,7 @@ export default function DraftSelectedProductsCard({
           </div>
         ))}
       </div>
-    </section>
+    </PublicSectionCard>
   );
 }
 
@@ -53,3 +51,4 @@ function getItemName(item, isArabic) {
     ? item.nameAr || item.name?.ar || item.nameEn || item.name || "-"
     : item.nameEn || item.name?.en || item.nameAr || item.name || "-";
 }
+

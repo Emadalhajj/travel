@@ -39,7 +39,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const publicAuthPaths = ["/login", "/register", "/forgot-password", "/reset-password", "/auth/google/exchange"];
+    const requestPath = String(error.config?.url || "");
+    const isPublicAuthRequest = publicAuthPaths.some((path) => requestPath.includes(path));
+    if (error.response?.status === 401 && !isPublicAuthRequest) {
       console.warn("⚠️ Unauthorized - Logging out...");
       localStorage.removeItem("currentUser");
       localStorage.removeItem("token");

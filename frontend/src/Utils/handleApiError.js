@@ -60,6 +60,7 @@ export const handleApiError = (
 
   const message =
     response?.message ||
+    (typeof err === "string" ? err : null) ||
     err?.message ||
     (isArabic
       ? "حدث خطأ غير متوقع"

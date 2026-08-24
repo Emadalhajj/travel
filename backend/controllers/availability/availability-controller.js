@@ -26,6 +26,7 @@ import Inventory from "../../models/inventory-model.js";
 import ExtraService from "../../models/extra-services/extra-service-model.js";
 import {
   checkInventoryForWholePeriod,
+  filterProductsByInventory,
   filterProductsByAvailabilityPolicy,
 } from "../../services/availability/inventory-availability-service.js";
 
@@ -189,11 +190,9 @@ const getAvailableRoomTypes = async ({
       startDate,
       endDate,
     });
-console.log("MATCHED PERIOD:", matchedSellablePeriod);
     if (!matchedSellablePeriod) {
-  console.log("❌ Room not sellable in this program period");
-  continue;
-}
+      continue;
+    }
 
     const inventoryAvailability = await checkInventoryForWholePeriod({
       Inventory,
@@ -203,12 +202,9 @@ console.log("MATCHED PERIOD:", matchedSellablePeriod);
       endDate,
       requestedQuantity: requestedRooms,
     });
-    console.log("INVENTORY RESULT:", inventoryAvailability);
-
     if (!inventoryAvailability.isAvailable) {
-  console.log("❌ Inventory not enough or missing");
-  continue;
-}
+      continue;
+    }
 
     result.push(
       mapRoomTypeProduct({
@@ -225,53 +221,6 @@ console.log("MATCHED PERIOD:", matchedSellablePeriod);
 
   return result;
 };
-// const getAvailableRoomTypes = async ({
-//   startDate,
-//   endDate,
-//   requestedRooms = 1,
-// }) => {
-//   const roomTypes = await RoomType.find({
-//     isActive: true,
-//     isDeleted: { $ne: true },
-//   })
-//     .populate("hotel")
-//     .lean();
-
-//   const result = [];
-
-//   for (const roomType of roomTypes) {
-//     const availability = await checkInventoryForWholePeriod({
-//       Inventory,
-//       inventoryType: "roomType",
-//       itemId: roomType._id,
-//       startDate,
-//       endDate,
-//       requestedQuantity: requestedRooms,
-//     });
-//     console.log("ROOM AVAILABILITY CHECK:", {
-//       roomTypeId: roomType._id.toString(),
-//       roomName: roomType.nameAr,
-//       startDate,
-//       endDate,
-//       availability,
-//     });
-//     if (!availability.isAvailable) continue;
-
-//     result.push(
-//       mapRoomTypeProduct({
-//         roomType,
-//         availableCount: availability.minAvailable,
-//         extra: {
-//           availabilityReason: availability.reason,
-//           isAlwaysAvailable: false,
-//         },
-//       }),
-//     );
-//   }
-
-//   return result;
-// };
-
 /*
 =====================================================
 Hotels From Available Rooms
@@ -333,7 +282,6 @@ const getAvailableVisas = async ({ startDate, endDate, pilgrimsCount = 1 }) => {
     endDate,
     requestedQuantity: pilgrimsCount,
     mapProduct,
-    forceAlwaysAvailable: true,
   });
 };
 
@@ -353,38 +301,28 @@ const getAvailableTrips = async ({ startDate, endDate, pilgrimsCount = 1 }) => {
 
   const normalizedStartDate = normalizeDate(startDate);
   const normalizedEndDate = normalizeDate(endDate);
-
-  return trips
-    .filter((trip) => {
+  const tripsInPeriod = trips.filter((trip) => {
       const tripStartDate = normalizeDate(trip.startDate);
-      const totalSeats = getNumber(trip.capacity?.totalSeats);
-      const availableSeats = getNumber(trip.capacity?.availableSeats);
-
       if (!tripStartDate) return false;
-      if (
-        tripStartDate < normalizedStartDate ||
-        tripStartDate >= normalizedEndDate
-      ) {
-        return false;
-      }
+      return tripStartDate >= normalizedStartDate && tripStartDate < normalizedEndDate;
+    });
 
-      return totalSeats <= 0 || availableSeats >= pilgrimsCount;
-    })
-    .map((trip) =>
-      mapProduct({
-        doc: trip,
-        type: "trip",
-        availableCount:
-          getNumber(trip.capacity?.totalSeats) > 0
-            ? getNumber(trip.capacity?.availableSeats)
-            : null,
-        extra: {
-          startDate: trip.startDate,
-          capacity: trip.capacity,
-          availabilityReason: "TRIP_DATE_IN_PERIOD",
-        },
-      }),
-    );
+  return filterProductsByInventory({
+    products: tripsInPeriod,
+    Inventory,
+    inventoryType: "trip",
+    startDate,
+    endDate,
+    requestedQuantity: pilgrimsCount,
+    mapProduct: (args) => mapProduct({
+      ...args,
+      extra: {
+        ...args.extra,
+        startDate: args.doc.startDate,
+        capacity: args.doc.capacity,
+      },
+    }),
+  });
 };
 
 /*
@@ -412,7 +350,6 @@ const getAvailableTransports = async ({
     endDate,
     requestedQuantity: pilgrimsCount,
     mapProduct,
-    forceAlwaysAvailable: true,
   });
 };
 /*
@@ -445,7 +382,6 @@ const getAvailableExtraServices = async ({
     endDate,
     requestedQuantity: pilgrimsCount,
     mapProduct,
-    forceAlwaysAvailable: true,
   });
 };
 

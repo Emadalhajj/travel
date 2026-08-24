@@ -19,6 +19,7 @@ import {
 import {
   markDraftPendingPaymentReviewService,
 } from "../draft-bookings/draft-booking-service.js";
+import { sendBankTransferSubmittedNotification } from "../notifications/payment-notification-service.js";
 
 /*
 =============================================================================
@@ -64,6 +65,7 @@ export const submitBankTransferProofService =
     transferReference,
     uploadedFiles = [],
     userId = null,
+    req = null,
   }) => {
     const proofAttachments =
       normalizeUploadedFiles(
@@ -83,6 +85,8 @@ export const submitBankTransferProofService =
         draftId: transaction.draftBooking,
       });
     }
+
+    await sendBankTransferSubmittedNotification({ transaction, req });
 
     return {
       transactionId:

@@ -29,9 +29,11 @@ import {
   applyPaymentSummaryToBooking,
 } from "../../services/payment/paymentTransaction-service.js";
 
-import Notification from "../../models/notification-model.js";
-import { sendNotification } from "../../services/notifications/notification-service.js";
-import { sendPaymentReceivedNotification } from "../../services/notifications/booking-notification-service.js";
+import { sendPaymentReceivedNotification } from "../../services/notifications/payment-notification-service.js";
+import {
+  LEGACY_PAYMENT_TRANSACTION_STATUSES,
+  PAYMENT_TRANSACTION_STATUSES,
+} from "../../constants/payments/payment-transaction-statuses.js";
 
 /*
 =====================================================
@@ -78,13 +80,17 @@ export const createPaymentTransaction = asyncHandler(async (req, res) => {
       transaction.booking,
     );
 
-    if (booking) {
+    if (
+      booking &&
+      [
+        PAYMENT_TRANSACTION_STATUSES.SUCCESS,
+        LEGACY_PAYMENT_TRANSACTION_STATUSES.PAID,
+      ].includes(transaction.status)
+    ) {
       await sendPaymentReceivedNotification({
-        Notification,
+        transaction,
         booking,
-        amount: transaction.amount,
         req,
-        sendNotification,
       });
     }
   } catch (notificationError) {

@@ -18,8 +18,17 @@ export const convertToNumber = (value) => {
   return isNaN(num) ? value : num;
 };
 
+export const convertTimeToMinutes = (value) => {
+  if (value === "" || value === null || value === undefined) return value;
+  if (typeof value === "number") return value;
+  if (!/^\d{2}:\d{2}$/.test(value)) return value;
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
 export const convertValueByType = (value, type) => {
   if (type === "number") return convertToNumber(value);
+  if (type === "time") return convertTimeToMinutes(value);
   if (type === "checkbox") return convertToBoolean(value);
   return value;
 };

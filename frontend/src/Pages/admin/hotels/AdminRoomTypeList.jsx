@@ -9,35 +9,9 @@ import {
   setLimit,
 } from "../../../redux/hotels/roomtypeSlice";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
-import {
-  PlusCircle,
-  Edit,
-  Trash2,
-  Eye,
-  Bed,
-  Users,
-  DollarSign,
-  Image as ImageIcon,
-  Ruler,
-  Calendar,
-} from "lucide-react";
-import { motion } from "framer-motion";
-import { formatImagePath } from "../../../Utils/imageUtils";
-
-import {
-  Table,
-  Button,
-  Spinner,
-  Alert,
-  Image,
-  Badge,
-  Modal,
-} from "react-bootstrap";
 import { toast } from "react-toastify";
-import { RoomTypeModalForm } from "../../../Components/common/ModalForms/hotel/RoomTypeModalForm";
 import { useTranslation } from "react-i18next";
 import TruncatedText from "../../../Components/common/TruncatedText";
-import { hotelFormConfig } from "../../../Components/common/ModalForms/hotel/hotelFormConfig";
 import { buildQuery } from "../../../Utils/buildQuery";
 import { normalizeForForm } from "../../../Utils/formData/normalize";
 import { createHandleSave } from "../../../Utils/formData/createHandleSave";
@@ -46,17 +20,19 @@ import ExportTableButtons from "../../../Components/common/buttons/ExportTableBu
 import ActionButton from "../../../Components/common/buttons/ActionButton";
 import { Link } from "react-router-dom";
 import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
+import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import EntityFilter from "../../../Components/common/EntityFilter";
 import PaginationComponent from "../../../Components/common/Pagination";
 import EntityDetailsModal from "../../../Components/common/cards/EntityDetailsModal";
-// import UniversalFormModal from "../../../Components/common/ModalForms/UniversalFormModal";
-
 import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
-import UniversalCardsContainer from "../../../Components/common/cards/UniversalCardsContainer";
 import UniversalTable from "../../../Components/common/tables/UniversalTable";
 import ImagePreviewCell from "../../../Components/common/tables/ImagePreviewCell";
 import { roomTypeFormConfig } from "../../../Components/common/ModalForms/hotel/roomTypeFormConfig";
 import { fetchHotels } from "../../../redux/hotels/hotelSlice";
+import StatusBadge from "../../../Components/shared/common/StatusBadge";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
+import { handleApiError } from "../../../Utils/handleApiError";
+import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
 
 export default function AdminRoomTypeList() {
   const dispatch = useDispatch();
@@ -66,28 +42,13 @@ export default function AdminRoomTypeList() {
     error,
     pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
   } = useSelector((state) => state.roomTypes || {});
-  // console.log("roomTypestype room", roomTypes);
-  //fetch hotel
   const { hotelslist: hotels = [] } = useSelector(
     (state) => state.hotels || {},
   );
 
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
 
-  //   const defaultTitle =
-  //     lang === "ar" ? "إضافة نوع غرفة جديد" : "Add New Room Type";
-
-  const [showModal, setShowModal] = useState(false);
-  const [currentTypeRoom, setCurrentTypeRoom] = useState(null);
-  const [formModel, setFormModel] = useState("create");
-  const [showDetails, setShowDetails] = useState(false);
-  const [deleteModal, setDeleteModal] = useState({
-    show: false,
-    id: null,
-    name: "",
-  });
-  const [loadingSave, setLoadingSave] = useState(false);
 
   const [filters, setFilters] = useState({
     search: "",
@@ -96,98 +57,78 @@ export default function AdminRoomTypeList() {
     sort: "", // مهم: يجب أن يأخذ قيم مثل "basePrice_desc"
   });
 
-  const [formErrors, setFormErrors] = useState({});
   const memoizedConfig = useMemo(() => roomTypeFormConfig(hotels), [hotels]);
-  // ================= fetch ===================
+  const listQuery = useMemo(
+    () => buildQuery(filters, { page: pagination.page, limit: pagination.limit }),
+    [filters, pagination.page, pagination.limit],
+  );
+  const prepareRoomType = (roomType) => ({
+    ...normalizeForForm(roomType, memoizedConfig),
+    hotel:
+      typeof roomType.hotel === "object"
+        ? roomType.hotel?._id
+        : roomType.hotel,
+  });
+  const {
+    showModal,
+    showDetails,
+    currentItem: currentTypeRoom,
+    formMode: formModel,
+    formErrors,
+    loadingSave,
+    deleteModal,
+    openCreate: openCreateModal,
+    openEdit: openEditModal,
+    openClone: openCloneModal,
+    openDetails,
+    openDelete,
+    closeForm,
+    closeDetails,
+    closeDelete,
+    resetForm,
+    setFormErrors,
+    setLoadingSave,
+  } = useAdminEntityCrudState({
+    prepareForForm: prepareRoomType,
+    prepareClone: (roomType, normalized) => ({
+      ...normalized,
+      _id: null,
+      nameAr: `${roomType.nameAr} (نسخة)`,
+      nameEn: `${roomType.nameEn} (Copy)`,
+    }),
+  });
   useEffect(() => {
-    //   // 1. تنظيف الفلاتر - إزالة الفارغة
-    //  const filteredEntries = Object.entries(filters)
-    //  .filter(([_ , v])=> v !== "") // ← احتفظ فقط بقيم غير فارغة
-    //    // 2. تحويل إلى كائن
-    //    const filteredObject = Object.fromEntries(filteredEntries)
-    //      // 3. إنشاء Query String
-    //    const query = new URLSearchParams(filteredObject)
-    //     // 4. إضافة معاملات الصفحة
-    //     query.append("page" , pagination.page)
-    //     query.append("limit" , pagination.limit)
-    //   // 5. إرسال الطلب
-    //   dispatch(fetchRoomTypes(query))
-    const query = buildQuery(filters, pagination);
-    dispatch(fetchRoomTypes(query));
-  }, [filters, dispatch, pagination.page, pagination.limit]);
-  //fetch hotel
+    dispatch(fetchRoomTypes(listQuery));
+  }, [dispatch, listQuery]);
   useEffect(() => {
     dispatch(fetchHotels({ page: 1, limit: 1000 }));
   }, [dispatch]);
-  /* ================================
-     Modal Handlers  
-  ================================= */
-  const openCreateModal = () => {
-    setFormModel("create");
-    setCurrentTypeRoom(null);
-    setShowModal(true);
-    setFormErrors({});
-  };
-  const openEditModal = (roomtyple) => {
-    const normalizedRoomType = normalizeForForm(roomtyple, memoizedConfig);
-    setFormModel("edit");
-    setCurrentTypeRoom({
-      ...normalizedRoomType,
-      hotel:
-        typeof roomtyple.hotel === "object"
-          ? roomtyple.hotel?._id
-          : roomtyple.hotel,
-    });
-    setShowModal(true);
-    setShowModal(true);
-    setFormErrors({});
-  };
-  const openCloneModal = (roomtyple) => {
-    const normalizedRoomType = normalizeForForm(roomtyple, memoizedConfig);
-
-    setFormModel("colne");
-    setCurrentTypeRoom({
-      ...normalizedRoomType,
-      _id: null,
-      hotel:
-        typeof roomtyple.hotel === "object"
-          ? roomtyple.hotel?._id
-          : roomtyple.hotel,
-      nameAr: `${roomtyple.nameAr} (نخسة)`,
-      nameEn: `${roomtyple.nameEn} (نخسة)`,
-    });
-    setShowModal(true);
-  };
-  // =============== svaing handle ============
   const handleSave = createHandleSave({
     dispatch,
     createAction: createRoomType,
     updateAction: updateRoomType,
-    fetchAction: fetchRoomTypes,
+    fetchAction: () => fetchRoomTypes(listQuery),
     getId: (item) => item._id,
     formConfig: memoizedConfig,
     toast,
     lang,
-    closeModal: () => setShowModal(false),
-    resetItem: () => setCurrentTypeRoom(null),
-    resetMode: () => setFormModel("create"),
+    closeModal: closeForm,
+    resetItem: resetForm,
     setLoading: setLoadingSave,
-    // setLoading,
     setFormErrors,
   });
 
-  //=========== handle delete ============
   const confirmDelete = async () => {
     try {
       await dispatch(deleteRoomType(deleteModal.id)).unwrap();
       toast.success(lang === "ar" ? "تم الحذف بنجاح" : "Deleted successfully");
-    } catch {
-      toast.error("حدث خطأ أثناء الحذف");
+      dispatch(fetchRoomTypes(listQuery));
+    } catch (err) {
+      toast.error(handleApiError(err, (message) => message, lang));
     } finally {
-      setDeleteModal({ show: false, id: null, name: "" });
+      closeDelete();
     }
   };
-  //======== columns table ===========
   const columns = [
     {
       header: lang === "ar" ? "الرقم" : "no",
@@ -200,16 +141,16 @@ export default function AdminRoomTypeList() {
     {
       header: lang === "ar" ? "الصور" : "Images",
       align: "center",
+      exportImageAccessor: "images",
+      pdfWidth: 52,
       render: (row) => <ImagePreviewCell images={row.images} />,
     },
-    //names
     {
       header: lang === "ar" ? "الاسم" : "Name",
       align: "center",
       accessor: ["nameAr", "nameEn"], // ← مصفوفة: [عربي, إنجليزي]
       width: "200px",
     },
-    // description
     {
       header: lang === "ar" ? "الوصف" : "Description",
       accessor: ["descriptionAr", "descriptionEn"],
@@ -224,22 +165,18 @@ export default function AdminRoomTypeList() {
         />
       ),
     },
-    //hotels
     {
       header: lang === "ar" ? "الفندق" : "hotel",
       accessor: ["hotel.nameAr", "hotel.nameEn"],
     },
-    // room type
     {
       header: lang === "ar" ? "نوع الغرفة" : "room Type",
       accessor: "bedType",
     },
-    //prices
     {
       header: lang === "ar" ? "السعر" : "Price",
       align: "center",
       width: "250px",
-      // accessor: "pricing.basePrice", // ← نص عادي (لا يحتاج تعريب)
       render: (row) => {
         const pricing = row.pricing || {};
         const basePrice = pricing.basePrice || 0;
@@ -248,23 +185,21 @@ export default function AdminRoomTypeList() {
 
         return (
           <div className="text-center">
-            {/* السعر الأساسي */}
             <div className="fw-bold text-success">
               <small className="text-muted gap-2">
                 {lang === "ar" ? " الأساسي : " : "Base : "}
               </small>
               {basePrice} {currency}{" "}
             </div>
-            {/* عدد الفترات الخاصة */}
 
             {periods.length > 0 && (
               <div className="small">
-                <Badge bg="primary" className="mb-1">
+                <span className="mb-1 inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700">
                   {lang === "ar"
                     ? ` ${periods.length} فترة خاصة `
                     : `${periods.length} special periods`}
-                </Badge>
-                <div className="text-muted" style={{ fontSize: "0.95rem" }}>
+                </span>
+                <div className="text-sm text-slate-500">
                   {periods.map((p, i) => (
                     <span key={i}>
                       {i > 0 && " • "}
@@ -278,22 +213,16 @@ export default function AdminRoomTypeList() {
         );
       },
     },
-    // status
     {
       header: lang === "ar" ? "الحالة" : "Status",
       render: (row) => (
-        <Badge bg={row.isActive ? "success" : "secondary"}>
-          {row.isActive
-            ? lang === "ar"
-              ? "نشط"
-              : "Active"
-            : lang === "ar"
-              ? "غير نشط"
-              : "Inactive"}
-        </Badge>
+        <StatusBadge
+          type="user"
+          value={row.isActive ? "active" : "inactive"}
+          isArabic={lang === "ar"}
+        />
       ),
     },
-    // ─── الإجراءات ───
     {
       header: lang === "ar" ? "الإجراءات" : "Actions",
       align: "center",
@@ -304,18 +233,13 @@ export default function AdminRoomTypeList() {
           <ActionButton
             action="view"
             onClick={() => {
-              setCurrentTypeRoom(row);
-              setShowDetails(true);
+              openDetails(row);
             }}
           />
           <ActionButton
             action="delete"
             onClick={() =>
-              setDeleteModal({
-                show: true,
-                id: row._id,
-                name: lang === "ar" ? row.nameAr : row.nameEn,
-              })
+              openDelete(row, lang === "ar" ? row.nameAr : row.nameEn)
             }
           />
         </div>
@@ -325,17 +249,13 @@ export default function AdminRoomTypeList() {
 
   return (
     <div className="container py-2">
-      {/* Header */}
       <PageHeader
+        titleAr="إدارة أنواع الغرف"
+        titleEn="Room Types Management"
         subtitleAr="إدارة لانواع الغرف، المرافق، أنواع الغرف والسياسات"
         subtitleEn="Full management of Room Type , facilities, room types and policies"
-      />
-
-      {/* Action Buttons Row */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        {/* Action Buttons */}
-        <div className="w-100 d-flex justify-content-center">
-          <div className="d-inline-flex align-items-center gap-2">
+        actions={
+          <AdminPageActions>
             <ActionButton
               size="md"
               action="add"
@@ -349,17 +269,18 @@ export default function AdminRoomTypeList() {
                 label={lang === "ar" ? "إدارة الفنادق" : "Manage Hotels"}
               />
             </Link>
-          </div>
-        </div>
-        <ExportTableButtons
-          data={roomTypesList}
-          columns={columns}
-          lang={lang}
-          filename="RoomType List"
-          title={lang === "ar" ? "قائمة الغرف" : "RoomType List"}
-        />
-      </div>
+            <ExportTableButtons
+              data={roomTypesList}
+              columns={columns}
+              lang={lang}
+              fileName="RoomType List"
+              title={lang === "ar" ? "قائمة الغرف" : "RoomType List"}
+            />
+          </AdminPageActions>
+        }
+      />
       <LoadingOverlay show={loading} />
+      <ErrorOverlay show={Boolean(error)} message={error} />
 
       <EntityFilter
         filters={filters}
@@ -423,14 +344,8 @@ export default function AdminRoomTypeList() {
                 labelAr: "الأقدم أولاً",
                 labelEn: "Oldest First",
               },
-              // {
-              //   value: "nameAr_asc",
-              //   labelAr: "الاسم (أ-ي)",
-              //   labelEn: "Name (A-Z)",
-              // },
             ],
           },
-          // order: {},
           isActive: {
             type: "select",
             col: 2,
@@ -444,7 +359,7 @@ export default function AdminRoomTypeList() {
       />
       <UniversalFormModal
         show={showModal}
-        onHide={() => setShowModal(false)}
+        onHide={closeForm}
         onSave={(data) =>
           handleSave(data, {
             formMode: formModel,
@@ -461,7 +376,7 @@ export default function AdminRoomTypeList() {
 
       <EntityDetailsModal
         show={showDetails}
-        onHide={() => setShowDetails(false)}
+        onHide={closeDetails}
         title={
           lang === "ar" ? "عرض التفاصيل نوع الغرفة" : "RoomType details show"
         }
@@ -483,7 +398,6 @@ export default function AdminRoomTypeList() {
             label: lang === "ar" ? "الوصف بالإنجليزية" : "English Description",
             value: currentTypeRoom?.descriptionEn || "غير متوفر",
           },
-          // ===== السعة =====
           {
             label: lang === "ar" ? "الحد الأقصى للبالغين" : "Max Adults",
             value: currentTypeRoom?.capacity?.maxAdults ?? "غير متوفر",
@@ -496,7 +410,6 @@ export default function AdminRoomTypeList() {
             label: lang === "ar" ? "إجمالي السعة" : "Total Occupancy",
             value: currentTypeRoom?.totalOccupancy ?? "غير متوفر",
           },
-          // ===== المساحة ونوع السرير =====
           {
             label: lang === "ar" ? "المساحة (م²)" : "Size (m²)",
             value: currentTypeRoom?.size ?? "غير متوفر",
@@ -509,14 +422,12 @@ export default function AdminRoomTypeList() {
             label: lang === "ar" ? "إجمالي الغرف" : "Total Rooms",
             value: currentTypeRoom?.totalRooms ?? "غير متوفر",
           },
-          // ===== المرافق =====
           {
             label: lang === "ar" ? "المرافق" : "Amenities",
             value: currentTypeRoom?.amenities?.length
               ? currentTypeRoom.amenities.join("، ")
               : "لا توجد مرافق",
           },
-          // ===== التسعير =====
           {
             label: lang === "ar" ? "السعر الأساسي" : "Base Price",
             value: currentTypeRoom?.pricing?.basePrice
@@ -539,7 +450,6 @@ export default function AdminRoomTypeList() {
               ? `${currentTypeRoom.pricing.finalPrice} ${currentTypeRoom.pricing.currency || "SAR"}`
               : "غير محسوب",
           },
-          // ===== فترات التسعير (اختياري - إذا أردت عرضها) =====
           ...(currentTypeRoom?.pricing?.pricingPeriods?.length
             ? currentTypeRoom.pricing.pricingPeriods.map((period, idx) => ({
                 label:
@@ -549,7 +459,6 @@ export default function AdminRoomTypeList() {
                 value: `${period.price} ${currentTypeRoom.pricing.currency} (${period.periodType})`,
               }))
             : []),
-          // ===== الوجبات =====
           {
             label: lang === "ar" ? "خطة الوجبات" : "Meal Plan",
             value:
@@ -563,7 +472,6 @@ export default function AdminRoomTypeList() {
                   }[currentTypeRoom?.mealPlan] || "غير متوفر"
                 : currentTypeRoom?.mealPlan || "N/A",
           },
-          // ===== الحالة =====
           {
             label: lang === "ar" ? "الحالة" : "Status",
             value:
@@ -575,12 +483,11 @@ export default function AdminRoomTypeList() {
                   ? "Active"
                   : "Inactive",
           },
-          // ===== التواريخ =====
           {
             label: lang === "ar" ? "تاريخ الإنشاء" : "Created At",
             value: currentTypeRoom?.createdAt
               ? new Date(currentTypeRoom.createdAt).toLocaleString(
-                  lang === "ar" ? "ar-SA" : "en-US",
+                  lang === "ar" ? "en-US" : "en-US",
                 )
               : "غير متوفر",
           },
@@ -588,7 +495,7 @@ export default function AdminRoomTypeList() {
             label: lang === "ar" ? "تاريخ التحديث" : "Updated At",
             value: currentTypeRoom?.updatedAt
               ? new Date(currentTypeRoom.updatedAt).toLocaleString(
-                  lang === "ar" ? "ar-SA" : "en-US",
+                  lang === "ar" ? "en-US" : "en-US",
                 )
               : "غير متوفر",
           },
@@ -601,10 +508,7 @@ export default function AdminRoomTypeList() {
               currentTypeRoom?.createdBy?.username ||
               currentTypeRoom?.createdBy?.email ||
               "غير معروف",
-            // إذا كان populated: currentTypeRoom.createdBy.name
-            // إذا لم يكن populated: اجلب الاسم من كونترولر أو اعرض ID
           },
-          // ===== آخر تعديل =====
           {
             label: lang === "ar" ? "آخر تعديل بواسطة" : "Last Modified By",
             value:
@@ -617,29 +521,25 @@ export default function AdminRoomTypeList() {
           },
         ]}
       />
-      {/* Pagination */}
 
-      <PaginationComponent
-        total={pagination.total}
-        page={pagination.page}
-        limit={pagination.limit}
-        totalPages={pagination.totalPages}
-        onPageChange={(newPage) => dispatch(setPage(newPage))}
-        onLimitChange={(newLimit) => {
-          dispatch(setLimit(newLimit));
-        }}
-      />
-      {/*Table*/}
       <UniversalTable
         columns={columns}
         data={roomTypesList}
         lang={lang}
         emptyMessage={lang === "ar" ? "لا توجد بيانات" : "No data found"}
       />
+      <PaginationComponent
+        total={pagination.total}
+        page={pagination.page}
+        limit={pagination.limit}
+        totalPages={pagination.totalPages}
+        onPageChange={(newPage) => dispatch(setPage(newPage))}
+        onLimitChange={(newLimit) => dispatch(setLimit(newLimit))}
+      />
 
       <ConfirmDialog
         show={deleteModal.show}
-        onHide={() => setDeleteModal({ show: false, id: null, name: "" })}
+        onHide={closeDelete}
         onConfirm={confirmDelete}
         title={lang === "ar" ? "حذف نوع الغرفة؟" : "Delete Room Type?"}
         message={
@@ -663,183 +563,3 @@ export default function AdminRoomTypeList() {
     </div>
   );
 }
-
-/*
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-        className="bg-white rounded-4 shadow-lg overflow-hidden"
-      >
-        <div className="table-responsive">
-          <Table hover className="mb-0 align-middle">
-            <thead
-              className="text-white"
-              style={{
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              }}
-            >
-              <tr>
-                <th className="text-center">#</th>
-                <th>{lang === "ar" ? "الصور" : "Images"}</th>
-                <th>{lang === "ar" ? "الاسم" : "Name"}</th>
-                <th>
-                  <Bed size={18} /> {lang === "ar" ? "نوع السرير" : "Bed Type"}
-                </th>
-                <th>
-                  <Users size={18} /> {lang === "ar" ? "السعة" : "Capacity"}
-                </th>
-                <th>
-                  <Ruler size={18} /> {lang === "ar" ? "المساحة" : "Size"}
-                </th>
-                <th>
-                  <DollarSign size={18} /> {lang === "ar" ? "السعر" : "Price"}
-                </th>
-                <th>{lang === "ar" ? "الحالة" : "Status"}</th>
-                <th className="text-center">
-                  {lang === "ar" ? "الإجراءات" : "Actions"}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {roomTypeslist.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="text-center py-5 text-muted">
-                    <ImageIcon size={60} className="mb-3 text-secondary" />
-                    <p className="mb-0 fs-5">
-                      {lang === "ar"
-                        ? "لا توجد أنواع غرف مضافة بعد"
-                        : "No room types added yet"}
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                roomTypeslist.map((r, idx) => (
-                  <motion.tr
-                    key={r._id}
-                    initial={{ opacity: 0, x: -30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                  >
-                    <td className="text-center fw-bold">{idx + 1}</td>
-
-                    /* الصور 
-                    <td className="text-center">
-                      {r.images?.length > 0 ? (
-                        <div className="position-relative d-inline-block">
-                          <Image
-                            src={formatImagePath(r.images[0])}
-                            rounded
-                            width={80}
-                            height={80}
-                            style={{ objectFit: "cover" }}
-                            className="shadow-sm"
-                          />
-                          {r.images.length > 1 && (
-                            <Badge
-                              bg="primary"
-                              className="position-absolute top-0 end-0"
-                            >
-                              +{r.images.length - 1}
-                            </Badge>
-                          )}
-                        </div>
-                      ) : (
-                        <div
-                          className="bg-light border d-flex align-items-center justify-content-center rounded"
-                          style={{ width: 80, height: 80 }}
-                        >
-                          <ImageIcon size={32} className="text-muted" />
-                        </div>
-                      )}
-                    </td>
-
-                    {/* الاسم 
-                    <td>
-                      <div className="fw-bold">
-                        {lang === "ar" ? r.nameAr : r.nameEn}
-                      </div>
-                      <TruncatedText
-                        text={lang === "ar" ? r.descriptionAr : r.descriptionEn}
-                        limit={8}
-                      />
-                    </td>
-                    {/* نوع السرير 
-                    <td>
-                      <Badge bg="info" className="text-dark">
-                        {r.bedType || "Double"}
-                      </Badge>
-                    </td>
-
-                    {/* السعة 
-                    <td>
-                      <span className="text-primary fw-bold">
-                        {r.capacity?.maxAdults || 2} +{" "}
-                        {r.capacity?.maxChildren || 0}
-                      </span>
-                    </td>
-
-                    {/* المساحة 
-                    <td>{r.size ? `${r.size} م²` : "-"}</td>
-
-                    {/* السعر 
-                    <td>
-                      <span className="fw-bold text-success fs-5">
-                        {r.pricing?.basePrice || 0}
-                      </span>{" "}
-                      ر.س
-                    </td>
-
-                    {/* الحالة 
-                    <td>
-                      <Badge bg={r.isActive ? "success" : "secondary"}>
-                        {r.isActive
-                          ? lang === "ar"
-                            ? "نشط"
-                            : "Active"
-                          : lang === "ar"
-                            ? "معطل"
-                            : "Inactive"}
-                      </Badge>
-                    </td>
-
-                    {/* الإجراءات 
-                    <td className="text-center">
-                      <div className="d-flex gap-2 justify-content-center">
-                        <Button
-                          size="sm"
-                          variant="outline-primary"
-                          onClick={() => handleShowModal(r)}
-                        >
-                          <Edit size={16} />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline-danger"
-                          onClick={() =>
-                            handleDeleteClick(r._id, r.nameAr || r.nameEn)
-                          }
-                        >
-                          <Trash2 size={16} />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline-info"
-                          onClick={() => {
-                            setSelectedRoomType(r);
-                            setShowDetails(true);
-                          }}
-                        >
-                          <Eye size={16} />
-                        </Button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))
-              )}
-            </tbody>
-          </Table>
-        </div>
-      </motion.div>
-
-*/

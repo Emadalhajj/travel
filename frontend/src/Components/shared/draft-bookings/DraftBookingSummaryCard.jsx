@@ -1,3 +1,5 @@
+import PublicButton from "../buttons/PublicButton";
+
 export default function DraftBookingSummaryCard({
   title,
   rows = [],
@@ -20,7 +22,7 @@ export default function DraftBookingSummaryCard({
             <span className="text-slate-500">{row.label}</span>
 
             <strong className="text-end text-slate-900">
-              {row.value || "-"}
+              {row.value ?? "-"}
             </strong>
           </div>
         ))}
@@ -29,25 +31,27 @@ export default function DraftBookingSummaryCard({
       {(primaryAction || secondaryAction) && (
         <div className="mt-6 space-y-3">
           {primaryAction && (
-            <button
-              type="button"
+            <PublicButton
+              fullWidth
+              variant={primaryAction.variant || "primary"}
               onClick={primaryAction.onClick}
               disabled={primaryAction.disabled}
-              className="w-full rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white hover:bg-emerald-800 disabled:bg-slate-400"
+              loading={primaryAction.loading}
             >
               {primaryAction.label}
-            </button>
+            </PublicButton>
           )}
 
           {secondaryAction && (
-            <button
-              type="button"
+            <PublicButton
+              fullWidth
+              variant={secondaryAction.variant || "dangerOutline"}
               onClick={secondaryAction.onClick}
               disabled={secondaryAction.disabled}
-              className="w-full rounded-xl bg-red-50 px-5 py-3 font-bold text-red-700 hover:bg-red-100 disabled:bg-slate-100 disabled:text-slate-400"
+              loading={secondaryAction.loading}
             >
               {secondaryAction.label}
-            </button>
+            </PublicButton>
           )}
         </div>
       )}

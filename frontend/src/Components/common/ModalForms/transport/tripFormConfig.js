@@ -210,7 +210,6 @@ export const tripFormConfig = (vehicleTypes = []) => ({
       // ... الحقول الأخرى كما هي
       { name: "startDate", labelAr: "التاريخ", labelEn: "Date", type: "date", col: 4 ,order : 5  },
       { name: "startTime", labelAr: "الوقت", labelEn: "Time", type: "time", col: 4 , order : 5 },
-      { name: "durationHours", labelAr: "المدة بالساعات", labelEn: "Duration (hours)", type: "number", col: 4 ,order : 5  },
 
       // جديد: سمات خاصة بالأنشطة (جوي أو غيره)
       {

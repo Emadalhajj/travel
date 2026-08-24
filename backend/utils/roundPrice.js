@@ -19,7 +19,7 @@ export const roundPrice = (price, decimals = 2) => {
  */
 export const formatPrice = (price, currency = 'SAR') => {
   const rounded = roundPrice(price);
-  return new Intl.NumberFormat('ar-SA', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,

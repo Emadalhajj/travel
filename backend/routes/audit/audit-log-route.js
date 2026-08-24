@@ -17,6 +17,7 @@ Audit Log Routes
 import express from "express";
 
 import { protect, authorize } from "../../middleware/authMiddleware.js";
+import { AUDIT_READ_ROLES } from "../../constants/audit/audit-access.js";
 
 import {
   listAuditLogs,
@@ -28,14 +29,14 @@ const AuditLogRoute = express.Router();
 AuditLogRoute.get(
   "/audit-logs",
   protect,
-  authorize("admin", "superAdmin"),
+  authorize(AUDIT_READ_ROLES),
   listAuditLogs,
 );
 
 AuditLogRoute.get(
   "/audit-logs/:entity/:entityId",
   protect,
-  authorize("admin", "superAdmin"),
+  authorize(AUDIT_READ_ROLES),
   listEntityAuditLogs,
 );
 

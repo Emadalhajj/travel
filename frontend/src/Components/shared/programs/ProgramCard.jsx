@@ -1,4 +1,4 @@
-import { formatImagePath } from "../../../Utils/formatImagePath";
+import { formatImagePath } from "../../../Utils/imageUtils";
 
 export default function ProgramCard({
   program,

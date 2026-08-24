@@ -558,8 +558,7 @@ export const calculateFullBookingPricing = async ({
     },
 
     /*
-    نرجع أيضاً المنتجات الأصلية لأن booking-builder
-    سيحتاجها لبناء snapshot
+    نرجع أيضاً المنتجات الأصلية لبناء snapshots في مسار إنشاء الحجز الحالي.
     */
 
     docs: {

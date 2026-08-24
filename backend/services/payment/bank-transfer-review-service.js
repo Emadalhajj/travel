@@ -31,6 +31,11 @@ import {
   PAYMENT_TRANSACTION_EVENT_SOURCES,
 } from "../../constants/payments/payment-transaction-events.js";
 import { AUDIT_ACTIONS } from "../../constants/audit/audit-actions.js";
+import {
+  sendBankTransferApprovedNotification,
+  sendBankTransferRejectedNotification,
+  sendPaidPendingBookingNotification,
+} from "../notifications/payment-notification-service.js";
 
 const REVIEWABLE_STATUSES = new Set([
   PAYMENT_TRANSACTION_STATUSES.PENDING_VERIFICATION,
@@ -154,7 +159,7 @@ export const approveBankTransferService =
           },
         });
     } catch (error) {
-      await recordBookingConversionFailureService({
+      transaction = await recordBookingConversionFailureService({
         transactionId:
           transaction._id,
         reason:
@@ -164,6 +169,8 @@ export const approveBankTransferService =
           PAYMENT_TRANSACTION_EVENT_SOURCES.ADMIN,
         updatedBy: adminUserId,
       });
+
+      await sendPaidPendingBookingNotification({ transaction, req });
 
       throw error;
     }
@@ -206,6 +213,12 @@ export const approveBankTransferService =
         updatedBy:
           adminUserId,
       });
+
+    await sendBankTransferApprovedNotification({
+      transaction,
+      booking,
+      req,
+    });
 
     return {
       transaction,
@@ -282,6 +295,11 @@ export const rejectBankTransferService =
         draftId: rejectedTransaction.draftBooking,
       });
     }
+
+    await sendBankTransferRejectedNotification({
+      transaction: rejectedTransaction,
+      req,
+    });
 
     return rejectedTransaction;
   };

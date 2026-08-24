@@ -511,6 +511,24 @@ export const findPaymentTransactionService = async ({
   return transaction;
 };
 
+export const findPaymentTransactionsForRecoveryService = async ({
+  statuses,
+  bookingIsNull = false,
+  requireDraft = false,
+  limit = 100,
+} = {}) => {
+  const filter = { isDeleted: false };
+  if (Array.isArray(statuses) && statuses.length) {
+    filter.status = { $in: statuses };
+  }
+  if (bookingIsNull) filter.booking = null;
+  if (requireDraft) filter.draftBooking = { $ne: null };
+
+  return PaymentTransaction.find(filter)
+    .sort({ updatedAt: 1, _id: 1 })
+    .limit(Math.max(1, Math.min(Number(limit) || 100, 500)));
+};
+
 /*
 =====================================================
 Status Transition

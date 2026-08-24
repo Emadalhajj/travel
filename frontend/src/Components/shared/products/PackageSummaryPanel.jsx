@@ -15,16 +15,19 @@
 ويعتمد على البيانات القادمة من usePackageForm.
 */
 import React from "react";
-import { Card, Button, Badge } from "react-bootstrap";
-import { Trash2, Save, ArrowLeft, CheckCircle } from "lucide-react";
+import { Card, Badge } from "react-bootstrap";
+import { Save, ArrowLeft, CheckCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
+import ActionButton from "../../common/buttons/ActionButton";
+import PublicButton from "../buttons/PublicButton";
+import { formatPrice } from "../../../Utils/roundPrice";
 
 export default function SelectedProductsSummary({
   selectedItems = [],
   maxCapacity = 1,
   totals = {},
   loading = false,
+  actionDisabled = false,
   onRemoveItem,
   onAction,
   mode = "admin", // admin | booking | custom
@@ -64,11 +67,6 @@ export default function SelectedProductsSummary({
     getLocalizedText(item.titleAr) ||
     getLocalizedText(item.titleEn) ||
     "-";
-
-  const formatPrice = (price = 0, currency = "SAR") =>
-    `${Number(price || 0).toLocaleString(
-      isArabic ? "ar-SA" : "en-US",
-    )} ${currency}`;
 
   const actionLabel = () => {
     if (mode === "admin") {
@@ -133,13 +131,10 @@ export default function SelectedProductsSummary({
                     </div>
                   </div>
 
-                  <Button
-                    variant="outline-danger"
-                    size="sm"
+                  <ActionButton
+                    action="delete"
                     onClick={() => onRemoveItem?.(item)}
-                  >
-                    <Trash2 size={16} />
-                  </Button>
+                  />
                 </div>
               </div>
             ))}
@@ -165,15 +160,15 @@ export default function SelectedProductsSummary({
       </Card.Body>
 
       <Card.Footer className="bg-white border-top">
-        <Button
-          variant="success"
-          className="w-100 d-flex align-items-center justify-content-center gap-2"
-          disabled={loading || selectedItems.length === 0}
+        <PublicButton
+          fullWidth
+          loading={loading}
+          icon={ActionIcon}
+          disabled={actionDisabled || selectedItems.length === 0}
           onClick={onAction}
         >
-          <ActionIcon size={18} />
           {actionLabel()}
-        </Button>
+        </PublicButton>
       </Card.Footer>
     </Card>
   );

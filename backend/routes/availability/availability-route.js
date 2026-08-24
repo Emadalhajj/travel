@@ -13,6 +13,7 @@ Availability Routes
 */
 
 import express from "express";
+import { USER_ROLES } from "../../constants/auth/roles.js";
 
 import {
   protect,
@@ -50,7 +51,11 @@ GET /api/availability/products?startDate=2026-05-01&endDate=2026-05-10&pilgrimsC
 AvailabilityRoute.get(
   "/availability/products",
   protect,
-  authorize("admin", "superAdmin"),
+  authorize(
+    USER_ROLES.USER,
+    USER_ROLES.ADMIN,
+    USER_ROLES.SUPER_ADMIN,
+  ),
   getAvailablePackageProducts,
 );
 

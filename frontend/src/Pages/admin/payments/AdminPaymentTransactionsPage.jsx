@@ -1,52 +1,52 @@
-import { useEffect } from "react";
-import {
-  Button,
-  Card,
-  Col,
-  Form,
-  Row,
-  Spinner,
-  Table,
-} from "react-bootstrap";
-import {
-  useDispatch,
-  useSelector,
-} from "react-redux";
+import { useEffect, useMemo } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
+import ActionButton from "../../../Components/common/buttons/ActionButton";
+import ExportTableButtons from "../../../Components/common/buttons/ExportTableButtons";
+import EntityFilter from "../../../Components/common/EntityFilter";
+import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
+import PaginationComponent from "../../../Components/common/Pagination";
+import UniversalTable from "../../../Components/common/tables/UniversalTable";
+import AdminPageActions from "../../../Components/layout/AdminPageActions";
+import PageHeader from "../../../Components/layout/PageHeader";
+import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import {
   fetchPaymentTransactions,
   setPaymentTransactionFilters,
 } from "../../../redux/payments/paymentTransactionSlice";
+import { formatDate } from "../../../Utils/dateUtils";
+import { formatPrice } from "../../../Utils/roundPrice";
 
-const STATUS_OPTIONS = [
-  "",
+const STATUS_VALUES = [
   "INITIATED",
   "PENDING",
   "PENDING_PROOF",
+  "PENDING_APPROVAL",
   "PENDING_VERIFICATION",
   "PENDING_REVIEW",
   "PROCESSING",
   "AUTHORIZED",
   "CAPTURED",
   "SUCCESS",
+  "PAID_PENDING_BOOKING",
   "FAILED",
   "REJECTED",
   "CANCELED",
   "EXPIRED",
   "REFUNDED",
+  "PARTIALLY_REFUNDED",
 ];
 
 export default function AdminPaymentTransactionsPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-
-  const {
-    items,
-    pagination,
-    filters,
-    listLoading,
-  } = useSelector(
+  const { i18n } = useTranslation();
+  const lang = i18n.language || "ar";
+  const isArabic = lang === "ar";
+  const { items, pagination, filters, listLoading, error } = useSelector(
     (state) => state.paymentTransactions,
   );
 
@@ -54,172 +54,176 @@ export default function AdminPaymentTransactionsPage() {
     dispatch(fetchPaymentTransactions(filters));
   }, [dispatch, filters]);
 
-  const updateFilter = (field, value) => {
-    dispatch(
-      setPaymentTransactionFilters({
-        [field]: value,
-        ...(field !== "page" ? { page: 1 } : {}),
-      }),
-    );
+  const updateFilters = (nextFilters) => {
+    dispatch(setPaymentTransactionFilters({
+      ...nextFilters,
+      page: 1,
+      limit: filters.limit,
+    }));
   };
 
-  return (
-    <div className="container-fluid py-4">
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3 className="mb-0">معاملات الدفع</h3>
-        <Button
-          variant="outline-secondary"
-          onClick={() =>
-            dispatch(fetchPaymentTransactions(filters))
-          }
-        >
-          تحديث
-        </Button>
-      </div>
+  const setPage = (page) => {
+    dispatch(setPaymentTransactionFilters({ page }));
+  };
 
-      <Card className="mb-3">
-        <Card.Body>
-          <Row className="g-3">
-            <Col md={4}>
-              <Form.Control
-                value={filters.search}
-                placeholder="مرجع الدفع أو التحويل"
-                onChange={(event) =>
-                  updateFilter("search", event.target.value)
-                }
-              />
-            </Col>
-            <Col md={2}>
-              <Form.Select
-                value={filters.status}
-                onChange={(event) =>
-                  updateFilter("status", event.target.value)
-                }
-              >
-                {STATUS_OPTIONS.map((status) => (
-                  <option key={status || "ALL"} value={status}>
-                    {status || "كل الحالات"}
-                  </option>
-                ))}
-              </Form.Select>
-            </Col>
-            <Col md={2}>
-              <Form.Control
-                value={filters.paymentMethodCode}
-                placeholder="طريقة الدفع"
-                onChange={(event) =>
-                  updateFilter(
-                    "paymentMethodCode",
-                    event.target.value.toUpperCase(),
-                  )
-                }
-              />
-            </Col>
-            <Col md={2}>
-              <Form.Control
-                value={filters.providerCode}
-                placeholder="المزود"
-                onChange={(event) =>
-                  updateFilter(
-                    "providerCode",
-                    event.target.value.toUpperCase(),
-                  )
-                }
-              />
-            </Col>
-            <Col md={2}>
-              <Form.Control
-                type="date"
-                value={filters.dateFrom}
-                onChange={(event) =>
-                  updateFilter("dateFrom", event.target.value)
-                }
-              />
-            </Col>
-          </Row>
-        </Card.Body>
-      </Card>
+  const setLimit = (limit) => {
+    dispatch(setPaymentTransactionFilters({ page: 1, limit }));
+  };
 
-      <Card>
-        <Card.Body className="p-0">
-          {listLoading ? (
-            <div className="py-5 text-center">
-              <Spinner animation="border" />
-            </div>
-          ) : (
-            <Table responsive hover className="mb-0 align-middle">
-              <thead>
-                <tr>
-                  <th>المرجع</th>
-                  <th>الحجز</th>
-                  <th>الطريقة</th>
-                  <th>المزود</th>
-                  <th>المبلغ</th>
-                  <th>الحالة</th>
-                  <th>التاريخ</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.transactionId}>
-                    <td>{item.paymentReference || item.transactionId}</td>
-                    <td>{item.bookingNumber || "—"}</td>
-                    <td>{item.paymentMethodCode}</td>
-                    <td>{item.providerCode || "—"}</td>
-                    <td>{item.amount} {item.currency}</td>
-                    <td>{item.status}</td>
-                    <td>
-                      {item.createdAt
-                        ? new Date(item.createdAt).toLocaleString("ar-SA")
-                        : "—"}
-                    </td>
-                    <td>
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          navigate(
-                            `/admin/payments/payment-transactions/${item.transactionId}`,
-                          )
-                        }
-                      >
-                        التفاصيل
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                {!items.length && (
-                  <tr>
-                    <td colSpan={8} className="text-center py-4">
-                      لا توجد معاملات
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </Table>
+  const filterConfig = useMemo(() => ({
+    search: {
+      col: 3,
+      placeholder: isArabic
+        ? "مرجع الدفع أو التحويل"
+        : "Payment or transfer reference",
+    },
+    status: {
+      type: "select",
+      col: 2,
+      placeholder: isArabic ? "الحالة" : "Status",
+      options: STATUS_VALUES.map((status) => ({ value: status, label: status })),
+    },
+    paymentMethodCode: {
+      col: 2,
+      placeholder: isArabic ? "طريقة الدفع" : "Payment method",
+    },
+    providerCode: {
+      col: 2,
+      placeholder: isArabic ? "المزود" : "Provider",
+    },
+    dateFrom: {
+      type: "date",
+      col: 2,
+      placeholder: isArabic ? "من تاريخ" : "From date",
+    },
+    dateTo: {
+      type: "date",
+      col: 2,
+      placeholder: isArabic ? "إلى تاريخ" : "To date",
+    },
+  }), [isArabic]);
+
+  const columns = useMemo(() => [
+    {
+      header: isArabic ? "المرجع" : "Reference",
+      accessor: ["paymentReference", "paymentReference"],
+      pdfRepeat: true,
+    },
+    {
+      header: isArabic ? "الحجز" : "Booking",
+      render: (item) => item.bookingNumber || "—",
+    },
+    {
+      header: isArabic ? "الطريقة" : "Method",
+      accessor: "paymentMethodCode",
+    },
+    {
+      header: isArabic ? "المزود" : "Provider",
+      render: (item) => item.providerCode || "—",
+    },
+    {
+      header: isArabic ? "المبلغ" : "Amount",
+      render: (item) => formatPrice(item.amount, item.currency || "SAR"),
+      excelValue: (item) => item.amount ?? 0,
+      pdfValue: (item) => item.amount ?? 0,
+      excelType: "number",
+    },
+    {
+      header: isArabic ? "العملة" : "Currency",
+      accessor: "currency",
+    },
+    {
+      header: isArabic ? "الحالة" : "Status",
+      render: (item) => (
+        <StatusBadge
+          value={String(item.status || "").toLowerCase()}
+          type="payment"
+          isArabic={isArabic}
+        />
+      ),
+      pdfValue: (item) => item.status || "—",
+      excelValue: (item) => item.status || "—",
+    },
+    {
+      header: isArabic ? "التاريخ" : "Date",
+      render: (item) => formatDate(item.createdAt, { isArabic }),
+      excelAccessor: "createdAt",
+      excelType: "date",
+    },
+    {
+      header: isArabic ? "الإجراءات" : "Actions",
+      exportable: false,
+      render: (item) => (
+        <ActionButton
+          action="view"
+          label={isArabic ? "التفاصيل" : "Details"}
+          tooltip={isArabic ? "عرض التفاصيل" : "View details"}
+          onClick={() => navigate(
+            `/admin/payments/payment-transactions/${item.transactionId}`,
           )}
-        </Card.Body>
-      </Card>
+        />
+      ),
+    },
+  ], [isArabic, navigate]);
 
-      {pagination && (
-        <div className="d-flex justify-content-end gap-2 mt-3">
-          <Button
-            variant="outline-secondary"
-            disabled={!pagination.hasPreviousPage}
-            onClick={() => updateFilter("page", filters.page - 1)}
-          >
-            السابق
-          </Button>
-          <span className="align-self-center">
-            {pagination.page} / {pagination.totalPages || 1}
-          </span>
-          <Button
-            variant="outline-secondary"
-            disabled={!pagination.hasNextPage}
-            onClick={() => updateFilter("page", filters.page + 1)}
-          >
-            التالي
-          </Button>
+  return (
+    <div className="container-fluid position-relative py-4" dir={isArabic ? "rtl" : "ltr"}>
+      <PageHeader
+        titleAr="معاملات الدفع"
+        titleEn="Payment Transactions"
+        subtitleAr="متابعة معاملات الدفع وحالاتها ومراجعها دون عرض بيانات المزود الحساسة."
+        subtitleEn="Review payment transactions, statuses, and references without exposing provider-sensitive data."
+        actions={(
+          <AdminPageActions>
+            <ActionButton
+              action="apply"
+              label={isArabic ? "تحديث" : "Refresh"}
+              onClick={() => dispatch(fetchPaymentTransactions(filters))}
+            />
+            <ExportTableButtons
+              data={items}
+              columns={columns}
+              fileName="payment-transactions"
+              lang={lang}
+              title={isArabic ? "معاملات الدفع" : "Payment Transactions"}
+            />
+          </AdminPageActions>
+        )}
+      />
+
+      <EntityFilter
+        filters={filters}
+        setFilters={updateFilters}
+        config={filterConfig}
+      />
+
+      <LoadingOverlay
+        show={listLoading}
+        text={isArabic ? "جاري تحميل المعاملات..." : "Loading transactions..."}
+      />
+      <ErrorOverlay show={!listLoading && Boolean(error)} message={error} />
+
+      {!error && (
+        <div className="overflow-hidden rounded-3 border bg-white shadow-sm">
+          <UniversalTable
+            columns={columns}
+            data={items}
+            lang={lang}
+            emptyMessage={isArabic ? "لا توجد معاملات دفع" : "No payment transactions"}
+          />
+        </div>
+      )}
+
+      {!error && pagination && (
+        <div className="mt-4">
+          <PaginationComponent
+            total={pagination.total || 0}
+            page={pagination.page || filters.page || 1}
+            limit={pagination.limit || filters.limit || 20}
+            totalPages={pagination.totalPages || 0}
+            onPageChange={setPage}
+            onLimitChange={setLimit}
+          />
         </div>
       )}
     </div>

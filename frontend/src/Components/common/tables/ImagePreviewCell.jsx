@@ -1,6 +1,6 @@
 import { Image, Badge } from "react-bootstrap";
 import { Image as ImageIcon } from "lucide-react";
-import { formatImagePath } from "../../../Utils/formatImagePath";
+import { formatImagePath } from "../../../Utils/imageUtils";
 
 export default function ImagePreviewCell({
   images = [],

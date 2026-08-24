@@ -12,10 +12,53 @@ export const bookingSteps = [
 export const customPackageSteps = [
   { key: "dates", labelAr: "تحديد التواريخ", labelEn: "Dates", icon: CalendarDays },
   { key: "services", labelAr: "اختيار الخدمات", labelEn: "Services", icon: PackageCheck },
+  { key: "party_details", labelAr: "بيانات الحجز", labelEn: "Booking Details", icon: Users },
   { key: "review", labelAr: "المراجعة", labelEn: "Review", icon: FileText },
   { key: "payment", labelAr: "الدفع", labelEn: "Payment", icon: CreditCard },
   { key: "success", labelAr: "التأكيد", labelEn: "Confirmed", icon: Check },
 ];
+
+const stepAliases = {
+  date: "dates",
+  package: "services",
+  products: "services",
+  customer: "customer_info",
+  customerInfo: "customer_info",
+  customerinfo: "customer_info",
+  traveler: "travelers",
+  pilgrims: "travelers",
+  pilgrim: "travelers",
+  summary: "review",
+  checkout: "payment",
+  completed: "success",
+};
+
+export const normalizeBookingStep = (step) => {
+  const value = String(step || "review");
+  const normalizedValue = value.toLowerCase();
+  return stepAliases[value] || stepAliases[normalizedValue] || normalizedValue;
+};
+
+export const normalizeDisplayedBookingStep = (step, steps = bookingSteps) => {
+  const normalizedStep = normalizeBookingStep(step);
+  const hasUnifiedPartyStep = steps.some(({ key }) => key === "party_details");
+
+  if (
+    hasUnifiedPartyStep &&
+    (normalizedStep === "customer_info" || normalizedStep === "travelers")
+  ) {
+    return "party_details";
+  }
+
+  return normalizedStep;
+};
+
+export const formatBookingStepLabel = (step, isArabic = true) => {
+  const normalized = normalizeBookingStep(step);
+  const allSteps = [...bookingSteps, ...customPackageSteps];
+  const matchedStep = allSteps.find((item) => item.key === normalized);
+  return matchedStep ? (isArabic ? matchedStep.labelAr : matchedStep.labelEn) : "-";
+};
 
 export default function BookingProgressTimeline({
   currentStep = "customer_info",
@@ -23,13 +66,7 @@ export default function BookingProgressTimeline({
   steps = bookingSteps,
 }) {
   const stepOrder = steps.map((step) => step.key);
-  const stepAliases = {
-    pilgrims: "travelers",
-    customer: "customer_info",
-    customerInfo: "customer_info",
-  };
-  const normalizedCurrentStep =
-    stepAliases[currentStep] || currentStep;
+  const normalizedCurrentStep = normalizeDisplayedBookingStep(currentStep, steps);
   const resolvedIndex = stepOrder.indexOf(
     normalizedCurrentStep,
   );

@@ -34,7 +34,6 @@ import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import Booking from "../../models/booking/booking-model.js";
 import BookingLog from "../../models/bookingLog-model.js";
 import Inventory from "../../models/inventory-model.js";
-import Notification from "../../models/notification-model.js";
 import { Counter } from "../../models/counterModel.js";
 import AppError from "../../utils/AppError.js";
 import { deleteLocalUpload } from "../../utils/deleteLocalUpload.js";
@@ -94,6 +93,11 @@ import {
   releaseProgramSeats,
 } from "../umrah-programs/umrah-program-service.js";
 
+import {
+  commitInventoryHoldService,
+  getInventoryHoldForCommitService,
+} from "../booking/inventory-hold-service.js";
+
 /*
 =====================================================
 Booking Log Services
@@ -114,11 +118,7 @@ Notification Services
 */
 
 import {
-  sendNotification,
-} from "../notifications/notification-service.js";
-
-import {
-  sendBookingCreatedNotification,
+  sendInitialBookingNotification,
 } from "../notifications/booking-notification-service.js";
 
 /*
@@ -213,6 +213,36 @@ const validateHostAssignments = ({ hosts = [], travelers = [] }) => {
   }
 };
 
+const validateRequiredDraftDocuments = ({ travelers = [], hosts = [] }) => {
+  for (const [index, traveler] of (Array.isArray(travelers) ? travelers : []).entries()) {
+    if (!String(traveler?.passportImage || "").trim()) {
+      throw new AppError(
+        `صورة جواز المعتمر رقم ${index + 1} مطلوبة`,
+        400,
+        `travelers.${index}.passportImage`,
+      );
+    }
+  }
+
+  for (const [index, host] of (Array.isArray(hosts) ? hosts : []).entries()) {
+    if (!String(host?.idImage || "").trim()) {
+      throw new AppError(
+        `صورة هوية أو إقامة المستضيف رقم ${index + 1} مطلوبة`,
+        400,
+        `hosts.${index}.idImage`,
+      );
+    }
+
+    if (!String(host?.nationalAddressImage || "").trim()) {
+      throw new AppError(
+        `صورة العنوان الوطني للمستضيف رقم ${index + 1} مطلوبة`,
+        400,
+        `hosts.${index}.nationalAddressImage`,
+      );
+    }
+  }
+};
+
 const collectDraftDocumentPaths = (draft = {}) => {
   const paths = new Set();
   const addPath = (value) => {
@@ -221,7 +251,12 @@ const collectDraftDocumentPaths = (draft = {}) => {
   };
 
   const travelers = Array.isArray(draft.travelers) ? draft.travelers : [];
-  for (const traveler of travelers) addPath(traveler?.passportImage);
+  for (const traveler of travelers) {
+    addPath(traveler?.passportImage);
+    addPath(traveler?.personalPhoto);
+    addPath(traveler?.vaccinationCertificate);
+    addPath(traveler?.visaAttachment);
+  }
 
   const hosts = Array.isArray(draft.hosts) ? draft.hosts : [];
   for (const host of hosts) {
@@ -278,6 +313,9 @@ const mapDraftTravelersToBookingPilgrims = (travelers = [], customer = {}) => {
       gender: traveler.gender || "male",
       birthDate: traveler.birthDate || new Date("1990-01-01"),
       passportImage: traveler.passportImage || "",
+      personalPhoto: traveler.personalPhoto || "",
+      vaccinationCertificate: traveler.vaccinationCertificate || "",
+      visaAttachment: traveler.visaAttachment || "",
       hostId: traveler.hostId || "",
 
       mobile: traveler.mobile || customer.phone || "",
@@ -515,7 +553,7 @@ buildBookingItemsFromDraft
 =====================================================
 */
 
-const buildBookingItemsFromDraft = (
+export const buildBookingItemsFromDraft = (
   draft,
 ) => {
   const selectedProductsSource =
@@ -1149,6 +1187,10 @@ export const updateDraftBooking = async ({ draftId, data, userId }) => {
   const nextHosts = Array.isArray(data.hosts) ? data.hosts : draft.hosts;
   validateHostAssignments({ hosts: nextHosts, travelers: nextTravelers });
 
+  if (["review", "payment", "success"].includes(data.currentStep)) {
+    validateRequiredDraftDocuments({ hosts: nextHosts, travelers: nextTravelers });
+  }
+
   if (Array.isArray(data.travelers)) {
     draft.travelers = data.travelers;
   }
@@ -1683,6 +1725,8 @@ export const convertDraftToBooking = async ({
   userId,
   req = null,
   paymentData = null,
+  inventoryHoldId = null,
+  allowExpiredInventoryHold = false,
 }) => {
   /*
   =====================================================
@@ -1714,6 +1758,23 @@ export const convertDraftToBooking = async ({
       });
 
     if (existingBooking) {
+      if (inventoryHoldId) {
+        if (!paymentData?.paymentTransactionId) {
+          throw new AppError(
+            "Payment transaction is required when converting with an inventory hold",
+            400,
+            "paymentTransaction",
+          );
+        }
+        const existingHold = await getInventoryHoldForCommitService({
+          holdId: inventoryHoldId,
+          draftBooking: draft._id,
+          paymentTransaction: paymentData?.paymentTransactionId,
+          allowExpired: allowExpiredInventoryHold,
+        });
+        await commitInventoryHoldService({ holdId: existingHold._id });
+      }
+
       const existingPaymentTransaction =
         paymentData?.paymentTransactionId
           ? await findPaymentTransactionService({
@@ -1752,6 +1813,25 @@ export const convertDraftToBooking = async ({
   }
 
   validateHostAssignments({ hosts: draft.hosts, travelers: draft.travelers });
+  validateRequiredDraftDocuments({ hosts: draft.hosts, travelers: draft.travelers });
+
+  let inventoryHold = null;
+  if (inventoryHoldId) {
+    if (!paymentData?.paymentTransactionId) {
+      throw new AppError(
+        "Payment transaction is required when converting with an inventory hold",
+        400,
+        "paymentTransaction",
+      );
+    }
+
+    inventoryHold = await getInventoryHoldForCommitService({
+      holdId: inventoryHoldId,
+      draftBooking: draft._id,
+      paymentTransaction: paymentData.paymentTransactionId,
+      allowExpired: allowExpiredInventoryHold,
+    });
+  }
 
   /*
   =====================================================
@@ -1775,6 +1855,12 @@ export const convertDraftToBooking = async ({
   let booking = null;
   let paymentTransaction = null;
   let voucher = null;
+  let draftCompleted = false;
+  const originalDraftState = {
+    status: draft.status,
+    finalBooking: draft.finalBooking || null,
+    currentStep: draft.currentStep,
+  };
 
   try {
     /*
@@ -1787,7 +1873,7 @@ export const convertDraftToBooking = async ({
     =====================================================
     */
 
-    if (draft.program?.programId) {
+    if (!inventoryHold && draft.program?.programId) {
       await reserveProgramSeats({
         programId: draft.program.programId,
         seats: pilgrims.length,
@@ -1797,12 +1883,14 @@ export const convertDraftToBooking = async ({
       programSeatsReserved = true;
     }
 
-    inventoryReservations = await reserveInventoryFromDraft({
-      draft,
-      bookingItems,
-      travelersCount: pilgrims.length,
-      req,
-    });
+    if (!inventoryHold) {
+      inventoryReservations = await reserveInventoryFromDraft({
+        draft,
+        bookingItems,
+        travelersCount: pilgrims.length,
+        req,
+      });
+    }
 
     /*
     =====================================================
@@ -1941,6 +2029,13 @@ export const convertDraftToBooking = async ({
     draft.currentStep = "success";
 
     await draft.save();
+    draftCompleted = true;
+
+    if (inventoryHold) {
+      await commitInventoryHoldService({
+        holdId: inventoryHold._id,
+      });
+    }
 
     /*
     =====================================================
@@ -1952,11 +2047,9 @@ export const convertDraftToBooking = async ({
     */
 
     try {
-      await sendBookingCreatedNotification({
-        Notification,
+      await sendInitialBookingNotification({
         booking,
         req,
-        sendNotification,
       });
     } catch (notificationError) {
       console.error("Booking notification failed:", notificationError);
@@ -2001,8 +2094,19 @@ export const convertDraftToBooking = async ({
       paymentTransaction,
       inventoryReservations,
       voucher,
+      inventoryHold,
     };
   } catch (error) {
+    if (draftCompleted) {
+      try {
+        draft.status = originalDraftState.status;
+        draft.finalBooking = originalDraftState.finalBooking;
+        draft.currentStep = originalDraftState.currentStep;
+        await draft.save();
+      } catch (draftRollbackError) {
+        console.error("Draft completion rollback failed:", draftRollbackError);
+      }
+    }
     /*
     إذا كانت معاملة الدفع موجودة قبل إنشاء الحجز،
     نفصلها عن الحجز الذي سيتم حذفه.
@@ -2102,14 +2206,14 @@ export const convertDraftToBooking = async ({
     =====================================================
     */
 
-    if (inventoryReservations.length) {
+    if (!inventoryHold && inventoryReservations.length) {
       await rollbackInventoryReservations({
         inventoryReservations,
         req,
       });
     }
 
-    if (programSeatsReserved && draft.program?.programId) {
+    if (!inventoryHold && programSeatsReserved && draft.program?.programId) {
       try {
         await releaseProgramSeats({
           programId: draft.program.programId,
@@ -2135,19 +2239,22 @@ expireOldDraftBookings
 */
 
 export const expireOldDraftBookings =
-  async () => {
-    const now = new Date();
+  async ({ now = new Date(), excludedDraftIds = [] } = {}) => {
+    const filter = {
+      status: DRAFT_BOOKING_STATUS.DRAFT,
+      isDeleted: false,
+      expiresAt: {
+        $ne: null,
+        $lte: now,
+      },
+    };
+
+    if (excludedDraftIds.length) {
+      filter._id = { $nin: excludedDraftIds };
+    }
 
     return DraftBooking.updateMany(
-      {
-        status:
-          DRAFT_BOOKING_STATUS.DRAFT,
-        isDeleted: false,
-        expiresAt: {
-          $ne: null,
-          $lte: now,
-        },
-      },
+      filter,
       {
         $set: {
           status:
