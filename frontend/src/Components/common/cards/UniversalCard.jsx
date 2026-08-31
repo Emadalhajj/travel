@@ -21,9 +21,11 @@ export default function UniversalCard({
       <div className="relative h-44 overflow-hidden">
         {image ? (
           <img
-          onClick={onNavigate}
+            onClick={onNavigate}
             src={image}
             alt={title}
+            loading="lazy"
+            decoding="async"
             className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
               !isActive ? "grayscale opacity-70" : ""
             }`}

@@ -17,7 +17,7 @@ import {
   toggleUserStatus,
   changePasswordUser,
 } from "../controllers/users-controller.js";
-import { uploadUserProfile } from "../middleware/upload.js";
+import { uploadUserProfile } from "../middleware/upload/index.js";
 import parseFormData from "../middleware/parseFormData.js";
 
 const uploadAndParse = [

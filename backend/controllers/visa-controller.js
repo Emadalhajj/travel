@@ -24,7 +24,7 @@ export const getAllVisas = asyncHandler(async (req, res) => {
   }
   //  3️⃣ Sort + Pagination
   const sortOption = buildSort(req.query);
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
   const [visas, total] = await Promise.all([
     // Promise يستخدم لتنفيذ استعلامين في نفس الوقت
     Visa.find(filter)
@@ -40,7 +40,7 @@ export const getAllVisas = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total,
-    page: Number(req.query.page) || 1,
+    page,
     limit,
     totalPages: Math.ceil(total / limit),
     visas,

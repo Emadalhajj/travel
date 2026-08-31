@@ -4,7 +4,7 @@ import axios from "axios";
 import i18n from "../../i18n";
 
 const api = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: process.env.REACT_APP_API_URL || "/api",
   // headers: { "Content-Type": "multipart/form-data" },
 });
 
@@ -43,7 +43,6 @@ api.interceptors.response.use(
     const requestPath = String(error.config?.url || "");
     const isPublicAuthRequest = publicAuthPaths.some((path) => requestPath.includes(path));
     if (error.response?.status === 401 && !isPublicAuthRequest) {
-      console.warn("⚠️ Unauthorized - Logging out...");
       localStorage.removeItem("currentUser");
       localStorage.removeItem("token");
       window.location.href = "/authpage";

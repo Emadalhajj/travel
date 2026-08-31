@@ -13,8 +13,10 @@ import {
   releaseProgramSeats,
   reserveProgramSeats,
 } from "../umrah-programs/umrah-program-service.js";
+import { mapWithConcurrency } from "../../utils/async/mapWithConcurrency.js";
 
 const DEFAULT_HOLD_DURATION_MS = 15 * 60 * 1000;
+const HOLD_EXPIRATION_CONCURRENCY = 10;
 const terminalStatuses = new Set(TERMINAL_INVENTORY_HOLD_STATUSES);
 
 const positiveInteger = (value, field) => {
@@ -327,10 +329,24 @@ export const createInventoryHoldServiceLayer = ({
       expiresAt: { $lte: now() },
     }).select("_id").limit(Math.max(1, Math.min(Number(limit) || 100, 500)));
 
-    const results = await Promise.allSettled(
-      expiredCandidates.map((hold) =>
-        releaseHold({ holdId: hold._id, reason: "expired", req, expiration: true }),
-      ),
+    const results = await mapWithConcurrency(
+      expiredCandidates,
+      HOLD_EXPIRATION_CONCURRENCY,
+      async (hold) => {
+        try {
+          return {
+            status: "fulfilled",
+            value: await releaseHold({
+              holdId: hold._id,
+              reason: "expired",
+              req,
+              expiration: true,
+            }),
+          };
+        } catch (reason) {
+          return { status: "rejected", reason };
+        }
+      },
     );
     const holds = results.map((result, index) => ({
       holdId: expiredCandidates[index]._id,

@@ -43,7 +43,10 @@ export default function SearchableSelectField(props) {
       }}
       value={getSelectedLocationOption(field)}
       options={getLocationOptions(field)}
-      onChange={(selected) => handleLocationSelectChange(selected, field)}
+      onChange={(selected) => {
+        handleLocationSelectChange(selected, field);
+        helpers.validateField(field, selected?.value || "");
+      }}
       isLoading={field.optionsSource === "cities" && loadingCities}
       placeholder={isArabic ? "ابحث واختر..." : "Search..."}
       isSearchable

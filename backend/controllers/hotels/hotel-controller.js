@@ -41,7 +41,7 @@ export const getAllHotels = asyncHandler(async (req, res) => {
   if (sort) sortOption[sort] = order === "desc" ? -1 : 1;
 
   const sortOption = buildSort(req.query);
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
   const [hotels, total] = await Promise.all([
     // Promise يستخدم لتنفيذ استعلامين في نفس الوقت
     Hotel.find(filter) //
@@ -62,7 +62,8 @@ export const getAllHotels = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total,
-    page: Number(req.query.page) || 1, // رقم الصفحة الحالي (افتراضيًا 1 إذا لم يتم تحديده)
+    page,
+    limit,
     hotels,
   });
 });
@@ -91,136 +92,6 @@ export const getHotelById = asyncHandler(async (req, res) => {
     oneHotel,
   });
 });
-
-// ====================== CREATE HOTEL ======================
-
-// export const createHotel = asyncHandler(async (req, res) => {
-//   let parsedData = {};
-//   try {
-//     parsedData = JSON.parse(req.body.data || "{}");
-//   } catch (err) {
-//     return res.status(400).json({
-//       success: false,
-//       message: "بيانات غير صالحة",
-//     });
-//   }
-//   // 1. الصور الجديدة
-
-//   const newImages = extractUploadedImages(req, "hotels");
-
-//   // تنظيف phone ليكون مصفوفة بالتأكيد
-//   let phoneArray = [];
-
-//   if (Array.isArray(parsedData.contact?.phone)) {
-//     phoneArray = parsedData.contact.phone.filter((p) => p && p.trim() !== "");
-//   } else if (parsedData.contact?.phone) {
-//     phoneArray = [String(parsedData.contact.phone).trim()].filter(Boolean);
-//   }
-
-//   const facilitiesArray = Array.isArray(parsedData.facilities)
-//     ? parsedData.facilities
-//     : [];
-
-//   const roomTypesArray = Array.isArray(parsedData.roomTypes)
-//     ? parsedData.roomTypes
-//     : [];
-
-//   // const {
-//   //   nameAr,
-//   //   nameEn,
-//   //   descriptionAr,
-//   //   descriptionEn,
-//   //   isActive,
-//   //   stars,
-//   //   hotelType,
-//   //   location,
-//   //   country,
-//   //   city,
-//   //   area,
-//   //   address,
-//   //   coordinates,
-//   //   googleMapsLink,
-//   //   contact,
-//   //   // newImages,
-//   //   facilities,
-//   //   roomTypes,
-//   //   policies,
-//   // } = req.body;
-
-//   // const parsedData = JSON.parse(req.body.data || "{}");
-//   // استخراج الصور الموجودة مسبقًا (من الـ clone)
-//   const existingImages = Array.isArray(parsedData.existingImages)
-//     ? parsedData.existingImages
-//     : [];
-
-//   // دمج الصور الجديدة مع الصور الموجودة
-//   const images = [...existingImages, ...newImages];
-//   // 1️⃣ منع تخزين بيانات غير مطلوبة في الـ DB\
-//   delete req.body["existingImages[]"];
-//   delete req.body.existingImages;
-//   // تنظيف الحقول غير المطلوبة
-//   // delete parsedData.existingImages
-
-//   //   const newHotel = await Hotel.create({
-//   //   nameAr: nameAr?.trim(),
-//   //   nameEn: nameEn?.trim(),
-//   //   descriptionAr: descriptionAr?.trim(),
-//   //   descriptionEn: descriptionEn?.trim(),
-//   //   isActive: isActive !== false,
-//   //   stars: stars,
-//   //   hotelType: hotelType,
-//   //   location: location,
-//   //   country: country || "Saudi Arbia",
-//   //   city: city,
-//   //   area: area,
-//   //   address,
-//   //   coordinates,
-//   //   googleMapsLink,
-//   //   contact,
-//   //   // ...parsedData,
-//   //   // newImages,
-//   //   images,
-//   //   facilities,
-//   //   roomTypes,
-//   //   policies,
-//   // });
-
-//   const newHotel = await Hotel.create({
-//     nameAr: (parsedData.nameAr || "").trim(),
-//     nameEn: (parsedData.nameEn || "").trim(),
-//     descriptionAr: (parsedData.descriptionAr || "").trim(),
-//     descriptionEn: (parsedData.descriptionEn || "").trim(),
-
-//     stars: Number(parsedData.stars) || 3,
-//     hotelType: parsedData.hotelType || "hotel",
-
-//     isActive: parsedData.isActive !== false, // افتراضيًا true إذا لم يتم تحديده
-//     isFeatured: Boolean(parsedData.isFeatured) || false, // افتراضيًا false إذا لم يتم تحديده
-//     location: parsedData.location || {},
-
-//     contact: {
-//       phone: phoneArray,
-//       email: (parsedData.contact?.email || "").trim(),
-//       website: (parsedData.contact?.website || "").trim(),
-//       whatsapp: (parsedData.contact?.whatsapp || "").trim(),
-//     },
-
-//     facilities: facilitiesArray,
-//     roomTypes: roomTypesArray,
-//     policies: parsedData.policies || {},
-
-//     images: newImages,
-//     createdBy: req.user?._id,
-//   });
-
-//   res.status(200).json({
-//     success: true,
-//     message: "تم إنشاء  بنجاح",
-//     hotel: newHotel,
-//   });
-//   //   console.log("Request files:", req.files);
-//   // console.log("Request body:", req.body);
-// });
 
 export const createHotel = asyncHandler(async (req, res) => {
   try {

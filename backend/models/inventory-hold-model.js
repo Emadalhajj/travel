@@ -83,6 +83,12 @@ const inventoryHoldSchema = new mongoose.Schema(
 );
 
 inventoryHoldSchema.index({ status: 1, expiresAt: 1 });
+inventoryHoldSchema.index({
+  isActive: 1,
+  status: 1,
+  expiresAt: 1,
+  _id: 1,
+});
 inventoryHoldSchema.index(
   { idempotencyKey: 1 },
   {

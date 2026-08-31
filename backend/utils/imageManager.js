@@ -40,16 +40,14 @@ export const deleteImageFromDisk = async (imgPath) => {
   const fullPath = path.join(ROOT_PATH, normalized); // بناء المسار الكامل للملف على السيرفر
   // التحقق من وجود الملف قبل محاولة حذفه
   if (!fs.existsSync(fullPath)) {
-    console.warn("Image not found:", fullPath);
     return;
   }
 
   try {
     // fs.unlinkSync(fullPath);
     await fs.promises.unlink(fullPath); // حذف الملف بشكل غير متزامن
-    console.log("Deleted image:", fullPath);
-  } catch (err) {
-    console.error("Failed to delete image:", fullPath, err.message);
+  } catch {
+    return;
   }
 };
 /**
@@ -96,8 +94,6 @@ export const updateImageArray = ({
   const filteredImages = currentImages.filter(
     (img) => !normalizedDelete.includes(normalizeImagePath(img)),
   );
-
-  console.log("Images to delete:", normalizedDelete);
 
   return [...filteredImages, ...newImages];
 };

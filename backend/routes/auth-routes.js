@@ -15,29 +15,36 @@ import {
 import {
   changePasswordValidation,
   forgotPasswordValidation,
-  logingValidation,
+  loginValidation,
   resisterValidation,
   resetPasswordValidation,
   updateProfileValidation,
 } from "../services/validators/auth-validation.js";
 import { validate } from "../middleware/validate.js";
-import { uploadUserProfile } from "../middleware/upload.js";
+import { uploadUserProfile } from "../middleware/upload/index.js";
 import { protect } from "../middleware/authMiddleware.js";
+import {
+  authRateLimiter,
+  passwordResetRateLimiter,
+  uploadRateLimiter,
+} from "../middleware/security/rate-limiters.js";
 
 const authRouter = express.Router();
 const uploadAndParse = [
   uploadUserProfile.fields([{ name: "profileImage", maxCount: 1 }]),
 ];
 
-authRouter.post("/register", validate(resisterValidation), register);
-authRouter.post("/login", validate(logingValidation), login);
+authRouter.post("/register", authRateLimiter, validate(resisterValidation), register);
+authRouter.post("/login", authRateLimiter, validate(loginValidation), login);
 authRouter.post(
   "/forgot-password",
+  passwordResetRateLimiter,
   validate(forgotPasswordValidation),
   forgotPassword,
 );
 authRouter.post(
   "/reset-password/:token",
+  passwordResetRateLimiter,
   validate(resetPasswordValidation),
   resetPassword,
 );
@@ -53,10 +60,11 @@ authRouter.get(
   }),
   googleCallback,
 );
-authRouter.post("/auth/google/exchange", exchangeGoogleAuth);
+authRouter.post("/auth/google/exchange", authRateLimiter, exchangeGoogleAuth);
 authRouter.patch(
   "/users/me",
   protect,
+  uploadRateLimiter,
   ...uploadAndParse,
   validate(updateProfileValidation),
   updateProfile,

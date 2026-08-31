@@ -443,6 +443,19 @@ paymentTransactionSchema.index({ booking: 1, createdAt: -1 });
 paymentTransactionSchema.index({ draftBooking: 1, createdAt: -1 });
 paymentTransactionSchema.index({ providerCode: 1, providerReference: 1 });
 paymentTransactionSchema.index({ paymentConfigurationId: 1, createdAt: -1 });
+paymentTransactionSchema.index({
+  status: 1,
+  isDeleted: 1,
+  booking: 1,
+  updatedAt: 1,
+  _id: 1,
+});
+paymentTransactionSchema.index({
+  draftBooking: 1,
+  status: 1,
+  isDeleted: 1,
+  updatedAt: -1,
+});
 paymentTransactionSchema.index(
   { idempotencyKey: 1 },
   {

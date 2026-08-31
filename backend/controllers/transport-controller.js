@@ -30,7 +30,7 @@ export const getAllTransports = asyncHandler(async (req, res) => {
   }
   //  3️⃣ Sort + Pagination
   const sortOption = buildSort(req.query);
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
   //    4️⃣ Query
   const [transports, total] = await Promise.all([
     Transport.find(filter).sort(sortOption).skip(skip).limit(limit),
@@ -42,7 +42,8 @@ export const getAllTransports = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total,
-    page: Number(req.query.page) || 1,
+    page,
+    limit,
     transports,
   });
 });

@@ -43,7 +43,7 @@ HotelsRoute.get("/hotel/:id", getHotelById);
 HotelsRoute.post(
   "/hotel",
   protect,
-  authorize("admin"),
+  authorize("admin", "superAdmin"),
   ...uploadAndParse,
   validate(({ lang }) => createHotelSchema(lang)),
   createHotel,
@@ -52,18 +52,18 @@ HotelsRoute.post(
 HotelsRoute.put(
   "/hotel/:id",
   protect,
-  authorize("admin"),
+  authorize("admin", "superAdmin"),
   ...uploadAndParse,
   validate(({ lang }) => updateHotelSchema(lang)),
   updateHotel,
 );
 
-HotelsRoute.delete("/hotel/:id", protect, authorize("admin"), deleteHotel);
+HotelsRoute.delete("/hotel/:id", protect, authorize("admin", "superAdmin"), deleteHotel);
 
 HotelsRoute.patch(
   "/hotel/toggle/:id",
   protect,
-  authorize("admin"),
+  authorize("admin", "superAdmin"),
   toggleHotelStatus,
 );
 

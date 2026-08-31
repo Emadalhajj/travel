@@ -20,6 +20,17 @@ const IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const DOCUMENT_MIME_TYPES = [...IMAGE_MIME_TYPES, "application/pdf"];
 const BOOKING_DOCUMENT_EXTENSIONS = /\.(jpe?g|png|webp|pdf)$/i;
 
+export const uploadUserProfile = createUploader({
+  folder: "users",
+  maxSizeMB: 10,
+  fieldRules: {
+    profileImage: {
+      extensions: /\.(jpe?g|png|webp)$/i,
+      mimeTypes: IMAGE_MIME_TYPES,
+    },
+  },
+});
+
 // نبقي توافق الـpresets القديمة، بينما مستندات الحجز تستخدم القائمة المقيدة أعلاه.
 const legacyImageRule = {
   extensions: IMAGE_EXTENSIONS,
@@ -136,6 +147,7 @@ export const uploadUmrahProgram =
 export const uploadPaymentProof =
   createUploader({
     folder: "payment-proofs",
+    storageRoot: "private-uploads",
 
     fieldRules: {
       proofAttachments: legacyDocumentRule,
@@ -146,6 +158,7 @@ export const uploadPaymentProof =
 export const uploadDraftDocument =
   createUploader({
     folder: "draft-bookings",
+    storageRoot: "private-uploads",
 
     maxSizeMB: 10,
 

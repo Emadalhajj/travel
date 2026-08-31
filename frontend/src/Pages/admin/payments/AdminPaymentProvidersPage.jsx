@@ -10,6 +10,12 @@ import {
   fetchPaymentProviders,
   updatePaymentProvider,
   updatePaymentProviderStatus,
+  selectPaymentProviders,
+  selectPaymentProviderPagination,
+  selectPaymentProviderListLoading,
+  selectPaymentProviderDetailsLoading,
+  selectPaymentProviderMutationLoading,
+  selectPaymentProviderError,
 } from "../../../redux/payments/paymentProviderSlice";
 import { paymentProviderFormConfig } from "../../../Components/common/ModalForms/payments/paymentProviderFormConfig";
 import { normalizeForForm } from "../../../Utils/formData/normalize";
@@ -66,10 +72,12 @@ export default function AdminPaymentProvidersPage() {
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
   const isArabic = lang === "ar";
-  const {
-    paymentProvidersList = [], loading, detailsLoading, saving, error,
-    pagination: reduxPagination = {},
-  } = useSelector((state) => state.paymentProviders || {});
+  const paymentProvidersList = useSelector(selectPaymentProviders);
+  const reduxPagination = useSelector(selectPaymentProviderPagination);
+  const loading = useSelector(selectPaymentProviderListLoading);
+  const detailsLoading = useSelector(selectPaymentProviderDetailsLoading);
+  const saving = useSelector(selectPaymentProviderMutationLoading);
+  const error = useSelector(selectPaymentProviderError);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
   const crud = useAdminEntityCrudState();

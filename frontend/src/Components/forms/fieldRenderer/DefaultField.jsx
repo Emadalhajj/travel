@@ -6,6 +6,7 @@ DefaultField.jsx
 كل input عادي.
 */
 import { Form } from "react-bootstrap";
+import CalendarField from "../../common/CalendarField";
 
 import { set } from "../utils/objectPath";
 
@@ -23,7 +24,6 @@ export default function DefaultField(props) {
   const {
     getFieldValue,
     getFieldStatePath,
-    clearFieldError,
   } = helpers;
 
   const value =
@@ -34,17 +34,15 @@ export default function DefaultField(props) {
       getFieldStatePath(field)
     ];
 
- const handleChange = (e) => {
-  const { value, checked } = e.target;
-
-  let newValue = value;
+ const applyValue = (rawValue, checked = false) => {
+  let newValue = rawValue;
 
   if (field.type === "checkbox") {
     newValue = checked;
   }
 
   if (field.type === "number") {
-    newValue = value === "" ? "" : Number(value);
+    newValue = rawValue === "" ? "" : Number(rawValue);
   }
 
   setFormState((prev) => {
@@ -81,8 +79,28 @@ export default function DefaultField(props) {
     return updated;
   });
 
-  clearFieldError(field);
+  helpers.validateField(field, newValue);
 };
+
+ const handleChange = (e) => {
+  applyValue(e.target.value, e.target.checked);
+ };
+
+  if (field.type === "date") {
+    return (
+      <CalendarField
+        id={getFieldStatePath(field)}
+        value={value ?? ""}
+        onChange={applyValue}
+        min={field.min}
+        max={field.max}
+        required={field.required}
+        error={error}
+        isArabic={isArabic}
+        showMessage={false}
+      />
+    );
+  }
 
   // ================= SELECT =================
 

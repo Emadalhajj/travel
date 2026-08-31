@@ -14,7 +14,6 @@ const normalizeDate = (d) => {
   const date = new Date(d);
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 };
-
 const getDayName = (date) => DAYS[normalizeDate(date)?.getDay()];
 
 const checkPeriodMatch = (checkDate, dayName, period) => {
@@ -96,57 +95,3 @@ export const getPriceForDate = (date, pricing) => {
     periodId: best._id,
   };
 };
-
-// const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-
-// const normalizeDate = (d) => new Date(new Date(d).getFullYear(), new Date(d).getMonth(), new Date(d).getDate());
-
-// const getDayName = (date) => DAYS[normalizeDate(date).getDay()];
-
-// const checkPeriodMatch = (checkDate, dayName, period) => {
-//   switch (period.periodType) {
-//     case "weekend":
-//       return period.days?.includes(dayName);
-//     case "seasonal":
-//     case "holiday":
-//     case "custom": {
-//       if (!period.startDate || !period.endDate) return false;
-//       const start = normalizeDate(period.startDate).getTime();
-//       const end = normalizeDate(period.endDate).getTime();
-//       const current = normalizeDate(checkDate).getTime();
-//       return current >= start && current <= end;
-//     }
-//     default:
-//       return false;
-//   }
-// };
-
-// /**
-//  * يُرجع السعر المطبق لتاريخ واحد
-//  */
-// export const getPriceForDate = (date, pricing) => {
-//   const checkDate = normalizeDate(date);
-//   const dayName = getDayName(checkDate);
-
-//   const activePeriods = pricing.pricingPeriods
-//     ?.filter((p) => p.isActive)
-//     ?.sort((a, b) => (b.priority || 0) - (a.priority || 0));
-
-//   for (const period of activePeriods || []) {
-//     if (checkPeriodMatch(checkDate, dayName, period)) {
-//       return {
-//         type: period.periodType,
-//         name: { ar: period.nameAr, en: period.nameEn },
-//         price: period.price,
-//         source: "period",
-//       };
-//     }
-//   }
-
-//   return {
-//     type: "base",
-//     name: { ar: "سعر عادي", en: "Base Price" },
-//     price: pricing.basePrice,
-//     source: "base",
-//   };
-// };

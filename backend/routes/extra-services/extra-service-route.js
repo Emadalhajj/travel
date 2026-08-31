@@ -37,7 +37,7 @@ ExtraService.get("/:id" , getOneExtraService)
 ExtraService.post(
     "/" ,
     protect ,
-    authorize("admin") ,
+    authorize("admin", "superAdmin") ,
     ...extraServiceUploadMiddleware,
     validate(createExtraServiceSchema),
     createExtraService
@@ -46,7 +46,7 @@ ExtraService.post(
 ExtraService.put(
     "/:id",
     protect,
-    authorize("admin"),
+    authorize("admin", "superAdmin"),
     ...extraServiceUploadMiddleware,
     validate(updateExtraServiceSchema),
     updateExtraService
@@ -55,14 +55,14 @@ ExtraService.put(
 ExtraService.delete(
     "/:id",
     protect,
-    authorize("admin"),
+    authorize("admin", "superAdmin"),
     deleteExtraService
 )
 
 ExtraService.patch(
     "/toggle/:id",
     protect ,
-    authorize("admin"),
+    authorize("admin", "superAdmin"),
     toggleExtraServiceStatus
 )
 

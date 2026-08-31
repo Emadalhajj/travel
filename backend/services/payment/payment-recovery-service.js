@@ -30,6 +30,10 @@ import {
   sendPaidPendingBookingNotification,
   sendPaymentReceivedNotification,
 } from "../notifications/payment-notification-service.js";
+import { mapWithConcurrency } from "../../utils/async/mapWithConcurrency.js";
+
+const PAID_RECOVERY_CONCURRENCY = 5;
+const HOLD_RECOVERY_CONCURRENCY = 10;
 
 const PAID_RECOVERY_STATUSES = Object.freeze([
   PAYMENT_TRANSACTION_STATUSES.CAPTURED,
@@ -171,8 +175,10 @@ export const createPaymentRecoveryServiceLayer = ({
       requireDraft: true,
       limit,
     });
-    const results = await Promise.all(
-      transactions.map((transaction) => recoverPaidTransaction({ transaction, req })),
+    const results = await mapWithConcurrency(
+      transactions,
+      PAID_RECOVERY_CONCURRENCY,
+      (transaction) => recoverPaidTransaction({ transaction, req }),
     );
     return {
       processed: results.length,
@@ -189,9 +195,10 @@ export const createPaymentRecoveryServiceLayer = ({
     req = null,
   } = {}) => {
     const holds = await findHolds({ recoveryNow, limit });
-    const results = [];
-
-    for (const hold of holds) {
+    const results = await mapWithConcurrency(
+      holds,
+      HOLD_RECOVERY_CONCURRENCY,
+      async (hold) => {
       let transaction = null;
       if (hold.paymentTransaction) {
         try {
@@ -202,15 +209,14 @@ export const createPaymentRecoveryServiceLayer = ({
       }
 
       if (transaction && FINANCIALLY_CONFIRMED_STATUSES.has(transaction.status)) {
-        results.push({ holdId: hold._id, status: "kept_paid" });
-        continue;
+        return { holdId: hold._id, status: "kept_paid" };
       }
 
       const isExpired = new Date(hold.expiresAt) <= recoveryNow;
       const isLeakedTerminal = transaction && TERMINAL_UNPAID_STATUSES.has(transaction.status);
       const isReleaseRetry = hold.status === INVENTORY_HOLD_STATUSES.RELEASE_FAILED;
 
-      if (!isExpired && !isLeakedTerminal && !isReleaseRetry) continue;
+      if (!isExpired && !isLeakedTerminal && !isReleaseRetry) return null;
 
       try {
         await releaseHold({
@@ -233,23 +239,25 @@ export const createPaymentRecoveryServiceLayer = ({
             message: "Payment expired after inventory hold expiration",
           });
         }
-        results.push({ holdId: hold._id, status: isExpired ? "expired" : "released" });
+        return { holdId: hold._id, status: isExpired ? "expired" : "released" };
       } catch (error) {
-        results.push({
+        return {
           holdId: hold._id,
           status: "failed",
           error: error?.message || "Hold recovery failed",
-        });
+        };
       }
-    }
+      },
+    );
+    const processedResults = results.filter(Boolean);
 
     return {
-      processed: results.length,
-      expired: results.filter(({ status }) => status === "expired").length,
-      released: results.filter(({ status }) => status === "released").length,
-      keptPaid: results.filter(({ status }) => status === "kept_paid").length,
-      failed: results.filter(({ status }) => status === "failed").length,
-      results,
+      processed: processedResults.length,
+      expired: processedResults.filter(({ status }) => status === "expired").length,
+      released: processedResults.filter(({ status }) => status === "released").length,
+      keptPaid: processedResults.filter(({ status }) => status === "kept_paid").length,
+      failed: processedResults.filter(({ status }) => status === "failed").length,
+      results: processedResults,
     };
   };
 

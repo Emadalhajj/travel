@@ -15,7 +15,12 @@ import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
 import PublicButton from "../../../Components/shared/buttons/PublicButton";
 import BookingProgressTimeline from "../../../Components/shared/booking/BookingProgressTimeline";
-import { fetchPublicBookingById } from "../../../redux/public/bookingSlice";
+import {
+  fetchPublicBookingById,
+  selectPublicBookingDetailsError,
+  selectPublicBookingDetailsLoading,
+  selectPublicFinalBooking,
+} from "../../../redux/public/bookingSlice";
 import DraftSelectedProductsCard from "../../../Components/shared/draft-bookings/DraftSelectedProductsCard";
 import { getNationalityLabel } from "../../../Utils/nationality";
 import { formatDate } from "../../../Utils/dateUtils";
@@ -35,9 +40,9 @@ export default function PublicBookingDetailsPage() {
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
 
-  const { finalBooking, loading, error } = useSelector(
-    (state) => state.publicBooking,
-  );
+  const finalBooking = useSelector(selectPublicFinalBooking);
+  const loading = useSelector(selectPublicBookingDetailsLoading);
+  const error = useSelector(selectPublicBookingDetailsError);
 
   useEffect(() => {
     if (bookingId) {

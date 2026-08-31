@@ -21,38 +21,32 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const dropObsoleteBookingIndexes = async () => {
-  const bookings = mongoose.connection.collection("bookings");
-
-  try {
-    const indexes = await bookings.indexes();
-    const hasOldBookingIdIndex = indexes.some(
-      (index) => index.name === "bookingId_1",
-    );
-
-    if (!hasOldBookingIdIndex) return;
-
-    await bookings.dropIndex("bookingId_1");
-    console.log("✅ Dropped obsolete bookings.bookingId_1 index");
-  } catch (err) {
-    console.warn(
-      "⚠️ Could not drop obsolete bookings.bookingId_1 index:",
-      err.message,
-    );
-  }
-};
-
 export async function connectDB() {
   try {
+    const maxPoolSize = Math.max(1, Number(process.env.DB_MAX_POOL_SIZE) || 20);
+    const minPoolSize = Math.min(
+      maxPoolSize,
+      Math.max(0, Number(process.env.DB_MIN_POOL_SIZE) || 0),
+    );
     await mongoose.connect(process.env.DB_URL, {
-      dbName: process.env.DB_NAME || "umrahDB", // ✅ يحدد اسم القاعدة
+      dbName: process.env.DB_NAME || "umrahDB",
+      maxPoolSize,
+      minPoolSize,
+      serverSelectionTimeoutMS: Math.max(
+        1000,
+        Number(process.env.DB_SERVER_SELECTION_TIMEOUT_MS) || 10000,
+      ),
+      socketTimeoutMS: Math.max(
+        1000,
+        Number(process.env.DB_SOCKET_TIMEOUT_MS) || 45000,
+      ),
       // useNewUrlParser: true,//غير ضروري في Mongoose 6.x وما بعده
       // useUnifiedTopology: true,// غير ضروري في Mongoose 6.x وما بعده
     });
     console.log("✅ Connected to MongoDB Database:", mongoose.connection.name);
-    await dropObsoleteBookingIndexes();
+    return mongoose.connection;
   } catch (err) {
     console.error("❌ Error connecting to MongoDB:", err.message);
-    process.exit(1);
+    throw err;
   }
 }

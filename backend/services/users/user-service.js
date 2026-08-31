@@ -27,7 +27,7 @@ export const getUsersService = async ({ query }) => {
   };
   if (query.isActive !== undefined) filter.isActive = query.isActive === "true";
   const sort = buildSort(query);
-  const { skip, limit } = buildPagination(query);
+  const { page, skip, limit } = buildPagination(query);
   const [users, total] = await Promise.all([
     User.find(filter)
       .sort(sort)
@@ -37,7 +37,7 @@ export const getUsersService = async ({ query }) => {
       .select("-password"),
     User.countDocuments(filter),
   ]);
-  return { users, total };
+  return { users, total, page, limit };
 };
 
 export const getUserByIdService = async ({ targetUserId }) => {

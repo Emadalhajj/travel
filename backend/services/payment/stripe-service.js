@@ -16,6 +16,16 @@ const ZERO_DECIMAL_CURRENCIES = new Set([
   "XOF", "XPF",
 ]);
 
+const stripeClients = new Map();
+const STRIPE_TIMEOUT_MS = Math.max(
+  1000,
+  Number(process.env.STRIPE_TIMEOUT_MS) || 20000,
+);
+const configuredStripeRetries = Number(process.env.STRIPE_MAX_NETWORK_RETRIES);
+const STRIPE_MAX_NETWORK_RETRIES = Number.isFinite(configuredStripeRetries)
+  ? Math.max(0, Math.min(configuredStripeRetries, 5))
+  : 2;
+
 const getStripeClient = (providerConfig = {}) => {
   if (providerConfig.stripeClient) {
     return providerConfig.stripeClient;
@@ -33,7 +43,17 @@ const getStripeClient = (providerConfig = {}) => {
     );
   }
 
-  return new Stripe(secretKey);
+  if (!stripeClients.has(secretKey)) {
+    stripeClients.set(
+      secretKey,
+      new Stripe(secretKey, {
+        timeout: STRIPE_TIMEOUT_MS,
+        maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
+      }),
+    );
+  }
+
+  return stripeClients.get(secretKey);
 };
 
 const toMinorAmount = (amount, currency) => {

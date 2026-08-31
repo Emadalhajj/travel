@@ -14,7 +14,7 @@ const toIsoDate = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-export default function CalendarField({ id, value = "", onChange, min, max, required = false, error = "", isArabic = true }) {
+export default function CalendarField({ id, value = "", onChange, min, max, required = false, error = "", isArabic = true, showMessage = true }) {
   const selectedDate = toDate(value);
   const today = new Date();
   const initialView = selectedDate || toDate(max) || today;
@@ -108,7 +108,9 @@ export default function CalendarField({ id, value = "", onChange, min, max, requ
         </div>
       )}
 
-      <p className={`mt-1 text-xs ${error ? "font-semibold text-red-600" : "text-slate-500"}`}>{error || (isArabic ? "اختر التاريخ من التقويم" : "Choose a date from the calendar")}</p>
+      {showMessage && (
+        <p className={`mt-1 text-xs ${error ? "font-semibold text-red-600" : "text-slate-500"}`}>{error || (isArabic ? "اختر التاريخ من التقويم" : "Choose a date from the calendar")}</p>
+      )}
     </div>
   );
 }

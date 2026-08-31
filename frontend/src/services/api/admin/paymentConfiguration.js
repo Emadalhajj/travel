@@ -27,10 +27,10 @@ Base URL
 تبقى القيمة كما هي.
 
 مثال:
-baseURL = http://localhost:5000/api
+baseURL = /api
 
 ويكون المسار النهائي:
-http://localhost:5000/api/payments/configurations
+/api/payments/configurations
 =====================================================
 */
 

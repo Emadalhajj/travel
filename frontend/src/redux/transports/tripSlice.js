@@ -2,7 +2,6 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import {
   getAllTrips,
-  getTripById,
   createTripApi,
   updateTripApi,
   deleteTripApi,
@@ -23,20 +22,6 @@ export const fetchTrips = createAsyncThunk(
     }
   },
 );
-//fetchBY id
-
-export const fetchTripById = createAsyncThunk(
-  "oneTrip/fetch",
-  async (id, { rejectWithValue }) => {
-    try {
-      const res = await getTripById(id);
-      return res.data;
-    } catch (err) {
-      return handleApiError(err, rejectWithValue);
-    }
-  },
-);
-
 //create trip
 
 export const createNewTrip = createAsyncThunk(
@@ -52,7 +37,7 @@ export const createNewTrip = createAsyncThunk(
 );
 
 //update
-export const updateExitingTrip = createAsyncThunk(
+export const updateExistingTrip = createAsyncThunk(
   "trip/update",
   async ({ id, payload }, { rejectWithValue }) => {
     try {
@@ -95,8 +80,9 @@ const tripSlice = createSlice({
   name: "trip",
   initialState: {
     tripList: [],
-    selectedTrip: null,
-    loading: false,
+    listLoading: false,
+    mutationLoading: false,
+    mutationError: null,
     error: null,
     pagination: {
       total: 0,
@@ -118,11 +104,11 @@ const tripSlice = createSlice({
     //fetch
     builder
       .addCase(fetchTrips.pending, (state) => {
-        state.loading = true;
+        state.listLoading = true;
         state.error = false;
       })
       .addCase(fetchTrips.fulfilled, (state, action) => {
-        state.loading = false;
+        state.listLoading = false;
         state.error = null;
         state.tripList = action.payload?.trips || action.payload || [];
         const total = action.payload?.total ?? state.tripList.length;
@@ -137,85 +123,77 @@ const tripSlice = createSlice({
         };
       })
       .addCase(fetchTrips.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-      //byid
-      .addCase(fetchTripById.pending, (state) => {
-        state.loading = true;
-        state.error = false;
-      })
-      .addCase(fetchTripById.fulfilled, (state, action) => {
-        state.loading = false;
-        state.selectedTrip = action.payload?.oneTrip || action.payload || [];
-      })
-      .addCase(fetchTripById.rejected, (state, action) => {
-        state.loading = false;
+        state.listLoading = false;
         state.error = action.payload;
       })
       //create new
 
       .addCase(createNewTrip.fulfilled, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         state.tripList.unshift(action.payload?.newTrip || action.payload);
       })
       .addCase(createNewTrip.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
+        state.mutationLoading = false;
+        state.mutationError = action.payload;
       })
       .addCase(createNewTrip.pending, (state) => {
-        state.loading = true;
-        state.error = false;
+        state.mutationLoading = true;
+        state.mutationError = null;
       })
       //update
-      .addCase(updateExitingTrip.fulfilled, (state, action) => {
-        state.loading = false;
+      .addCase(updateExistingTrip.fulfilled, (state, action) => {
+        state.mutationLoading = false;
         const updateTrip = action.payload?.updateTrip || action.payload;
         state.tripList = state.tripList.map((trip) =>
           trip._id === updateTrip._id ? updateTrip : trip,
         );
       })
-      .addCase(updateExitingTrip.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
+      .addCase(updateExistingTrip.rejected, (state, action) => {
+        state.mutationLoading = false;
+        state.mutationError = action.payload;
       })
-      .addCase(updateExitingTrip.pending, (state) => {
-        state.loading = true;
-        state.error = false;
+      .addCase(updateExistingTrip.pending, (state) => {
+        state.mutationLoading = true;
+        state.mutationError = null;
       })
       ///dalete
       .addCase(deleteTrip.fulfilled, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         state.tripList = state.tripList.filter(
           (item) => item._id !== action.payload.id,
         );
       })
       .addCase(deleteTrip.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
+        state.mutationLoading = false;
+        state.mutationError = action.payload;
       })
       .addCase(deleteTrip.pending, (state) => {
-        state.loading = true;
-        state.error = false;
+        state.mutationLoading = true;
+        state.mutationError = null;
       })
       //toggle
 
       .addCase(toggleTripActiveStatus.fulfilled, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         const toggle = action.payload?.updateStatusTrip;
         state.tripList = state.tripList.map((to) =>
           to._id === toggle._id ? toggle : to,
         );
       })
       .addCase(toggleTripActiveStatus.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
+        state.mutationLoading = false;
+        state.mutationError = action.payload;
       })
       .addCase(toggleTripActiveStatus.pending, (state) => {
-        state.loading = true;
-        state.error = false;
+        state.mutationLoading = true;
+        state.mutationError = null;
       });
   },
 });
 export const { setPage, setLimit } = tripSlice.actions;
+export const selectTripItems = (state) => state.trip.tripList;
+export const selectTripPagination = (state) => state.trip.pagination;
+export const selectTripListLoading = (state) => state.trip.listLoading;
+export const selectTripError = (state) => state.trip.error;
+export const selectTripMutationLoading = (state) => state.trip.mutationLoading;
 export default tripSlice.reducer;

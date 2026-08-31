@@ -4,9 +4,11 @@ import {
   buildPdfTableBody,
   getExportColumns,
   resolvePdfLayout,
+  exportTableExcel,
   exportTablePDF,
-} from "./tableExport";
-import pdfMake from "pdfmake-rtl";
+} from "./tableExportCore";
+
+const pdfMake = { createPdf: jest.fn() };
 
 jest.mock("./documentPdfBranding", () => ({
   loadDocumentBranding: jest.fn().mockResolvedValue({}),
@@ -16,14 +18,6 @@ jest.mock("./documentPdfBranding", () => ({
   PDF_LAYOUT: { contentTop: 100, contentBottom: 100 },
 }));
 
-jest.mock("pdfmake-rtl", () => ({
-  __esModule: true,
-  default: { vfs: {}, createPdf: jest.fn() },
-}));
-jest.mock("pdfmake-rtl/build/vfs_fonts", () => ({
-  __esModule: true,
-  default: { vfs: {} },
-}));
 
 test("export respects visible and explicitly exportable columns", () => {
   const columns = [
@@ -46,6 +40,31 @@ test("Excel keeps counts and accounting amounts as real numbers", () => {
   expect(result.rows).toEqual([[1, 3, 1250.5, "SAR"]]);
   expect(typeof result.rows[0][0]).toBe("number");
   expect(typeof result.rows[0][2]).toBe("number");
+});
+
+test("Excel export preserves types, RTL layout and merged report headings", async () => {
+  const toFile = jest.fn().mockResolvedValue(undefined);
+  const writeXlsxFile = jest.fn(() => ({ toFile }));
+
+  await exportTableExcel({
+    data: [{ amount: "1250.50", paidAt: "2026-08-29", active: true }],
+    columns: [
+      { header: "Amount", excelAccessor: "amount", excelType: "number" },
+      { header: "Date", excelAccessor: "paidAt", excelType: "date" },
+      { header: "Active", accessor: "active", excelType: "boolean" },
+    ],
+    fileName: "payments.xlsx",
+    title: "Payments",
+    lang: "ar",
+  }, writeXlsxFile);
+
+  const [sheetData, options] = writeXlsxFile.mock.calls[0];
+  expect(sheetData[0][0]).toMatchObject({ value: "Payments", columnSpan: 4 });
+  expect(sheetData[4][1]).toMatchObject({ value: 1250.5, type: Number });
+  expect(sheetData[4][2]).toMatchObject({ type: Date });
+  expect(sheetData[4][3]).toMatchObject({ value: true, type: Boolean });
+  expect(options).toMatchObject({ rightToLeft: true, stickyRowsCount: 4 });
+  expect(toFile).toHaveBeenCalledWith("payments.xlsx");
 });
 
 test("Arabic PDF keeps logical column order for pdfmake RTL rendering", () => {
@@ -126,7 +145,7 @@ test("Arabic PDF explicitly marks tables as RTL regardless of cell language rati
       { header: "الحالة", accessor: "status" },
     ],
     lang: "ar",
-  });
+  }, pdfMake);
 
   const definition = pdfMake.createPdf.mock.calls.at(-1)[0];
   const tableSection = definition.content[0].stack.at(-1);

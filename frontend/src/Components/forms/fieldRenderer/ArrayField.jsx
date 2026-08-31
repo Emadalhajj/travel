@@ -82,30 +82,6 @@ export default function ArrayField({
 
   /*
   =========================
-  conditional fields
-  =========================
-  */
-
-  const shouldShowSubField = (item, subField) => {
-    if (!subField.condition) {
-      return true;
-    }
-
-    const currentValue = get(item, subField.condition.field);
-
-    const expectedValue = subField.condition.value;
-
-    // array condition
-    if (Array.isArray(expectedValue)) {
-      return expectedValue.includes(currentValue);
-    }
-
-    // single value
-    return currentValue === expectedValue;
-  };
-
-  /*
-  =========================
   add item
   =========================
   */

@@ -5,23 +5,6 @@ import { normalizeArray }
 from "../generic/normalizeArray.js";
 import { normalizeBoolean } from "../generic/normalizeBoolean.js";
 
-// export const normalizeBooking = (
-//   booking = {}
-// ) => ({
-//   notes:
-//     normalizeString(
-//       booking.notes
-//     ),
-
-//   pilgrims:
-//     normalizeArray(
-//       booking.pilgrims
-//     ),
-
-//   services:
-//     booking.services || {},
-// });
-
 // =============================
 // Helpers
 // =============================

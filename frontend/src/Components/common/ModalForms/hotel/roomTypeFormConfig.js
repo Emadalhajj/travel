@@ -1,6 +1,6 @@
 // roomTypeFormConfig.js
 
-import { Badge, Col, Row } from "react-bootstrap";
+import { Col, Row } from "react-bootstrap";
 import {
   computations,
   formatters,

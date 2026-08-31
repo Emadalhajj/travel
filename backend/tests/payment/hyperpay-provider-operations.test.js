@@ -54,6 +54,7 @@ test("checkout requests PA authorization", async () => {
         returnUrl: "https://example.com/result",
         providerConfig,
       });
+      assert.ok(getRequest().options.signal instanceof AbortSignal);
       const body = new URLSearchParams(getRequest().options.body);
       assert.equal(body.get("paymentType"), "PA");
     },

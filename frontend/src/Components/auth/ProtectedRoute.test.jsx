@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 jest.mock("../../services/api", () => ({
   register: jest.fn(),
-  loging: jest.fn(),
+  login: jest.fn(),
 }));
 jest.mock("../../services/api/admin/auth", () => ({
   updateUserProfile: jest.fn(),

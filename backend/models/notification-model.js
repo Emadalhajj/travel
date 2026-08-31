@@ -148,6 +148,14 @@ notificationSchema.index({
   createdAt: -1,
 });
 
+notificationSchema.index({
+  user: 1,
+  channel: 1,
+  isRead: 1,
+  isDeleted: 1,
+  createdAt: -1,
+});
+
 notificationSchema.index(
   { deduplicationKey: 1 },
   {

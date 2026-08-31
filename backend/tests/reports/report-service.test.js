@@ -8,6 +8,8 @@ import { REPORT_READ_ROLES } from "../../routes/reports/report-route.js";
 import {
   buildBookingReport,
   buildPaymentReport,
+  buildBookingReportAggregation,
+  buildPaymentReportAggregation,
   buildProgramReport,
   buildReportBookingFilter,
   buildReportPaymentFilter,
@@ -157,6 +159,85 @@ test("overview is built in backend and exposes no sensitive payment data", async
   assert.equal(serialized.includes("must-not-leak"), false);
   assert.equal(serialized.includes("metadata"), false);
   assert.equal(serialized.includes("gatewayResponse"), false);
+});
+
+test("production report pipelines aggregate in MongoDB and keep attention hybrid", () => {
+  const bookingPipeline = buildBookingReportAggregation(
+    { isDeleted: false },
+    { includeAttention: true },
+  );
+  const paymentPipeline = buildPaymentReportAggregation({ isDeleted: false });
+
+  assert.deepEqual(bookingPipeline[0], { $match: { isDeleted: false } });
+  assert.ok(bookingPipeline.some((stage) => stage.$lookup));
+  assert.ok(bookingPipeline.at(-1).$facet.summary[0].$group);
+  assert.ok(bookingPipeline.at(-1).$facet.programs.some((stage) => stage.$group));
+  assert.ok(paymentPipeline.at(-1).$facet.summary[0].$group);
+  assert.ok(paymentPipeline.at(-1).$facet.byMethod[0].$group);
+});
+
+test("expanded overview uses one booking aggregation and one payment aggregation", async () => {
+  let bookingCalls = 0;
+  let paymentCalls = 0;
+  const service = createReportServiceLayer({
+    aggregateBookings: async () => {
+      bookingCalls += 1;
+      return {
+        summary: [{
+          total: 3,
+          travelersTotal: 6,
+          totalBookingValue: 600,
+          paidAmount: 150,
+          remainingAmount: 450,
+        }],
+        byStatus: [
+          { _id: "confirmed", count: 1 },
+          { _id: "pending", count: 1 },
+          { _id: "cancelled", count: 1 },
+        ],
+        byPaymentStatus: [],
+        programs: [{
+          _id: programOne,
+          programNameAr: "الأول",
+          programNameEn: "First",
+          bookingsCount: 2,
+          travelersCount: 3,
+          grossBookingValue: 300,
+          paidAmount: 150,
+        }],
+        attentionRows: bookings.map((booking) => ({
+          _id: booking._id,
+          bookingStatus: booking.bookingStatus,
+          paymentStatus: booking.paymentStatus,
+          payments: paymentStatusesByBooking.get(booking._id) || [],
+        })),
+      };
+    },
+    aggregatePayments: async () => {
+      paymentCalls += 1;
+      return {
+        summary: [{
+          total: 4,
+          successful: 2,
+          failed: 1,
+          pending: 1,
+          paidPendingBooking: 1,
+          bankPendingVerification: 1,
+          bankPendingReview: 1,
+        }],
+        byMethod: [],
+        byProvider: [],
+      };
+    },
+  });
+
+  const overview = await service.getReportsOverviewService({});
+  assert.equal(bookingCalls, 1);
+  assert.equal(paymentCalls, 1);
+  assert.equal(overview.bookings.total, 3);
+  assert.equal(overview.reports.bookings.attentionRequired, 2);
+  assert.equal(overview.reports.payments.transactions.total, 4);
+  assert.equal(overview.reports.programs[0].programId, programOne);
 });
 
 test("report routes allow admin and super admin only", () => {

@@ -76,7 +76,7 @@ export const getAllBookingLogs = asyncHandler(async (req, res) => {
     filter.performedBy = req.query.performedBy;
   }
 
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
 
   const [logs, total] = await Promise.all([
     BookingLog.find(filter)
@@ -92,8 +92,8 @@ export const getAllBookingLogs = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total,
-    page: Number(req.query.page) || 1,
-    limit: Number(req.query.limit) || 10,
+    page,
+    limit,
     data: logs,
   });
 });

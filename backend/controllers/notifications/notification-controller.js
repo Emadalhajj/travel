@@ -25,13 +25,18 @@ export const getMyNotifications = asyncHandler(async (req, res) => {
     isDeleted: false,
   };
   if (req.query.isRead !== undefined) filter.isRead = req.query.isRead === "true";
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
   const [notifications, total] = await Promise.all([
-    Notification.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit)
-      .populate("booking", "bookingNumber bookingStatus paymentStatus"),
+    Notification.find(filter)
+      .select("titleAr titleEn messageAr messageEn type status isRead readAt booking createdAt")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("booking", "bookingNumber bookingStatus paymentStatus")
+      .lean(),
     Notification.countDocuments(filter),
   ]);
-  res.status(200).json({ success: true, total, page: Number(req.query.page) || 1, limit: Number(req.query.limit) || 10, data: notifications });
+  res.status(200).json({ success: true, total, page, limit, data: notifications });
 });
 
 export const getMyUnreadCount = asyncHandler(async (req, res) => {
@@ -85,15 +90,20 @@ export const getAllNotifications = asyncHandler(async (req, res) => {
     if (!NOTIFICATION_STATUS_VALUES.includes(req.query.status)) throw new AppError("Invalid notification status", 400, "status");
     filter.status = req.query.status;
   }
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
   const [notifications, total] = await Promise.all([
-    Notification.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit)
+    Notification.find(filter)
+      .select("status channel type failedReason booking user createdBy createdAt")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .populate("user", "firstName lastName username email")
       .populate("booking", "bookingNumber bookingStatus paymentStatus")
-      .populate("createdBy", "firstName lastName username email"),
+      .populate("createdBy", "firstName lastName username email")
+      .lean(),
     Notification.countDocuments(filter),
   ]);
-  res.status(200).json({ success: true, total, page: Number(req.query.page) || 1, limit: Number(req.query.limit) || 10, data: notifications });
+  res.status(200).json({ success: true, total, page, limit, data: notifications });
 });
 
 export const retryNotification = asyncHandler(async (req, res) => {

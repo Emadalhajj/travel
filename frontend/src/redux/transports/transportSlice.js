@@ -2,7 +2,6 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import {
   getTransports,
-  getTransportById,
   createTransport,
   updateTransport,
   deleteTransport,
@@ -24,18 +23,6 @@ export const fetchTransports = createAsyncThunk(
   },
 );
 
-// fetchTransportByj id
-export const fetchTransportById = createAsyncThunk(
-  "oneTransport/fetch",
-  async (id, { rejectWithValue }) => {
-    try {
-      const res = await getTransportById(id);
-      return res.data;
-    } catch (err) {
-      return handleApiError(err, rejectWithValue);
-    }
-  },
-);
 //create
 
 export const createNewTransport = createAsyncThunk(
@@ -92,8 +79,8 @@ const transportSlice = createSlice({
   name: "transport",
   initialState: {
     transportList: [],
-    selectedTransport: null,
-    loading: false,
+    listLoading: false,
+    mutationLoading: false,
     error: null,
   },
   reducers: {},
@@ -101,46 +88,41 @@ const transportSlice = createSlice({
     builder
       //fetch
       .addCase(fetchTransports.pending, (state) => {
-        state.loading = true;
+        state.listLoading = true;
         state.error = null;
       })
       .addCase(fetchTransports.fulfilled, (state, action) => {
-        state.loading = false;
+        state.listLoading = false;
         state.transportList =
           action.payload?.transports || action.payload || [];
       })
       .addCase(fetchTransports.rejected, (state, action) => {
-        state.loading = false;
+        state.listLoading = false;
         state.error = action.payload;
-      })
-      .addCase(fetchTransportById.fulfilled, (state, action) => {
-        state.loading = false;
-        state.selectedTransport =
-          action.payload?.oneTransport || action.payload || [];
-      })
-      .addCase(fetchTransportById.pending, (state) => {
-        state.loading = true;
-        state.error = null;
       })
       //create
       .addCase(createNewTransport.pending, (state) => {
-        state.loading = true;
+        state.mutationLoading = true;
         state.error = null;
       })
 
       .addCase(createNewTransport.fulfilled, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         state.transportList.unshift(
           action.payload?.newTransport || action.payload,
         );
       })
+      .addCase(createNewTransport.rejected, (state, action) => {
+        state.mutationLoading = false;
+        state.error = action.payload;
+      })
       //update
       .addCase(updateExistingTransport.pending, (state) => {
-        state.loading = true;
+        state.mutationLoading = true;
         state.error = null;
       })
       .addCase(updateExistingTransport.fulfilled, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         //console.log("update fulfilled → payload:", action.payload);
 
         const updatedTransport = action.payload?.updatedTransport;
@@ -148,24 +130,45 @@ const transportSlice = createSlice({
           t._id === updatedTransport._id ? updatedTransport : t,
         );
       })
+      .addCase(updateExistingTransport.rejected, (state, action) => {
+        state.mutationLoading = false;
+        state.error = action.payload;
+      })
       //delete
       .addCase(deleteTransportById.pending, (state) => {
-        state.loading = true;
+        state.mutationLoading = true;
         state.error = null;
       })
       .addCase(deleteTransportById.fulfilled, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         state.transportList = state.transportList.filter(
           (t) => t._id !== action.payload.id,
         );
       })
+      .addCase(deleteTransportById.rejected, (state, action) => {
+        state.mutationLoading = false;
+        state.error = action.payload;
+      })
       //toggle
+      .addCase(toggleTransportActiveStatus.pending, (state) => {
+        state.mutationLoading = true;
+        state.error = null;
+      })
       .addCase(toggleTransportActiveStatus.fulfilled, (state, action) => {
+        state.mutationLoading = false;
         const toggled = action.payload?.updatedTransport;
         state.transportList = state.transportList.map((t) =>
           t._id === toggled._id ? toggled : t,
         );
+      })
+      .addCase(toggleTransportActiveStatus.rejected, (state, action) => {
+        state.mutationLoading = false;
+        state.error = action.payload;
       });
   },
 });
+export const selectTransportItems = (state) => state.transport.transportList;
+export const selectTransportListLoading = (state) => state.transport.listLoading;
+export const selectTransportError = (state) => state.transport.error;
+export const selectTransportMutationLoading = (state) => state.transport.mutationLoading;
 export default transportSlice.reducer;

@@ -63,6 +63,16 @@ const normalizeBackendErrors = (err, formConfig, fallbackMessage) => {
     err?.data?.message ||
     err?.response?.data?.message;
 
+  const rawField =
+    err?.field ||
+    err?.payload?.field ||
+    err?.data?.field ||
+    err?.response?.data?.field;
+
+  if (rawField && rawMessage) {
+    return { [rawField]: rawMessage };
+  }
+
   if (Array.isArray(rawErrors)) {
     const message = rawErrors.map(toErrorMessage).filter(Boolean).join("\n");
     return {
@@ -185,7 +195,9 @@ export const createHandleSave = ({
       closeModal?.();
       resetItem?.();
       resetMode?.();
-      dispatch(fetchAction());
+      if (fetchAction) {
+        dispatch(fetchAction());
+      }
 
       // 🔥 5. hook إضافي
       onSuccess?.(result);

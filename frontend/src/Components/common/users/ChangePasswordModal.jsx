@@ -15,7 +15,7 @@ export default function ChangePasswordModal({
   onSuccess, // callback بعد النجاح (اختياري)
   requireCurrentPassword = false, // (الافتراضي false للأدمن)
 }) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
 
   const [newPassword, setNewPassword] = useState("");

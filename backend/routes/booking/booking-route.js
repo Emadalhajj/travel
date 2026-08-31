@@ -12,8 +12,7 @@ Booking Routes
 1- ربط كل Route بالـ Controller المناسب.
 2- تطبيق الحماية protect.
 3- تطبيق الصلاحيات authorize.
-4- تطبيق Joi validation.
-5- الحفاظ على نفس نمط Routes المستخدم في المشروع.
+4- الحفاظ على نفس نمط Routes المستخدم في المشروع.
 
 مهم:
 -----------------------------------------------------
@@ -30,26 +29,16 @@ import express from "express";
 
 import { protect, authorize } from "../../middleware/authMiddleware.js";
 
-import { validate } from "../../middleware/validate.js";
-
-import {
-  createBookingSchema,
-  updateBookingSchema,
-} from "../../services/validators/booking-validation.js";
-
 import {
   getAllBookings,
   getMyBookings,
   getBookingById,
-  createBooking,
-  updateBooking,
   deleteBooking,
   cancelBooking,
   confirmBooking,
   completeBooking,
   changeBookingStatus,
   changePaymentStatus,
-  previewBookingPrice,
 } from "../../controllers/booking/booking-controller.js";
 
 /*
@@ -67,18 +56,7 @@ Public / User Routes
 
 هذه المسارات يستخدمها العميل أو الواجهة الأمامية.
 
-ملاحظة:
------------------------------------------------------
-- preview-price يمكن جعله protected أو public حسب سياستك.
-- الأفضل أن يكون protected إذا كان السعر يعتمد على مستخدم.
-=====================================================
 */
-
-// معاينة سعر الحجز قبل الحفظ
-BookingRoute.post(
-  "/bookings/preview-price",
-  previewBookingPrice,
-);
 
 // حجوزات المستخدم الحالي
 BookingRoute.get(
@@ -92,22 +70,6 @@ BookingRoute.get(
   "/bookings/:id",
   protect,
   getBookingById,
-);
-
-// إنشاء حجز جديد
-BookingRoute.post(
-  "/bookings",
-  protect,
-  validate(createBookingSchema),
-  createBooking,
-);
-
-// تحديث حجز
-BookingRoute.put(
-  "/bookings/:id",
-  protect,
-  validate(updateBookingSchema),
-  updateBooking,
 );
 
 // إلغاء حجز

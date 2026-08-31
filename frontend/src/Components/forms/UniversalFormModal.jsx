@@ -84,6 +84,7 @@ export default function UniversalFormModal({
   initialData,
   errors,
   loading,
+  onFormStateChange,
 
   /*
   =========================================================
@@ -169,6 +170,7 @@ export default function UniversalFormModal({
           loading
           */
           loading={loading}
+          onFormStateChange={onFormStateChange}
         />
 
       </Modal.Body>

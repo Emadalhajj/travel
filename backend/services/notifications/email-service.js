@@ -33,12 +33,35 @@ export const createEmailService = ({
       : rawPass;
     const from = String(environment.EMAIL_FROM || user).trim();
     const fromName = String(environment.EMAIL_FROM_NAME || "Travel App").trim();
+    const connectionTimeout = Math.max(
+      1000,
+      Number(environment.EMAIL_CONNECTION_TIMEOUT_MS) || 10000,
+    );
+    const greetingTimeout = Math.max(
+      1000,
+      Number(environment.EMAIL_GREETING_TIMEOUT_MS) || 10000,
+    );
+    const socketTimeout = Math.max(
+      1000,
+      Number(environment.EMAIL_SOCKET_TIMEOUT_MS) || 20000,
+    );
 
     if (!host || !user || !pass || !from || !Number.isInteger(port) || port <= 0) {
       throw new Error("Email service is not configured");
     }
 
-    return { host, port, secure, user, pass, from, fromName };
+    return {
+      host,
+      port,
+      secure,
+      user,
+      pass,
+      from,
+      fromName,
+      connectionTimeout,
+      greetingTimeout,
+      socketTimeout,
+    };
   };
 
   const getTransporter = (configuration) => {
@@ -53,6 +76,9 @@ export const createEmailService = ({
         host: configuration.host,
         port: configuration.port,
         secure: configuration.secure,
+        connectionTimeout: configuration.connectionTimeout,
+        greetingTimeout: configuration.greetingTimeout,
+        socketTimeout: configuration.socketTimeout,
         auth: {
           user: configuration.user,
           pass: configuration.pass,

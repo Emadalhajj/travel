@@ -18,7 +18,6 @@ import AdminPageActions from "../../../Components/layout/AdminPageActions";
 import buildPaymentConfigurationFormConfig from "../../../Components/common/ModalForms/payments/paymentConfigurationFormConfig";
 import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
 import { handleApiError } from "../../../Utils/handleApiError";
-import { buildQuery } from "../../../Utils/buildQuery";
 
 import {
   fetchPaymentConfigurations, createPaymentConfiguration, updatePaymentConfiguration,
@@ -27,13 +26,18 @@ import {
   selectPaymentConfigurationLoading, selectPaymentConfigurationActionLoading,
   selectPaymentConfigurationError, selectPaymentConfigurationFieldErrors,
 } from "../../../redux/payments/paymentConfigurationSlice";
-import { fetchPaymentMethods } from "../../../redux/payments/paymentMethodSlice";
-import { fetchPaymentProviders } from "../../../redux/payments/paymentProviderSlice";
-import { fetchBankAccounts } from "../../../redux/payments/bankAccountSlice";
 import { PAYMENT_SECTION_OPTIONS, isPaymentMethodAvailableForConfiguration } from "../../../constants/payments/paymentConfigurationConstants";
+import useAdminLookups from "../../../hooks/admin/useAdminLookups";
+
+const EMPTY_LOOKUP = [];
 
 const PAGE_LIMIT = 10;
 const EMPTY_FILTERS = { search: "", sectionCode: "", paymentMethodCode: "", configurationType: "", isActive: "" };
+export const buildPaymentConfigurationListQuery = (filters, page, limit) => ({
+  ...filters,
+  page,
+  limit,
+});
 const getId = (item) => item?._id || item?.id || null;
 const relationId = (value) => value?._id || value?.id || value || "";
 const relationIds = (values) => Array.isArray(values) ? values.map(relationId).filter(Boolean) : [];
@@ -84,19 +88,24 @@ export default function AdminPaymentConfigurationsPage() {
   const actionLoading = useSelector(selectPaymentConfigurationActionLoading);
   const error = useSelector(selectPaymentConfigurationError);
   const sliceFieldErrors = useSelector(selectPaymentConfigurationFieldErrors);
-  const paymentMethods = useSelector((state) => state.paymentMethods?.paymentMethodsList || []);
-  const paymentProviders = useSelector((state) => state.paymentProviders?.paymentProvidersList || []);
-  const bankAccounts = useSelector((state) => state.bankAccounts?.bankAccountsList || []);
+  const { lookups, loadLookup } = useAdminLookups();
+  const paymentMethods = lookups.paymentMethod || EMPTY_LOOKUP;
+  const paymentProviders = lookups.paymentProvider || EMPTY_LOOKUP;
+  const bankAccounts = lookups.bankAccount || EMPTY_LOOKUP;
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageLimit, setPageLimit] = useState(PAGE_LIMIT);
   const crud = useAdminEntityCrudState();
   const {
     showModal, showDetails, currentItem, formMode, formErrors, loadingSave,
-    deleteModal, openCreate, openEdit, openClone, openDetails, openDelete,
+    deleteModal, openCreate: openCreateBase, openEdit: openEditBase,
+    openClone: openCloneBase, openDetails, openDelete,
     closeForm, closeDetails, closeDelete, setFormErrors, setLoadingSave,
   } = crud;
-  const query = useMemo(() => buildQuery(filters, { page: currentPage, limit: pageLimit }), [filters, currentPage, pageLimit]);
+  const query = useMemo(
+    () => buildPaymentConfigurationListQuery(filters, currentPage, pageLimit),
+    [filters, currentPage, pageLimit],
+  );
   const loadConfigurations = useCallback(() => dispatch(fetchPaymentConfigurations(query)), [dispatch, query]);
   const formConfig = useMemo(() => buildPaymentConfigurationFormConfig({ paymentMethods, paymentProviders, bankAccounts }), [paymentMethods, paymentProviders, bankAccounts]);
   const mergedErrors = useMemo(() => {
@@ -107,10 +116,26 @@ export default function AdminPaymentConfigurationsPage() {
 
   useEffect(() => { loadConfigurations(); }, [loadConfigurations]);
   useEffect(() => {
-    dispatch(fetchPaymentMethods({ page: 1, limit: 100, isActive: true }));
-    dispatch(fetchPaymentProviders({ page: 1, limit: 100, isActive: true }));
-    dispatch(fetchBankAccounts({ page: 1, limit: 100, isActive: true }));
-  }, [dispatch]);
+    loadLookup("paymentMethod");
+  }, [loadLookup]);
+
+  const loadConfigurationFormLookups = () => Promise.all([
+    loadLookup("paymentMethod"),
+    loadLookup("paymentProvider"),
+    loadLookup("bankAccount"),
+  ]);
+  const openCreate = async () => {
+    await loadConfigurationFormLookups();
+    openCreateBase();
+  };
+  const openEdit = async (item) => {
+    await loadConfigurationFormLookups();
+    openEditBase(prepareForForm(item));
+  };
+  const openClone = async (item) => {
+    await loadConfigurationFormLookups();
+    openCloneBase(prepareClone(item));
+  };
 
   const reportError = (err, fallback) => toast.error(handleApiError(err, (message) => message, lang) || fallback);
   const handleSave = async (data) => {
@@ -163,8 +188,8 @@ export default function AdminPaymentConfigurationsPage() {
     { header: isArabic ? "العملات" : "Currencies", render: (row) => (row.supportedCurrencies || []).join(", ") || "—" },
     { header: isArabic ? "الحالة" : "Status", align: "center", render: (row) => <StatusBadge value={row.isActive ? "active" : "inactive"} type="user" isArabic={isArabic} /> },
     { header: isArabic ? "الإجراءات" : "Actions", align: "center", render: (row) => <div className="d-flex justify-content-center gap-1">
-      <ActionButton action="edit" onClick={() => openEdit(prepareForForm(row))} />
-      <ActionButton action="clone" onClick={() => openClone(prepareClone(row))} />
+      <ActionButton action="edit" onClick={() => openEdit(row)} />
+      <ActionButton action="clone" onClick={() => openClone(row)} />
       <ActionButton action="view" onClick={() => openDetails(row)} />
       <ActionButton action={row.isActive ? "deactivate" : "activate"} disabled={actionLoading} onClick={() => handleToggle(row)} />
       <ActionButton action="delete" onClick={() => openDelete(row, methodLabel(row))} />

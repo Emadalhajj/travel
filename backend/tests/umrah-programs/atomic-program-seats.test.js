@@ -9,6 +9,12 @@ import {
 } from "../../services/umrah-programs/umrah-program-service.js";
 import { UMRAH_PROGRAM_STATUS } from "../../constants/umrah-programs/umrah-program-status.js";
 
+const PROGRAM_IDS = {
+  concurrentReserve: "507f1f77bcf86cd799439011",
+  reserveRelease: "507f1f77bcf86cd799439012",
+  concurrentRelease: "507f1f77bcf86cd799439013",
+};
+
 const clone = (value) => structuredClone(value);
 const asDocument = (value) => ({
   ...clone(value),
@@ -88,7 +94,7 @@ const installProgramStore = (initialState, { synchronizeFirstReads = false } = {
 
 test("concurrent seat reservations cannot oversell a program", async () => {
   const store = installProgramStore({
-    _id: "program-1",
+    _id: PROGRAM_IDS.concurrentReserve,
     isDeleted: false,
     isActive: true,
     status: UMRAH_PROGRAM_STATUS.ACTIVE,
@@ -97,8 +103,8 @@ test("concurrent seat reservations cannot oversell a program", async () => {
 
   try {
     const results = await Promise.allSettled([
-      reserveProgramSeats({ programId: "program-1", seats: 3 }),
-      reserveProgramSeats({ programId: "program-1", seats: 3 }),
+      reserveProgramSeats({ programId: PROGRAM_IDS.concurrentReserve, seats: 3 }),
+      reserveProgramSeats({ programId: PROGRAM_IDS.concurrentReserve, seats: 3 }),
     ]);
 
     assert.equal(results.filter(({ status }) => status === "fulfilled").length, 1);
@@ -117,7 +123,7 @@ test("concurrent seat reservations cannot oversell a program", async () => {
 
 test("reserve then release switches sold-out program back to active", async () => {
   const store = installProgramStore({
-    _id: "program-2",
+    _id: PROGRAM_IDS.reserveRelease,
     isDeleted: false,
     isActive: true,
     status: UMRAH_PROGRAM_STATUS.ACTIVE,
@@ -125,11 +131,11 @@ test("reserve then release switches sold-out program back to active", async () =
   });
 
   try {
-    await reserveProgramSeats({ programId: "program-2", seats: 1 });
+    await reserveProgramSeats({ programId: PROGRAM_IDS.reserveRelease, seats: 1 });
     assert.equal(store.getState().status, UMRAH_PROGRAM_STATUS.SOLD_OUT);
     assert.equal(store.getState().capacity.availableSeats, 0);
 
-    await releaseProgramSeats({ programId: "program-2", seats: 1 });
+    await releaseProgramSeats({ programId: PROGRAM_IDS.reserveRelease, seats: 1 });
     assert.equal(store.getState().status, UMRAH_PROGRAM_STATUS.ACTIVE);
     assert.deepEqual(store.getState().capacity, {
       totalSeats: 1,
@@ -144,7 +150,7 @@ test("reserve then release switches sold-out program back to active", async () =
 
 test("concurrent double release never exceeds total capacity", async () => {
   const store = installProgramStore({
-    _id: "program-3",
+    _id: PROGRAM_IDS.concurrentRelease,
     isDeleted: false,
     isActive: true,
     status: UMRAH_PROGRAM_STATUS.ACTIVE,
@@ -153,8 +159,8 @@ test("concurrent double release never exceeds total capacity", async () => {
 
   try {
     await Promise.allSettled([
-      releaseProgramSeats({ programId: "program-3", seats: 3 }),
-      releaseProgramSeats({ programId: "program-3", seats: 3 }),
+      releaseProgramSeats({ programId: PROGRAM_IDS.concurrentRelease, seats: 3 }),
+      releaseProgramSeats({ programId: PROGRAM_IDS.concurrentRelease, seats: 3 }),
     ]);
 
     assert.deepEqual(store.getState().capacity, {

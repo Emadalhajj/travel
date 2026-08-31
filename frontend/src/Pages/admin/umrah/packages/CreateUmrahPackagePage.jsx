@@ -54,9 +54,6 @@ export default function CreateUmrahPackagePage() {
   const isEditMode = location.pathname.includes("/edit/");
   const isCloneMode = location.pathname.includes("/clone/");
 
-  const isCreateMode = !isEditMode && !isCloneMode;
-  const loadedProgramIdRef = useRef(null);
-
   const {
     basicInfo,
     setBasicInfo,
@@ -130,28 +127,6 @@ export default function CreateUmrahPackagePage() {
     loadProgram();
   }, [dispatch, id, isCloneMode, loadPackageForEdit]);
 
-  // useEffect(() => {
-  //   if (!isEditMode) return;
-  //   if (loadedProgramIdRef.current === id) return;
-
-  //   const loadProgram = async () => {
-  //     try {
-  //       loadedProgramIdRef.current = id;
-  //       const data = await dispatch(fetchOneUmrahProgram(id)).unwrap();
-  //       loadPackageForEdit(data);
-  //     } catch {
-  //       loadedProgramIdRef.current = null;
-  //       toast.error(
-  //         isArabic
-  //           ? "تعذر تحميل بيانات برنامج العمرة"
-  //           : "Failed to load Umrah package",
-  //       );
-  //     }
-  //   };
-
-  //   loadProgram();
-  // }, [dispatch, id, isArabic, isEditMode, loadPackageForEdit]);
-
   const handleSavePackage = async () => {
     try {
       setLoadingSave(true);
@@ -213,6 +188,7 @@ export default function CreateUmrahPackagePage() {
       <Row className="g-4">
         <Col lg={8}>
           <PackageBasicInfoForm
+            key={id && basicInfo.nameAr ? id : "new-program"}
             ref={basicInfoFormRef}
             initialData={basicInfo}
             onSave={(data) => {

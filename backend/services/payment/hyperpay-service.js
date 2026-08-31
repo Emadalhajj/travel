@@ -1,6 +1,28 @@
 import AppError from "../../utils/AppError.js";
 import { hyperpayConfig } from "../../config/hyperpay.js";
 
+const HYPERPAY_TIMEOUT_MS = Math.max(
+  1000,
+  Number(process.env.HYPERPAY_TIMEOUT_MS) || 15000,
+);
+
+const fetchHyperPay = async (url, options = {}) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), HYPERPAY_TIMEOUT_MS);
+  timeout.unref?.();
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new AppError("انتهت مهلة الاتصال بمزود HyperPay", 504, "hyperpay");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 const parseHyperPayResponse = async (response) => {
   if (typeof response?.text !== "function") {
     if (typeof response?.json === "function") {
@@ -133,7 +155,7 @@ export const createHyperPayCheckout = async ({
   params.append(
     "shopperResultUrl",
     returnUrl ||
-      `${frontendUrl}/booking/payment/redirect/${draftId}` +
+      `${frontendUrl}/booking/payment/${draftId}/result` +
         `?reference=${encodeURIComponent(
           merchantTransactionId,
         )}`,
@@ -162,7 +184,7 @@ export const createHyperPayCheckout = async ({
     );
   }
 
-  const response = await fetch(url, {
+  const response = await fetchHyperPay(url, {
     method: "POST",
 
     headers: {
@@ -341,7 +363,7 @@ export const verifyHyperPayPayment = async ({
     ? "&"
     : "?";
 
-  const response = await fetch(
+  const response = await fetchHyperPay(
     `${statusUrl}${separator}entityId=${encodeURIComponent(
       entityId,
     )}`,
@@ -452,7 +474,7 @@ const executeHyperPayReferencedPayment = async ({
     params.append("currency", String(currency).toUpperCase());
   }
 
-  const response = await fetch(
+  const response = await fetchHyperPay(
     `${baseUrl}/v1/payments/${encodeURIComponent(referencedPaymentId)}`,
     {
       method: "POST",

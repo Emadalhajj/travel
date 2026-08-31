@@ -1,7 +1,6 @@
 import { configureStore } from "@reduxjs/toolkit";
 
 import authReducer from "./auth/authSlice";
-import bookingReducer from "./bookings/bookingsSlice";
 import visaReducer from "./visas/visaSlice";
 import visaTypeReducer from "./visas/visaTypeSlice";
 import roomTypeReducer from "./hotels/roomtypeSlice";
@@ -26,7 +25,6 @@ import paymentTransactionReducer from "./payments/paymentTransactionSlice";
 const store = configureStore({
   reducer: {
     auth: authReducer,
-    bookings: bookingReducer,
     visas: visaReducer,
     visaTypes: visaTypeReducer,
     roomTypes: roomTypeReducer,

@@ -4,8 +4,35 @@ import test from "node:test";
 import { INVENTORY_HOLD_STATUSES } from "../../constants/inventory/inventory-hold-statuses.js";
 import { PAYMENT_TRANSACTION_STATUSES } from "../../constants/payments/payment-transaction-statuses.js";
 import { createPaymentRecoveryServiceLayer } from "../../services/payment/payment-recovery-service.js";
+import { createPaymentRecoveryJobRunner } from "../../jobs/payment-recovery-job.js";
 
 const RECOVERY_NOW = new Date("2026-10-01T12:00:00.000Z");
+
+test("payment recovery runner skips an overlapping run", async () => {
+  let finishRun;
+  let calls = 0;
+  const runner = createPaymentRecoveryJobRunner({
+    runJob: async () => {
+      calls += 1;
+      await new Promise((resolve) => {
+        finishRun = resolve;
+      });
+      return { processed: 1 };
+    },
+  });
+
+  const firstRun = runner.run();
+  await Promise.resolve();
+  const overlappingRun = await runner.run();
+
+  assert.deepEqual(overlappingRun, { skipped: true, reason: "overlap" });
+  assert.equal(calls, 1);
+  assert.equal(runner.isRunning(), true);
+
+  finishRun();
+  await firstRun;
+  assert.equal(runner.isRunning(), false);
+});
 
 const setup = ({
   transactionStatus = PAYMENT_TRANSACTION_STATUSES.PROCESSING,
@@ -204,4 +231,62 @@ test("successful transaction is ignored by recovery", async () => {
   assert.equal(result.holdRecovery.keptPaid, 1);
   assert.equal(fixture.state().conversionCalls, 0);
   assert.equal(fixture.state().releaseAttempts, 0);
+});
+
+test("paid booking recovery never exceeds five concurrent conversions", async () => {
+  const transactions = Array.from({ length: 8 }, (_, index) => ({
+    _id: `payment-${index}`,
+    status: PAYMENT_TRANSACTION_STATUSES.PAID_PENDING_BOOKING,
+    draftBooking: `draft-${index}`,
+  }));
+  let active = 0;
+  let maximumActive = 0;
+  const service = createPaymentRecoveryServiceLayer({
+    findTransactions: async () => transactions,
+    acquireConversionLock: async ({ transactionId }) => ({ _id: transactionId }),
+    releaseConversionLock: async () => {},
+    findHoldByPayment: async () => null,
+    recordTransactionEvent: async () => {},
+    convertDraft: async ({ draftId }) => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      return { booking: { _id: `booking-${draftId}` } };
+    },
+    updateTransactionStatus: async () => {},
+    recordConversionFailure: async () => {},
+    sendPaymentReceived: async () => {},
+    sendPaidPending: async () => {},
+  });
+
+  const result = await service.recoverPaidPendingBookingsService();
+  assert.equal(maximumActive, 5);
+  assert.equal(result.recovered, 8);
+});
+
+test("expired hold recovery limits releases to ten and isolates worker failures", async () => {
+  const holds = Array.from({ length: 12 }, (_, index) => ({
+    _id: `hold-${index}`,
+    expiresAt: new Date("2026-10-01T11:00:00.000Z"),
+    status: INVENTORY_HOLD_STATUSES.HELD,
+  }));
+  let active = 0;
+  let maximumActive = 0;
+  const service = createPaymentRecoveryServiceLayer({
+    findHolds: async () => holds,
+    releaseHold: async ({ holdId }) => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      if (holdId === "hold-3") throw new Error("isolated failure");
+    },
+  });
+
+  const result = await service.recoverExpiredPaymentHoldsService({ recoveryNow: RECOVERY_NOW });
+  assert.equal(maximumActive, 10);
+  assert.equal(result.processed, 12);
+  assert.equal(result.expired, 11);
+  assert.equal(result.failed, 1);
 });

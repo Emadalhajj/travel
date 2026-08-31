@@ -60,11 +60,17 @@ export const handleApiError = (
 
   const message =
     response?.message ||
+    (options.preferErrorMessage ? err?.message : null) ||
+    options.fallbackMessage ||
     (typeof err === "string" ? err : null) ||
     err?.message ||
     (isArabic
       ? "حدث خطأ غير متوقع"
       : "Unexpected error");
+
+  if (response?.field && !options.structured) {
+    return rejectWithValue({ [response.field]: message });
+  }
 
   return rejectWithValue(
     options.structured

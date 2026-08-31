@@ -53,13 +53,8 @@ export const deleteImages = async (imagePaths) => {
 
       if (fsSync.existsSync(fullPath)) {
         await fs.unlink(fullPath);
-        console.log(`✅ Deleted: ${imgPath}`);
-      } else {
-        console.warn(`⚠️ File not found: ${imgPath}`);
       }
-    } catch (error) {
-      console.error(`❌ Error deleting ${imgPath}:`, error.message);
-    }
+    } catch {}
   }
 };
 
@@ -80,8 +75,7 @@ export const deleteImage = async (imagePath) => {
       return true;
     }
     return false;
-  } catch (error) {
-    console.error(`Error deleting image: ${error.message}`);
+  } catch {
     return false;
   }
 };
@@ -190,8 +184,7 @@ export const cleanupFolder = async (folder, olderThanDays = null) => {
     }
 
     return deletedCount;
-  } catch (error) {
-    console.error(`Error cleaning folder: ${error.message}`);
+  } catch {
     return 0;
   }
 };

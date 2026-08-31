@@ -86,7 +86,8 @@ export const findBlockingPublicPaymentForDraftService = async ({
     isDeleted: { $ne: true },
   })
     .select("status methodCode providerCode booking updatedAt")
-    .sort({ updatedAt: -1 });
+    .sort({ updatedAt: -1 })
+    .lean();
 };
 
 export const findPublicPaymentReviewTransactionsService = async ({
@@ -572,6 +573,7 @@ export const updatePaymentTransactionStatusService = async ({
 
   const transaction = await PaymentTransaction.findOne({
     _id: transactionId,
+    user: submittedBy,
     isDeleted: false,
   }).select("+events +metadata");
 
@@ -849,7 +851,9 @@ export const calculateBookingPaymentSummary = async ({ booking }) => {
     booking: booking._id,
     status: { $in: SETTLED_PAYMENT_TRANSACTION_STATUSES },
     isDeleted: false,
-  }).lean();
+  })
+    .select("amount")
+    .lean();
 
   const paidAmount = transactions.reduce(
     (sum, item) => sum + (Number(item.amount) || 0),
@@ -920,11 +924,13 @@ const normalizePublicTransactionStatus = (
 
 export const getPublicPaymentTransactionStatusService = async ({
   transactionId,
+  userId,
 }) => {
   validateObjectId(transactionId, "transactionId");
 
   const transaction = await PaymentTransaction.findOne({
     _id: transactionId,
+    user: userId,
     isDeleted: false,
   })
     .select(

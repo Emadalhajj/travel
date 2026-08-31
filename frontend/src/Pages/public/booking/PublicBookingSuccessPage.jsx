@@ -10,7 +10,12 @@ import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
 import PublicButton from "../../../Components/shared/buttons/PublicButton";
 
-import { fetchPublicBookingById } from "../../../redux/public/bookingSlice";
+import {
+  fetchPublicBookingById,
+  selectPublicBookingDetailsError,
+  selectPublicBookingDetailsLoading,
+  selectPublicFinalBooking,
+} from "../../../redux/public/bookingSlice";
 import InfoRow from "../../../Components/shared/common/InfoRow";
 import { formatPrice } from "../../../Utils/roundPrice";
 
@@ -22,9 +27,9 @@ export default function PublicBookingSuccessPage() {
 
   const { t } = useTranslation();
 
-  const { finalBooking, loading, error } = useSelector(
-    (state) => state.publicBooking,
-  );
+  const finalBooking = useSelector(selectPublicFinalBooking);
+  const loading = useSelector(selectPublicBookingDetailsLoading);
+  const error = useSelector(selectPublicBookingDetailsError);
 
   useEffect(() => {
     if (bookingId) {

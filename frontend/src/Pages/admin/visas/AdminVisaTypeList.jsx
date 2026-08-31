@@ -6,7 +6,10 @@ import { toast } from "react-toastify";
 import {
   createVisaType,
   deleteVisaType,
-  fetchVisaTypes,
+  ensureVisaTypes,
+  selectVisaTypeError,
+  selectVisaTypeItems,
+  selectVisaTypeLoading,
   updateVisaType,
 } from "../../../redux/visas/visaTypeSlice";
 import { visaTypeFormConfig } from "../../../Components/common/ModalForms/visa/visaTypeFormConfig";
@@ -30,11 +33,9 @@ export default function AdminVisaTypeList() {
   const dispatch = useDispatch();
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
-  const {
-    visaTypes = [],
-    loading,
-    error,
-  } = useSelector((state) => state.visaTypes || {});
+  const visaTypes = useSelector(selectVisaTypeItems);
+  const loading = useSelector(selectVisaTypeLoading);
+  const error = useSelector(selectVisaTypeError);
 
   const formConfig = useMemo(() => visaTypeFormConfig(), []);
   const {
@@ -67,14 +68,13 @@ export default function AdminVisaTypeList() {
   });
 
   useEffect(() => {
-    dispatch(fetchVisaTypes());
+    dispatch(ensureVisaTypes());
   }, [dispatch]);
 
   const handleSave = createHandleSave({
     dispatch,
     createAction: createVisaType,
     updateAction: updateVisaType,
-    fetchAction: fetchVisaTypes,
     getId: (item) => item._id,
     formConfig,
     toast,

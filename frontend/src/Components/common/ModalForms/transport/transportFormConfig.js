@@ -74,6 +74,7 @@ export const transportFormConfig = {
       labelAr: "السمات العامة",
       labelEn: "General Features",
       type: "checkbox-group",
+      valueMode: "object",
       col: 12,
       options: [
         { key: "wifi", labelAr: "واي فاي", labelEn: "WiFi" },

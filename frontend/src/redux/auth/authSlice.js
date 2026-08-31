@@ -1,7 +1,8 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { toast } from "react-toastify";
 // import axios from "axios";
-import { register, loging } from "../../services/api";
+import { register, login } from "../../services/api";
+import { handleApiError } from "../../Utils/handleApiError";
 import { updateUserProfile } from "../../services/api/admin/auth";
 import { changePasswordUser } from "../../services/api/admin/auth";
 import { exchangeGoogleAuth } from "../../services/api/admin/auth";
@@ -14,9 +15,9 @@ export const registerUser = createAsyncThunk(
       const response = await register(userData);
       return response.data;
     } catch (err) {
-      return thunkAPI.rejectWithValue(
-        err.response?.data?.message || "Registration failed",
-      );
+      return handleApiError(err, thunkAPI.rejectWithValue, "en", {
+        fallbackMessage: "Registration failed",
+      });
     }
   },
 );
@@ -25,12 +26,12 @@ export const loginUser = createAsyncThunk(
   "auth/loginUser",
   async (loginData, thunkAPI) => {
     try {
-      const response = await loging(loginData);
+      const response = await login(loginData);
       return response.data;
     } catch (err) {
-      return thunkAPI.rejectWithValue(
-        err.response?.data?.message || "Registration failed",
-      );
+      return handleApiError(err, thunkAPI.rejectWithValue, "en", {
+        fallbackMessage: "Registration failed",
+      });
     }
   },
 );
@@ -42,9 +43,9 @@ export const completeGoogleLogin = createAsyncThunk(
       const response = await exchangeGoogleAuth();
       return response.data;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || "Google login failed",
-      );
+      return handleApiError(error, rejectWithValue, "en", {
+        fallbackMessage: "Google login failed",
+      });
     }
   },
 );
@@ -56,9 +57,9 @@ export const updateMyProfile = createAsyncThunk(
       const response = await updateUserProfile(formData);
       return response.data.data;
     } catch (err) {
-      return thunkAPI.rejectWithValue(
-        err.response?.data?.message || "Update profile failed",
-      );
+      return handleApiError(err, thunkAPI.rejectWithValue, "en", {
+        fallbackMessage: "Update profile failed",
+      });
     }
   },
 );
@@ -70,9 +71,9 @@ export const changePassword = createAsyncThunk(
       const response = await changePasswordUser(payload); // payload كامل
       return response.data;
     } catch (err) {
-      return rejectWithValue(
-        err.response?.data?.message || "Change password failed",
-      );
+      return handleApiError(err, rejectWithValue, "en", {
+        fallbackMessage: "Change password failed",
+      });
     }
   },
 );

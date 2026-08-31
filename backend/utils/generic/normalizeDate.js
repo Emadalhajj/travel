@@ -3,7 +3,6 @@
 مثال:
 const dateStr = "2024-12-31";
 const date = normalizeDate(dateStr);
-console.log(date); // Tue Dec 31 2024 00:00:00 GMT+0000 (Coordinated Universal Time)
 يستخدم مع:
 
 startDate

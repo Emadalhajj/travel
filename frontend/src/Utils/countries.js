@@ -1,7 +1,21 @@
 // src/utils/countries.js
-const OUNTRIES_API = 'https://restcountries.com/v3.1';
+import countries from "i18n-iso-countries";
+import arLocale from "i18n-iso-countries/langs/ar.json";
+import enLocale from "i18n-iso-countries/langs/en.json";
+
+countries.registerLocale(arLocale);
+countries.registerLocale(enLocale);
 // const CITIES_API = 'https://countriesnow.space/api/v0.1/countries/cities';
-// import OUNTRIES_API from "../Utils/data/countries.json";
+// import COUNTRIES_API from "../Utils/data/countries.json";
+const COUNTRIES_CACHE_TTL = 5 * 60 * 1000;
+let countriesCache = null;
+let countriesLoadedAt = 0;
+
+export const resetCountriesCacheForTests = () => {
+  countriesCache = null;
+  countriesLoadedAt = 0;
+};
+
 // Cache لتجنب التكرار
 const getCities = async (countryCode)=> {
   const res = await fetch(
@@ -19,25 +33,25 @@ const getCities = async (countryCode)=> {
 const cache = new Map();
 
 export const getAllCountries = async () => {
-  if (cache.has('countries')) return cache.get('countries');
-
-  try {
-    const res = await fetch(`${OUNTRIES_API}/all?fields=name,cca2,translations,flags`);
-    const data = await res.json();
-
-    const countries = data.map(country => ({
-      code: country.cca2,
-      nameEn: country.name.common,
-      nameAr: country.translations?.ara?.common || country.name.common,
-      flag: country.flags?.png || country.flags?.svg,
-    })).sort((a, b) => a.nameAr.localeCompare(b.nameAr, 'ar'));
-
-    cache.set('countries', countries);
-    return countries;
-  } catch (error) {
-    console.error("Error fetching countries:", error);
-    return [];
+  if (
+    countriesCache &&
+    Date.now() - countriesLoadedAt < COUNTRIES_CACHE_TTL
+  ) {
+    return countriesCache;
   }
+  const arabicNames = countries.getNames("ar", { select: "official" });
+  const englishNames = countries.getNames("en", { select: "official" });
+
+  countriesCache = Object.entries(englishNames)
+    .map(([code, nameEn]) => ({
+      code,
+      nameEn,
+      nameAr: arabicNames[code] || nameEn,
+    }))
+    .sort((a, b) => a.nameAr.localeCompare(b.nameAr, "ar"));
+  countriesLoadedAt = Date.now();
+
+  return countriesCache;
 };
 
 export const getCitiesByCountry = async (countryCodeOrName) => {

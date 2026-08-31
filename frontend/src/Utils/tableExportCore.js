@@ -1,6 +1,3 @@
-import pdfMake from "pdfmake-rtl";
-import pdfFonts from "pdfmake-rtl/build/vfs_fonts";
-import * as XLSX from "xlsx";
 import { formatImagePath } from "./imageUtils";
 import {
   buildPdfBrandingFooter,
@@ -9,8 +6,6 @@ import {
   loadDocumentBranding,
   PDF_LAYOUT,
 } from "./documentPdfBranding";
-
-pdfMake.vfs = pdfFonts?.pdfMake?.vfs || pdfFonts?.vfs || {};
 
 const EXCLUDED_HEADERS = new Set([
   "no",
@@ -437,7 +432,7 @@ export const exportTablePDF = async ({
   lang = "ar",
   title = "Report",
   pdfOptions = {},
-}) => {
+}, pdfMake) => {
   if (!data.length) return;
   const isArabic = lang === "ar";
   const branding = await loadDocumentBranding();
@@ -484,63 +479,54 @@ const getExcelColumnWidth = (header, values, configuredWidth) => {
   return Math.min(Math.max(longest + 2, 10), 48);
 };
 
-const setExcelCellTypes = (worksheet, rows, columns) => {
-  columns.forEach((column, columnIndex) => {
-    rows.forEach((_row, rowIndex) => {
-      const address = XLSX.utils.encode_cell({ r: rowIndex + EXCEL_HEADER_ROW + 1, c: columnIndex });
-      const cell = worksheet[address];
-      if (!cell || cell.v == null) return;
-      if (column.excelType === "number" && typeof cell.v === "number") {
-        cell.t = "n";
-        cell.z = column.excelFormat || "#,##0.00";
-      } else if (column.excelType === "date" && cell.v instanceof Date) {
-        cell.t = "d";
-        cell.z = column.excelFormat || "yyyy-mm-dd";
-      } else if (column.excelType === "boolean") {
-        cell.t = "b";
-      }
-      if (column.exportImageAccessor && typeof cell.v === "string" && cell.v) {
-        cell.l = { Target: cell.v, Tooltip: column.excelImageTooltip || "Open image" };
-      }
-    });
-  });
+const buildExcelCell = (value, column = {}) => {
+  const cell = { value };
+  if (column.excelType === "number" && typeof value === "number") {
+    return { ...cell, type: Number, format: column.excelFormat || "#,##0.00" };
+  }
+  if (column.excelType === "date" && value instanceof Date) {
+    return { ...cell, type: Date, format: column.excelFormat || "yyyy-mm-dd" };
+  }
+  if (column.excelType === "boolean") {
+    return { ...cell, type: Boolean };
+  }
+  return { ...cell, type: String, format: "@" };
 };
 
-export const exportTableExcel = ({
+export const exportTableExcel = async ({
   data = [],
   columns = [],
   fileName = "Report.xlsx",
   title = "Report",
   lang = "ar",
   excelOptions = {},
-}) => {
+}, writeXlsxFile) => {
   if (!data.length) return;
   const { headers, rows, columns: visibleColumns } = buildExcelExportRows(data, columns, lang);
   if (!headers.length) return;
   const exportDate = lang === "ar"
     ? `تاريخ التصدير: ${new Date().toLocaleString("en-GB")}`
     : `Exported: ${new Date().toLocaleString("en-GB")}`;
-  const worksheet = XLSX.utils.aoa_to_sheet([[title], [exportDate], [], headers, ...rows], {
-    cellDates: true,
-  });
-  worksheet["!cols"] = headers.map((header, index) => ({
-    wch: getExcelColumnWidth(
+  const span = headers.length;
+  const mergedTail = Array(Math.max(span - 1, 0)).fill(null);
+  const sheetData = [
+    [{ value: title, type: String, columnSpan: span, fontWeight: "bold" }, ...mergedTail],
+    [{ value: exportDate, type: String, columnSpan: span }, ...mergedTail],
+    Array(span).fill(null),
+    headers.map((header) => ({ value: header, type: String, fontWeight: "bold" })),
+    ...rows.map((row) => row.map((value, index) => buildExcelCell(value, visibleColumns[index]))),
+  ];
+  const excelColumns = headers.map((header, index) => ({
+    width: getExcelColumnWidth(
       header,
       rows.map((row) => row[index]),
       visibleColumns[index]?.excelWidth,
     ),
   }));
-  worksheet["!merges"] = headers.length > 1 ? [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
-  ] : [];
-  if (excelOptions.autoFilter !== false) {
-    worksheet["!autofilter"] = {
-      ref: XLSX.utils.encode_range({ s: { r: EXCEL_HEADER_ROW, c: 0 }, e: { r: EXCEL_HEADER_ROW, c: headers.length - 1 } }),
-    };
-  }
-  setExcelCellTypes(worksheet, rows, visibleColumns);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, excelOptions.sheetName || "Report");
-  XLSX.writeFile(workbook, fileName, { cellDates: true });
+  await writeXlsxFile(sheetData, {
+    sheet: excelOptions.sheetName || "Report",
+    columns: excelColumns,
+    rightToLeft: lang === "ar",
+    stickyRowsCount: EXCEL_HEADER_ROW + 1,
+  }).toFile(fileName);
 };

@@ -64,6 +64,7 @@ export const tripFormConfig = (vehicleTypes = []) => ({
       labelAr: "المميزات",
       labelEn: "Features",
       type: "checkbox-group",
+      valueMode: "object",
       col: 12,
       options: [ // options افتراضية (تُستخدم إذا لم يكن هناك conditionalOptions)
         { key: "wifi", labelAr: "واي فاي", labelEn: "WiFi" },
@@ -102,6 +103,27 @@ export const tripFormConfig = (vehicleTypes = []) => ({
         { value: "USD", labelAr: "دولار أمريكي", labelEn: "USD" },
       ],
       order : 6
+    },
+    {
+      name: "capacity.maxAdults",
+      labelAr: "عدد البالغين",
+      labelEn: "Max Adults",
+      type: "number",
+      col: 6,
+      order: 5,
+      required: true,
+      min: 1,
+      defaultValue: 1,
+    },
+    {
+      name: "capacity.maxChildren",
+      labelAr: "عدد الأطفال",
+      labelEn: "Max Children",
+      type: "number",
+      col: 6,
+      order: 5,
+      min: 0,
+      defaultValue: 0,
     },
 
     {
@@ -145,9 +167,6 @@ export const tripFormConfig = (vehicleTypes = []) => ({
       { name: "toCity", labelAr: "إلى المدينة", labelEn: "To City", type: "text", col: 4 , order : 5 ,},
       { name: "startDate", labelAr: "تاريخ الانطلاق", labelEn: "Start Date", type: "date", col: 6 , order : 5 , },
       { name: "startTime", labelAr: "وقت الانطلاق", labelEn: "Start Time", type: "time", col: 6 , order : 5 ,},
-      { name: "capacity.maxAdults", labelAr: "عدد البالغين", labelEn: "Max Adults", type: "number", col: 6 , order : 5 ,},
-      { name: "capacity.maxChildren", labelAr: "عدد الأطفال", labelEn: "Max Children", type: "number", col: 6 , order : 5 , },
-
       // جديد: سمات خاصة بالنقل البري
       {
         name: "features",

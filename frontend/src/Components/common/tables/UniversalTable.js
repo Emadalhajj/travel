@@ -1,7 +1,6 @@
 import React from "react";
 import { Table } from "react-bootstrap";
 import { motion } from "framer-motion";
-import { TextAlignCenter } from "lucide-react";
 
 export default function UniversalTable({
   columns = [],

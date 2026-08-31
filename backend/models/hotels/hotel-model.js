@@ -131,7 +131,6 @@ HotelSchema.pre("save", async function (next) {
 
   next();
 });
-
 // HotelSchema.pre("save", function (next) {
 //   if (!this.slug) {
 //     const baseName = this.nameEn || this.nameAr;

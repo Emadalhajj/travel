@@ -39,7 +39,7 @@ TransportRoutes.get("/:id" , getTransportById)
 TransportRoutes.post(
     "/",
     protect,
-    authorize("admin"),
+    authorize("admin", "superAdmin"),
     ...uploadAndParse,
     validate(createTransportSchema),
     createTransport
@@ -48,7 +48,7 @@ TransportRoutes.post(
 TransportRoutes.put(
     "/:id",
     protect,
-    authorize("admin"),
+    authorize("admin", "superAdmin"),
     ...uploadAndParse,
     validate(updateTransportSchema),
     updateTransport
@@ -57,13 +57,13 @@ TransportRoutes.put(
 TransportRoutes.delete(
     "/:id",
     protect,
-    authorize("admin"),
+    authorize("admin", "superAdmin"),
     deleteTransport
 )
 TransportRoutes.patch(
     "/toggle/:id",
     protect,
-    authorize("admin"),
+    authorize("admin", "superAdmin"),
     toggleTransportStatus
 )
 export default TransportRoutes

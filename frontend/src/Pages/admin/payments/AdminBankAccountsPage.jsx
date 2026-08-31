@@ -11,6 +11,10 @@ import {
   setPage,
   updateBankAccount,
   updateBankAccountStatus,
+  selectBankAccountItems,
+  selectBankAccountPagination,
+  selectBankAccountListLoading,
+  selectBankAccountError,
 } from "../../../redux/payments/bankAccountSlice";
 import { bankAccountFormConfig } from "../../../Components/common/ModalForms/payments/bankAccountFormConfig";
 import { buildQuery } from "../../../Utils/buildQuery";
@@ -32,19 +36,15 @@ import ConfirmDialog from "../../../Components/common/ConfirmModal";
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import AdminPageActions from "../../../Components/layout/AdminPageActions";
 
-const emptyPagination = { total: 0, page: 1, limit: 10, totalPages: 0 };
-
 export default function AdminBankAccountsPage() {
   const dispatch = useDispatch();
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
   const isArabic = lang === "ar";
-  const {
-    bankAccountsList = [],
-    loading,
-    error,
-    pagination = emptyPagination,
-  } = useSelector((state) => state.bankAccounts || {});
+  const bankAccountsList = useSelector(selectBankAccountItems);
+  const pagination = useSelector(selectBankAccountPagination);
+  const loading = useSelector(selectBankAccountListLoading);
+  const error = useSelector(selectBankAccountError);
   const [filters, setFilters] = useState({
     search: "",
     currency: "",

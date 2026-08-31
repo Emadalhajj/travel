@@ -13,6 +13,7 @@ import ActionButton from "../../../Components/common/buttons/ActionButton";
 import ExportTableButtons from "../../../Components/common/buttons/ExportTableButtons";
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import ReportKpiCard from "../../../Components/admin/reports/ReportKpiCard";
+import CalendarField from "../../../Components/common/CalendarField";
 import { apiGetBookingOperations } from "../../../services/api/admin/operations";
 import { apiGetReportsOverview } from "../../../services/api/admin/reports";
 
@@ -28,34 +29,60 @@ export default function AdminOperationsPage() {
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [overview, setOverview] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [operationsLoading, setOperationsLoading] = useState(true);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [operationsError, setOperationsError] = useState("");
+  const [overviewError, setOverviewError] = useState("");
 
   const loadOperations = useCallback(async () => {
-    setLoading(true);
-    setError("");
+    setOperationsLoading(true);
+    setOperationsError("");
     try {
       const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ""));
-      const reportParams = Object.fromEntries(Object.entries(filters)
-        .filter(([key, value]) => !["search", "page", "limit"].includes(key) && value));
-      const [response, overviewResponse] = await Promise.all([
-        apiGetBookingOperations(params),
-        apiGetReportsOverview(reportParams),
-      ]);
+      const response = await apiGetBookingOperations(params);
       const payload = response.data || {};
       const sorted = [...(payload.items || [])].sort((left, right) => Number(right.attentionRequired) - Number(left.attentionRequired));
       setItems(sorted);
       setPagination(payload.pagination || { page: filters.page, limit: filters.limit, total: 0, totalPages: 0 });
-      setOverview(overviewResponse.data?.data || null);
     } catch (requestError) {
-      setError(requestError.response?.data?.message || requestError.message || (isArabic ? "تعذر تحميل العمليات" : "Unable to load operations"));
+      setOperationsError(requestError.response?.data?.message || requestError.message || (isArabic ? "تعذر تحميل العمليات" : "Unable to load operations"));
     } finally {
-      setLoading(false);
+      setOperationsLoading(false);
     }
   }, [filters, isArabic]);
 
+  const reportFilters = useMemo(() => Object.fromEntries(Object.entries({
+    bookingStatus: filters.bookingStatus,
+    paymentStatus: filters.paymentStatus,
+    paymentMethod: filters.paymentMethod,
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+  }).filter(([, value]) => value)), [
+    filters.bookingStatus,
+    filters.paymentStatus,
+    filters.paymentMethod,
+    filters.dateFrom,
+    filters.dateTo,
+  ]);
+
+  const loadOverview = useCallback(async () => {
+    setOverviewLoading(true);
+    setOverviewError("");
+    try {
+      const response = await apiGetReportsOverview(reportFilters);
+      setOverview(response.data?.data || null);
+    } catch (requestError) {
+      setOverviewError(requestError.response?.data?.message || requestError.message || (isArabic ? "تعذر تحميل المؤشرات" : "Unable to load indicators"));
+    } finally {
+      setOverviewLoading(false);
+    }
+  }, [reportFilters, isArabic]);
+
   useEffect(() => { loadOperations(); }, [loadOperations]);
+  useEffect(() => { loadOverview(); }, [loadOverview]);
   const setPageFilter = (key, value) => setFilters((old) => ({ ...old, [key]: value }));
+  const loading = operationsLoading || overviewLoading;
+  const error = operationsError || overviewError;
 
   const columns = useMemo(() => [
     { header: isArabic ? "رقم الحجز" : "Booking", accessor: "bookingNumber" },
@@ -74,7 +101,11 @@ export default function AdminOperationsPage() {
   const bankReviewCount = overview?.bankTransfers?.pendingReview || 0;
 
   return (
-    <div className="position-relative space-y-6" dir={isArabic ? "rtl" : "ltr"}>
+    <div
+      className="position-relative space-y-6"
+      data-testid="operations-page"
+      dir={isArabic ? "rtl" : "ltr"}
+    >
       <PageHeader
         eyebrowAr="مركز التشغيل"
         eyebrowEn="Operations center"
@@ -108,8 +139,8 @@ export default function AdminOperationsPage() {
             <option value="">{isArabic ? "كل الطرق" : "All methods"}</option>
             {["BANK_TRANSFER", "CARD", "MADA", "VISA", "MASTERCARD", "APPLE_PAY", "STC_PAY", "CASH"].map((value) => <option key={value} value={value}>{value}</option>)}
           </Form.Select>
-          <Form.Control type="date" aria-label="dateFrom" value={draftFilters.dateFrom} onChange={(event) => setDraftFilters((old) => ({ ...old, dateFrom: event.target.value }))} />
-          <Form.Control type="date" aria-label="dateTo" value={draftFilters.dateTo} onChange={(event) => setDraftFilters((old) => ({ ...old, dateTo: event.target.value }))} />
+          <CalendarField id="operations-date-from" value={draftFilters.dateFrom} onChange={(value) => setDraftFilters((old) => ({ ...old, dateFrom: value }))} isArabic={isArabic} />
+          <CalendarField id="operations-date-to" value={draftFilters.dateTo} onChange={(value) => setDraftFilters((old) => ({ ...old, dateTo: value }))} isArabic={isArabic} />
         </div>
         <div className="mt-4"><ActionButton action="apply" showLabel onClick={() => setFilters({ ...draftFilters, page: 1, limit: filters.limit })} /></div>
       </PublicSectionCard>

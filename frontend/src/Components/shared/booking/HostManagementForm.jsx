@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CalendarField from "../../common/CalendarField";
 import FileAttachmentUploader from "../../common/FileAttachmentUploader";
 import ActionButton from "../../common/buttons/ActionButton";
@@ -23,7 +23,11 @@ export const createEmptyHost = () => ({
 
 export default function HostManagementForm({ hosts, travelers, onHostsChange, onTravelerHostChange, errors = {}, isArabic = true }) {
   const [openHosts, setOpenHosts] = useState({ 0: true });
-  const assignmentCount = (hostId) => travelers.filter((traveler) => traveler.hostId === hostId).length;
+  const assignmentCountsByHostId = useMemo(() => travelers.reduce((counts, traveler) => {
+    if (traveler.hostId) counts[traveler.hostId] = (counts[traveler.hostId] || 0) + 1;
+    return counts;
+  }, {}), [travelers]);
+  const assignmentCount = (hostId) => assignmentCountsByHostId[hostId] || 0;
 
   useEffect(() => {
     const hostIndexesWithErrors = Object.keys(errors)

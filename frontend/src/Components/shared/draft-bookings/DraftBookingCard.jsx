@@ -42,7 +42,7 @@ export default function DraftBookingCard({
 
             <MiniInfo
               label={t("travelersCount", "عدد المعتمرين")}
-              value={draft.travelers?.length || 0}
+              value={draft.travelersCount || 0}
             />
           </div>
         </div>

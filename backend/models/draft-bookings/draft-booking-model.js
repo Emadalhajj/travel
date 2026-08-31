@@ -343,6 +343,19 @@ data: {
   },
 );
 
+draftBookingSchema.index({
+  user: 1,
+  isDeleted: 1,
+  status: 1,
+  createdAt: -1,
+});
+
+draftBookingSchema.index({
+  status: 1,
+  isDeleted: 1,
+  expiresAt: 1,
+});
+
 const DraftBooking = mongoose.model("DraftBooking", draftBookingSchema);
 
 export default DraftBooking;

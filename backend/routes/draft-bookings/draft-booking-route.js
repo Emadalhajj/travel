@@ -48,6 +48,10 @@ import {
 import {
   uploadDraftDocument as uploadDraftDocumentMiddleware,
 } from "../../middleware/upload/index.js";
+import {
+  draftCreationRateLimiter,
+  uploadRateLimiter,
+} from "../../middleware/security/rate-limiters.js";
 
 const DraftBookingRoute = express.Router();
 
@@ -63,6 +67,7 @@ Create Draft Booking
 DraftBookingRoute.post(
   "/draft-bookings",
   protect,
+  draftCreationRateLimiter,
   createDraft,
 );
 
@@ -84,6 +89,7 @@ DraftBookingRoute.get(
 DraftBookingRoute.post(
   "/draft-bookings/:id/documents",
   protect,
+  uploadRateLimiter,
   uploadDraftDocumentMiddleware.single("document"),
   uploadDraftDocument,
 );

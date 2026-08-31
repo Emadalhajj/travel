@@ -11,6 +11,10 @@ import {
   setPage,
   updatePaymentMethod,
   updatePaymentMethodStatus,
+  selectPaymentMethodItems,
+  selectPaymentMethodPagination,
+  selectPaymentMethodListLoading,
+  selectPaymentMethodListError,
 } from "../../../redux/payments/paymentMethodSlice";
 import { paymentMethodFormConfig } from "../../../Components/common/ModalForms/payments/paymentMethodFormConfig";
 import { buildQuery } from "../../../Utils/buildQuery";
@@ -32,19 +36,15 @@ import ConfirmDialog from "../../../Components/common/ConfirmModal";
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import AdminPageActions from "../../../Components/layout/AdminPageActions";
 
-const emptyPagination = { total: 0, page: 1, limit: 10, totalPages: 0 };
-
 export default function AdminPaymentMethodsPage() {
   const dispatch = useDispatch();
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
   const isArabic = lang === "ar";
-  const {
-    paymentMethodsList = [],
-    loading,
-    error,
-    pagination = emptyPagination,
-  } = useSelector((state) => state.paymentMethods || {});
+  const paymentMethodsList = useSelector(selectPaymentMethodItems);
+  const pagination = useSelector(selectPaymentMethodPagination);
+  const loading = useSelector(selectPaymentMethodListLoading);
+  const error = useSelector(selectPaymentMethodListError);
   const [filters, setFilters] = useState({ search: "", type: "", isActive: "" });
 
   const formConfig = useMemo(() => paymentMethodFormConfig(), []);
