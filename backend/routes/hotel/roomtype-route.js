@@ -27,7 +27,7 @@ import {
 import asyncHandler from "../../middleware/asyncHandler.js";
 import parseFormData  from "../../middleware/parseFormData.js";
 
-const RoomTypeRout = express.Router();
+const RoomTypeRoute = express.Router();
 
 
 const roomTypeUploadMiddleware  = [
@@ -41,47 +41,47 @@ const roomTypeUploadMiddleware  = [
 ];
 
 // Public routes
-RoomTypeRout.get("/room-types", getAllRoomType);
-RoomTypeRout.get("/room-types/:id", getRoomTypeById);
-RoomTypeRout.get("/hotel/:hotelId/room-types", getRoomTypesByHotelId);
+RoomTypeRoute.get("/room-types", getAllRoomType);
+RoomTypeRoute.get("/room-types/:id", getRoomTypeById);
+RoomTypeRoute.get("/hotel/:hotelId/room-types", getRoomTypesByHotelId);
 
 // Protected routes التوجه المحمي
-RoomTypeRout.post(
+RoomTypeRoute.post(
   "/room-types",
   protect,
-  authorize("admin"),
+  authorize("admin", "superAdmin"),
   ...roomTypeUploadMiddleware ,
   validate(createRoomTypeSchema), 
   createRoomType
 );
 
-RoomTypeRout.post('/preview-price',
+RoomTypeRoute.post('/preview-price',
   previewBookingPrice
 )
 
-RoomTypeRout.put(
+RoomTypeRoute.put(
   "/room-types/:id",
   protect,
-  authorize("admin"),
+  authorize("admin", "superAdmin"),
   ...roomTypeUploadMiddleware ,
   // parseRoomTypeData,
   validate(updateRoomTypeSchema),
   updateRoomType
 );
 
-RoomTypeRout.delete(
+RoomTypeRoute.delete(
   "/room-types/:id",
   protect,
-  authorize("admin"),
+  authorize("admin", "superAdmin"),
   deleteRoomType
 );
-RoomTypeRout.patch(
+RoomTypeRoute.patch(
   "/room-types/toggle/:id" ,
   protect,
-  authorize("admin"),
+  authorize("admin", "superAdmin"),
   toggleRoomTypeStatus
 )
 
 
 
-export default RoomTypeRout;
+export default RoomTypeRoute;

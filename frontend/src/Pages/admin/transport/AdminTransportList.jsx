@@ -7,6 +7,9 @@ import {
   fetchTransports,
   updateExistingTransport,
   deleteTransportById,
+  selectTransportItems,
+  selectTransportListLoading,
+  selectTransportError,
 } from "../../../redux/transports/transportSlice";
 
 import { toast } from "react-toastify";
@@ -33,11 +36,9 @@ export default function AdminTransportList() {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
-  const {
-    transportList = [],
-    loading,
-    error,
-  } = useSelector((state) => state.transport);
+  const transportList = useSelector(selectTransportItems);
+  const loading = useSelector(selectTransportListLoading);
+  const error = useSelector(selectTransportError);
 
   const [filters, setFilters] = useState({
     search: "",

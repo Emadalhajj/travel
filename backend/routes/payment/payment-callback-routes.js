@@ -18,21 +18,25 @@ import express from "express";
 import {
   handlePaymentCallback,
 } from "../../controllers/payment/payment-callback-controller.js";
+import { paymentCallbackRateLimiter } from "../../middleware/security/rate-limiters.js";
 
 const router = express.Router();
 
 router.get(
   "/callback",
+  paymentCallbackRateLimiter,
   handlePaymentCallback,
 );
 
 router.post(
   "/callback",
+  paymentCallbackRateLimiter,
   handlePaymentCallback,
 );
 
 router.post(
   "/webhook",
+  paymentCallbackRateLimiter,
   handlePaymentCallback,
 );
 

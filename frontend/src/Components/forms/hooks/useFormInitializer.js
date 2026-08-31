@@ -5,7 +5,7 @@ useFormInitializer.js
 
 تهيئة النموذج عند الفتح.
 */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   get,
   set,
@@ -18,39 +18,46 @@ export default function useFormInitializer({
   setFormState,
   setImageState,
 }) {
+  const configRef = useRef(config);
+  const initialDataRef = useRef(initialData);
+  configRef.current = config;
+  initialDataRef.current = initialData;
+
   useEffect(() => {
     if (!show) return;
 
+    const currentConfig = configRef.current;
+    const currentInitialData = initialDataRef.current;
+
     const conditionalFields =
       Object.values(
-        config.conditionalFields ||
+        currentConfig.conditionalFields ||
           {},
       ).flat();
 
     let initial = {
       specs:
-        initialData?.specs || {},
+        currentInitialData?.specs || {},
       attachments:
-        initialData?.attachments ||
+        currentInitialData?.attachments ||
         [],
       deleteAttachments: [],
     };
 
     const fields = [
-      ...(config.commonFields ||
+      ...(currentConfig.commonFields ||
         []),
       ...conditionalFields,
     ].filter(Boolean);
 
     fields.forEach((field) => {
-      if (
-        field.name === "images"
-      )
-        return;
+      // Image fields are managed consistently by ImageUploader/imageState,
+      // regardless of whether the API field is named images or profileImage.
+      if (field.type === "file") return;
 
       const value =
         get(
-          initialData,
+          currentInitialData,
           field.name,
         ) ??
         field.defaultValue ??
@@ -67,8 +74,6 @@ export default function useFormInitializer({
     setImageState?.({});
   }, [
     show,
-    config,
-    initialData,
     setFormState,
     setImageState,
   ]);

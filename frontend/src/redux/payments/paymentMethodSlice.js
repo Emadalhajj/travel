@@ -197,9 +197,11 @@ const paymentMethodSlice =
     initialState: {
       paymentMethodsList: [],
 
-      loading: false,
+      listLoading: false,
+      mutationLoading: false,
 
-      error: null,
+      listError: null,
+      mutationError: null,
 
       pagination: {
         total: 0,
@@ -242,8 +244,8 @@ const paymentMethodSlice =
         .addCase(
           fetchPaymentMethods.pending,
           (state) => {
-            state.loading = true;
-            state.error = null;
+            state.listLoading = true;
+            state.listError = null;
           },
         )
 
@@ -253,7 +255,7 @@ const paymentMethodSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.listLoading = false;
 
             state.paymentMethodsList =
               action.payload?.data ||
@@ -286,8 +288,8 @@ const paymentMethodSlice =
             state,
             action,
           ) => {
-            state.loading = false;
-            state.error =
+            state.listLoading = false;
+            state.listError =
               action.payload;
           },
         )
@@ -299,8 +301,8 @@ const paymentMethodSlice =
         .addCase(
           createPaymentMethod.pending,
           (state) => {
-            state.loading = true;
-            state.error = null;
+            state.mutationLoading = true;
+            state.mutationError = null;
           },
         )
 
@@ -310,7 +312,7 @@ const paymentMethodSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.mutationLoading = false;
 
             if (
               action.payload
@@ -328,8 +330,8 @@ const paymentMethodSlice =
             state,
             action,
           ) => {
-            state.loading = false;
-            state.error =
+            state.mutationLoading = false;
+            state.mutationError =
               action.payload;
           },
         )
@@ -341,8 +343,8 @@ const paymentMethodSlice =
         .addCase(
           updatePaymentMethod.pending,
           (state) => {
-            state.loading = true;
-            state.error = null;
+            state.mutationLoading = true;
+            state.mutationError = null;
           },
         )
 
@@ -352,7 +354,7 @@ const paymentMethodSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.mutationLoading = false;
 
             state.paymentMethodsList =
               state.paymentMethodsList.map(
@@ -371,8 +373,8 @@ const paymentMethodSlice =
             state,
             action,
           ) => {
-            state.loading = false;
-            state.error =
+            state.mutationLoading = false;
+            state.mutationError =
               action.payload;
           },
         )
@@ -384,8 +386,8 @@ const paymentMethodSlice =
         .addCase(
           updatePaymentMethodStatus.pending,
           (state) => {
-            state.loading = true;
-            state.error = null;
+            state.mutationLoading = true;
+            state.mutationError = null;
           },
         )
 
@@ -395,7 +397,7 @@ const paymentMethodSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.mutationLoading = false;
 
             state.paymentMethodsList =
               state.paymentMethodsList.map(
@@ -414,8 +416,8 @@ const paymentMethodSlice =
             state,
             action,
           ) => {
-            state.loading = false;
-            state.error =
+            state.mutationLoading = false;
+            state.mutationError =
               action.payload;
           },
         )
@@ -427,8 +429,8 @@ const paymentMethodSlice =
         .addCase(
           deletePaymentMethod.pending,
           (state) => {
-            state.loading = true;
-            state.error = null;
+            state.mutationLoading = true;
+            state.mutationError = null;
           },
         )
 
@@ -438,7 +440,7 @@ const paymentMethodSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.mutationLoading = false;
 
             state.paymentMethodsList =
               state.paymentMethodsList.filter(
@@ -455,8 +457,8 @@ const paymentMethodSlice =
             state,
             action,
           ) => {
-            state.loading = false;
-            state.error =
+            state.mutationLoading = false;
+            state.mutationError =
               action.payload;
           },
         );
@@ -467,5 +469,12 @@ export const {
   setPage,
   setLimit,
 } = paymentMethodSlice.actions;
+
+export const selectPaymentMethodItems = (state) => state.paymentMethods.paymentMethodsList;
+export const selectPaymentMethodPagination = (state) => state.paymentMethods.pagination;
+export const selectPaymentMethodListLoading = (state) => state.paymentMethods.listLoading;
+export const selectPaymentMethodListError = (state) => state.paymentMethods.listError;
+export const selectPaymentMethodMutationLoading = (state) => state.paymentMethods.mutationLoading;
+export const selectPaymentMethodMutationError = (state) => state.paymentMethods.mutationError;
 
 export default paymentMethodSlice.reducer;

@@ -2,7 +2,6 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
 import {
   apiGetAllHotels,
-  apiGetOneHotel,
   apiCreateHotel,
   apiUpdateHotel,
   apiDeleteHotel,
@@ -19,20 +18,6 @@ export const fetchHotels = createAsyncThunk(
     try {
       const res = await apiGetAllHotels(params);
 
-      return res.data;
-    } catch (err) {
-      return handleApiError(err, rejectWithValue);
-    }
-  },
-);
-
-// fetchHotelsById
-
-export const fetchHotelsById = createAsyncThunk(
-  "onehotel/fetch",
-  async (id, { rejectWithValue }) => {
-    try {
-      const res = await apiGetOneHotel(id);
       return res.data;
     } catch (err) {
       return handleApiError(err, rejectWithValue);
@@ -98,8 +83,8 @@ const hotelSlice = createSlice({
   name: "hotel",
   initialState: {
     hotelslist: [],
-    selectedHotel: null,
-    loading: false,
+    listLoading: false,
+    mutationLoading: false,
     error: null,
     pagination: {
       total: 0,
@@ -120,11 +105,11 @@ const hotelSlice = createSlice({
     builder
       // Fetch All Hotels
       .addCase(fetchHotels.pending, (state) => {
-        state.loading = true;
+        state.listLoading = true;
         state.error = null;
       })
       .addCase(fetchHotels.fulfilled, (state, action) => {
-        state.loading = false;
+        state.listLoading = false;
         state.hotelslist = action.payload?.hotels || action.payload?.data || [];
         if (action.payload?.total !== undefined) {
           state.pagination.total = action.payload.total;
@@ -135,46 +120,32 @@ const hotelSlice = createSlice({
         }
       })
       .addCase(fetchHotels.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
-
-      // Fetch One Hotel
-      .addCase(fetchHotelsById.pending, (state) => {
-        state.loading = true;
-      })
-      .addCase(fetchHotelsById.fulfilled, (state, action) => {
-        state.loading = false;
-        state.selectedHotel =
-          action.payload?.hotel || action.payload?.oneHotel || action.payload;
-      })
-      .addCase(fetchHotelsById.rejected, (state, action) => {
-        state.loading = false;
+        state.listLoading = false;
         state.error = action.payload;
       })
 
       // Create Hotel
       .addCase(createHotel.pending, (state) => {
-        state.loading = true;
+        state.mutationLoading = true;
       })
       .addCase(createHotel.fulfilled, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         const newHotel = action.payload?.hotel || action.payload;
         if (newHotel) {
           state.hotelslist.unshift(newHotel);
         }
       })
       .addCase(createHotel.rejected, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         state.error = action.payload;
       })
 
       // Update Hotel
       .addCase(updateHotel.pending, (state) => {
-        state.loading = true;
+        state.mutationLoading = true;
       })
       .addCase(updateHotel.fulfilled, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         const updatedHotel = action.payload?.hotel || action.payload;
         if (updatedHotel) {
           state.hotelslist = state.hotelslist.map((hotel) =>
@@ -183,31 +154,31 @@ const hotelSlice = createSlice({
         }
       })
       .addCase(updateHotel.rejected, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         state.error = action.payload;
       })
 
       // Delete Hotel
       .addCase(deleteHotel.pending, (state) => {
-        state.loading = true;
+        state.mutationLoading = true;
       })
       .addCase(deleteHotel.fulfilled, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         state.hotelslist = state.hotelslist.filter(
           (hotel) => hotel._id !== action.payload,
         );
       })
       .addCase(deleteHotel.rejected, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         state.error = action.payload;
       })
 
       // Toggle Status
       .addCase(toggleHotel.pending, (state) => {
-        state.loading = true;
+        state.mutationLoading = true;
       })
       .addCase(toggleHotel.fulfilled, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         const toggled = action.payload?.hotel || action.payload;
         if (toggled) {
           state.hotelslist = state.hotelslist.map((hotel) =>
@@ -216,11 +187,16 @@ const hotelSlice = createSlice({
         }
       })
       .addCase(toggleHotel.rejected, (state, action) => {
-        state.loading = false;
+        state.mutationLoading = false;
         state.error = action.payload;
       });
   },
 });
 
 export const { setPaginationLimit, setPaginationPage } = hotelSlice.actions;
+export const selectHotelItems = (state) => state.hotels.hotelslist;
+export const selectHotelPagination = (state) => state.hotels.pagination;
+export const selectHotelListLoading = (state) => state.hotels.listLoading;
+export const selectHotelError = (state) => state.hotels.error;
+export const selectHotelMutationLoading = (state) => state.hotels.mutationLoading;
 export default hotelSlice.reducer;

@@ -46,7 +46,7 @@ export const getAllExtraServices = asyncHandler(async (req, res) => {
       { nameEn: { $regex: req.query.search, $options: "i" } },
     ];
   }
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
   const [items, total] = await Promise.all([
     ExtraService.find(filter)
       .sort({ createdAt: -1 })
@@ -60,8 +60,8 @@ export const getAllExtraServices = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total,
-    page: Number(req.query.page) || 1,
-    limit: Number(req.query.limit) || 10,
+    page,
+    limit,
     data: items,
   });
 });

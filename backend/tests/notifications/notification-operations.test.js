@@ -32,6 +32,14 @@ const createRetryStore = (row) => ({
   },
 });
 
+const readQuery = (value, onSelect = () => {}) => ({
+  select(fields) {
+    onSelect(fields);
+    return this;
+  },
+  lean: async () => value,
+});
+
 test("unread count and mark all read target active database notifications only", async () => {
   const row = document();
   const model = createRetryStore(row);
@@ -53,8 +61,8 @@ test("retry resolves current user email and sends the existing record once", asy
   const deliveries = [];
   const service = createNotificationServiceLayer({
     NotificationModel: model,
-    UserModel: { findById: async () => ({ email: "current@example.com" }) },
-    BookingModel: { findById: async () => ({ customer: { email: "guest@example.com" } }) },
+    UserModel: { findById: () => readQuery({ email: "current@example.com" }) },
+    BookingModel: { findById: () => readQuery({ customer: { email: "guest@example.com" } }) },
     emailAdapter: async (payload) => deliveries.push(payload),
   });
   const result = await service.retryNotification({ notificationId: row._id });
@@ -69,8 +77,8 @@ test("two concurrent retries claim once and send one email", async () => {
   let deliveries = 0;
   const service = createNotificationServiceLayer({
     NotificationModel: model,
-    UserModel: { findById: async () => ({ email: "user@example.com" }) },
-    BookingModel: { findById: async () => null },
+    UserModel: { findById: () => readQuery({ email: "user@example.com" }) },
+    BookingModel: { findById: () => readQuery(null) },
     emailAdapter: async () => { deliveries += 1; },
   });
   const results = await Promise.allSettled([
@@ -84,22 +92,42 @@ test("two concurrent retries claim once and send one email", async () => {
 test("retry falls back to booking customer email", async () => {
   const row = document();
   let recipient;
+  let userSelect;
+  let bookingSelect;
   const service = createNotificationServiceLayer({
     NotificationModel: createRetryStore(row),
-    UserModel: { findById: async () => ({ email: "" }) },
-    BookingModel: { findById: async () => ({ customer: { email: "guest@example.com" } }) },
+    UserModel: { findById: () => readQuery({ email: "" }, (value) => { userSelect = value; }) },
+    BookingModel: { findById: () => readQuery(
+      { customer: { email: "guest@example.com" } },
+      (value) => { bookingSelect = value; },
+    ) },
     emailAdapter: async ({ to }) => { recipient = to; },
   });
   await service.retryNotification({ notificationId: row._id });
   assert.equal(recipient, "guest@example.com");
+  assert.equal(userSelect, "email phone whatsapp");
+  assert.equal(bookingSelect, "customer.email customer.phone customer.whatsapp");
+});
+
+test("retry does not read booking when the user has the required recipient", async () => {
+  const row = document();
+  let bookingReads = 0;
+  const service = createNotificationServiceLayer({
+    NotificationModel: createRetryStore(row),
+    UserModel: { findById: () => readQuery({ email: "user@example.com" }) },
+    BookingModel: { findById: () => { bookingReads += 1; return readQuery(null); } },
+    emailAdapter: async () => {},
+  });
+  await service.retryNotification({ notificationId: row._id });
+  assert.equal(bookingReads, 0);
 });
 
 test("retry delivery failure returns the same record to failed", async () => {
   const row = document();
   const service = createNotificationServiceLayer({
     NotificationModel: createRetryStore(row),
-    UserModel: { findById: async () => null },
-    BookingModel: { findById: async () => null },
+    UserModel: { findById: () => readQuery(null) },
+    BookingModel: { findById: () => readQuery(null) },
     emailAdapter: async ({ to }) => {
       if (!to) throw new Error("Email recipient is missing");
     },

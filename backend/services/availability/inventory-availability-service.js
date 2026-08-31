@@ -23,6 +23,33 @@ export const calculateAvailableCount = (record = {}) => {
   return Math.max(0, total - reserved - blocked);
 };
 
+const summarizeInventoryPeriod = ({ records, expectedDays, requestedQuantity }) => {
+  if (records.length < expectedDays) {
+    return {
+      isAvailable: false,
+      minAvailable: 0,
+      reason: "MISSING_INVENTORY",
+      expectedDays,
+      foundDays: records.length,
+    };
+  }
+
+  const availableCounts = records.map((record) => {
+    const storedAvailable = Number(record.available);
+    return Number.isFinite(storedAvailable) && storedAvailable >= 0
+      ? storedAvailable
+      : calculateAvailableCount(record);
+  });
+  const minAvailable = Math.min(...availableCounts);
+  const requested = Number(requestedQuantity || 1);
+
+  return {
+    isAvailable: minAvailable >= requested,
+    minAvailable,
+    reason: minAvailable >= requested ? "AVAILABLE" : "NOT_ENOUGH",
+  };
+};
+
 export const checkInventoryForWholePeriod = async ({
   Inventory,
   inventoryType,
@@ -47,30 +74,67 @@ export const checkInventoryForWholePeriod = async ({
     isDeleted: { $ne: true },
   }).lean();
 
-  if (records.length < dates.length) {
-    return {
-      isAvailable: false,
-      minAvailable: 0,
-      reason: "MISSING_INVENTORY",
-      expectedDays: dates.length,
-      foundDays: records.length,
-    };
+  return summarizeInventoryPeriod({
+    records,
+    expectedDays: dates.length,
+    requestedQuantity,
+  });
+};
+
+export const getInventoryAvailabilityByProduct = async ({
+  products = [],
+  Inventory,
+  inventoryType,
+  startDate,
+  endDate,
+  requestedQuantity = 1,
+}) => {
+  const dates = getDatesBetween(startDate, endDate);
+  const productIds = products.map((product) => product?._id).filter(Boolean);
+  const availabilityByProductId = new Map();
+
+  if (!dates.length) {
+    for (const productId of productIds) {
+      availabilityByProductId.set(String(productId), {
+        isAvailable: false,
+        minAvailable: 0,
+        reason: "INVALID_PERIOD",
+      });
+    }
+    return availabilityByProductId;
   }
 
-  const availableCounts = records.map((record) => {
-    const storedAvailable = Number(record.available);
-    return Number.isFinite(storedAvailable) && storedAvailable >= 0
-      ? storedAvailable
-      : calculateAvailableCount(record);
-  });
-  const minAvailable = Math.min(...availableCounts);
-  const requested = Number(requestedQuantity || 1);
+  if (!productIds.length) return availabilityByProductId;
 
-  return {
-    isAvailable: minAvailable >= requested,
-    minAvailable,
-    reason: minAvailable >= requested ? "AVAILABLE" : "NOT_ENOUGH",
-  };
+  const records = await Inventory.find({
+    inventoryType,
+    itemId: { $in: productIds },
+    date: {
+      $gte: normalizeInventoryDate(startDate),
+      $lt: normalizeInventoryDate(endDate),
+    },
+    isActive: true,
+    isDeleted: { $ne: true },
+  })
+    .select("itemId total reserved blocked available date")
+    .lean();
+
+  const recordsByProductId = new Map();
+  for (const record of records) {
+    const key = String(record.itemId);
+    recordsByProductId.set(key, [...(recordsByProductId.get(key) || []), record]);
+  }
+
+  for (const productId of productIds) {
+    const key = String(productId);
+    availabilityByProductId.set(key, summarizeInventoryPeriod({
+      records: recordsByProductId.get(key) || [],
+      expectedDays: dates.length,
+      requestedQuantity,
+    }));
+  }
+
+  return availabilityByProductId;
 };
 
 export const filterProductsByInventory = async ({
@@ -83,16 +147,17 @@ export const filterProductsByInventory = async ({
   mapProduct,
 }) => {
   const result = [];
+  const availabilityByProductId = await getInventoryAvailabilityByProduct({
+    products,
+    Inventory,
+    inventoryType,
+    startDate,
+    endDate,
+    requestedQuantity,
+  });
 
   for (const product of products) {
-    const availability = await checkInventoryForWholePeriod({
-      Inventory,
-      inventoryType,
-      itemId: product._id,
-      startDate,
-      endDate,
-      requestedQuantity,
-    });
+    const availability = availabilityByProductId.get(String(product._id));
 
     if (!availability.isAvailable) continue;
     result.push(mapProduct({
@@ -116,6 +181,15 @@ export const filterProductsByAvailabilityPolicy = async ({
   mapProduct,
 }) => {
   const result = [];
+  const limitedProducts = products.filter((product) => product.isAlwaysAvailable !== true);
+  const availabilityByProductId = await getInventoryAvailabilityByProduct({
+    products: limitedProducts,
+    Inventory,
+    inventoryType,
+    startDate,
+    endDate,
+    requestedQuantity,
+  });
 
   for (const product of products) {
     if (product.isAlwaysAvailable === true) {
@@ -128,14 +202,7 @@ export const filterProductsByAvailabilityPolicy = async ({
       continue;
     }
 
-    const availability = await checkInventoryForWholePeriod({
-      Inventory,
-      inventoryType,
-      itemId: product._id,
-      startDate,
-      endDate,
-      requestedQuantity,
-    });
+    const availability = availabilityByProductId.get(String(product._id));
 
     if (!availability.isAvailable) continue;
     result.push(mapProduct({

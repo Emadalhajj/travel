@@ -9,8 +9,11 @@ import {
   toggleRoomTypeActiveStatus,
   setPage,
   setLimit,
+  selectRoomTypeItems,
+  selectRoomTypePagination,
+  selectRoomTypeListLoading,
+  selectRoomTypeError,
 } from "../../../redux/hotels/roomtypeSlice";
-import { fetchHotels } from "../../../redux/hotels/hotelSlice";
 
 import { toast } from "react-toastify";
 import { useTranslation } from "react-i18next";
@@ -33,6 +36,9 @@ import PaginationComponent from "../../../Components/common/Pagination";
 import { roomTypeFormConfig } from "../../../Components/common/ModalForms/hotel/roomTypeFormConfig";
 import { handleApiError } from "../../../Utils/handleApiError";
 import AdminPageActions from "../../../Components/layout/AdminPageActions";
+import useAdminLookups from "../../../hooks/admin/useAdminLookups";
+
+const EMPTY_LOOKUP = [];
 
 export default function AdminHotelRooms() {
   const { hotelId } = useParams(); // ← يأخذ من URL: /admin/hotel/123/rooms
@@ -41,15 +47,16 @@ export default function AdminHotelRooms() {
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
 
-  const {
-    roomTypesList: rooms = [],
-    loading,
-    error,
-    pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
-  } = useSelector((state) => state.roomTypes || {});
+  const rooms = useSelector(selectRoomTypeItems);
+  const pagination = useSelector(selectRoomTypePagination);
+  const loading = useSelector(selectRoomTypeListLoading);
+  const error = useSelector(selectRoomTypeError);
 
-  const { hotelslist: hotels = [] } = useSelector(
-    (state) => state.hotels || {},
+  const { lookups, loadHotel } = useAdminLookups();
+  const populatedHotel = rooms.find((room) => typeof room.hotel === "object")?.hotel;
+  const hotels = useMemo(
+    () => populatedHotel ? [populatedHotel] : (lookups[`hotel:${hotelId}`] || EMPTY_LOOKUP),
+    [hotelId, lookups, populatedHotel],
   );
 
   const [showModal, setShowModal] = useState(false);
@@ -76,8 +83,18 @@ export default function AdminHotelRooms() {
     if (!hotelId) return;
 
     dispatch(fetchRoomByHotelId(hotelId));
-    dispatch(fetchHotels({ page: 1, limit: 1000 }));
   }, [hotelId, dispatch]);
+
+  useEffect(() => {
+    if (
+      hotelId &&
+      !populatedHotel &&
+      !loading &&
+      !lookups[`hotel:${hotelId}`]
+    ) {
+      loadHotel(hotelId);
+    }
+  }, [hotelId, populatedHotel, loading, loadHotel, lookups]);
 
   const openCreateModal = () => {
     setFormMode("create");

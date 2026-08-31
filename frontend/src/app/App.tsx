@@ -5,18 +5,30 @@ import { ToastContainer } from "react-toastify";
 
 import Loader from "../Components/common/Loader";
 import Header from "../Components/layout/Header";
-import DashboardOverview from "../Pages/admin/DashboardOverview";
-import AdminLayout from "../Pages/admin/AdminLayout";
-import PublicProgramListPage from "../Pages/public/programs/PublicProgramListPage";
-import PublicProgramDetailsPage from "../Pages/public/programs/PublicProgramDetailsPage";
-import PublicBookingPage from "../Pages/public/booking/PublicBookingPage";
-import PublicBookingSuccessPage from "../Pages/public/booking/PublicBookingSuccessPage";
-import PublicBookingDetailsPage from "../Pages/public/booking/PublicBookingDetailsPage";
-import PublicMyDraftBookingsPage from "../Pages/public/booking/PublicMyDraftBookingsPage";
 import ProtectedRoute from "../Components/auth/ProtectedRoute";
 import { ADMIN_ROLES } from "../constants/auth/roles";
 
 const Home = lazy(() => import("../Pages/client/Home"));
+const DashboardOverview = lazy(() => import("../Pages/admin/DashboardOverview"));
+const AdminLayout = lazy(() => import("../Pages/admin/AdminLayout"));
+const PublicProgramListPage = lazy(
+  () => import("../Pages/public/programs/PublicProgramListPage"),
+);
+const PublicProgramDetailsPage = lazy(
+  () => import("../Pages/public/programs/PublicProgramDetailsPage"),
+);
+const PublicBookingPage = lazy(
+  () => import("../Pages/public/booking/PublicBookingPage"),
+);
+const PublicBookingSuccessPage = lazy(
+  () => import("../Pages/public/booking/PublicBookingSuccessPage"),
+);
+const PublicBookingDetailsPage = lazy(
+  () => import("../Pages/public/booking/PublicBookingDetailsPage"),
+);
+const PublicMyDraftBookingsPage = lazy(
+  () => import("../Pages/public/booking/PublicMyDraftBookingsPage"),
+);
 const AuthPage = lazy(() => import("../Pages/Auth/AuthPage"));
 const PasswordRecoveryPage = lazy(
   () => import("../Pages/Auth/PasswordRecoveryPage"),
@@ -77,10 +89,6 @@ const PublicBookingPaymentPage = lazy(
 
 const PublicBankTransferProofPage = lazy(
   () => import("../Pages/public/payment/PublicBankTransferProofPage"),
-);
-
-const PublicPaymentRedirectPage = lazy(
-  () => import("../Pages/public/booking/PublicPaymentRedirectPage"),
 );
 
 const PublicCustomBookingCustomerPage = lazy(
@@ -227,10 +235,6 @@ function App() {
         <Route
           path="/booking/payment/:draftId/bank-transfer/:transactionId"
           element={<PublicBankTransferProofPage />}
-        />
-        <Route
-          path="/booking/payment/redirect/:draftId"
-          element={<PublicPaymentRedirectPage />}
         />
         <Route
           path="/booking/payment/:draftId/result"

@@ -31,6 +31,7 @@ import UmrahProgram from "../../models/umrah-programs/umrah-program-model.js";
 import { buildUmrahProgramFilter } from "../../utils/buildUmrahProgramFilter.js";
 import { buildUmrahProgramSort } from "../../utils/buildUmrahProgramSort.js";
 import AppError from "../../utils/AppError.js";
+import { buildPagination } from "../../utils/Builders/buildPagination.js";
 
 import {
   softDeleteDocument,
@@ -101,9 +102,7 @@ getAllUmrahPrograms
 */
 
 export const getAllUmrahPrograms = async ({ query }) => {
-  const page = Number(query.page) || 1;
-  const limit = Number(query.limit) || 10;
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = buildPagination(query);
 
   const filter = buildUmrahProgramFilter(query);
   const sortOption = buildUmrahProgramSort(query);
@@ -144,9 +143,7 @@ getPublicUmrahPrograms
 */
 
 export const getPublicUmrahPrograms = async ({ query }) => {
-  const page = Number(query.page) || 1;
-  const limit = Number(query.limit) || 10;
-  const skip = (page - 1) * limit;
+  const { page, limit, skip } = buildPagination(query);
 
   const filter = {
     ...buildUmrahProgramFilter(query),
@@ -157,10 +154,9 @@ export const getPublicUmrahPrograms = async ({ query }) => {
   const sortOption = buildUmrahProgramSort(query);
 
   const [items, total] = await Promise.all([
-    UmrahProgram.find(filter)
-      .sort(sortOption)
-      .skip(skip)
-      .limit(limit),
+    UmrahProgram.aggregate(
+      buildPublicProgramListPipeline({ filter, sortOption, skip, limit }),
+    ),
 
     UmrahProgram.countDocuments(filter),
   ]);
@@ -173,6 +169,41 @@ export const getPublicUmrahPrograms = async ({ query }) => {
     pages: Math.ceil(total / limit),
   };
 };
+
+export const buildPublicProgramListPipeline = ({
+  filter,
+  sortOption,
+  skip,
+  limit,
+}) => [
+  { $match: filter },
+  { $sort: sortOption },
+  { $skip: skip },
+  { $limit: limit },
+  {
+    $project: {
+      _id: 1,
+      nameAr: 1,
+      nameEn: 1,
+      shortDescriptionAr: 1,
+      shortDescriptionEn: 1,
+      descriptionAr: 1,
+      descriptionEn: 1,
+      serviceLevel: 1,
+      durationDays: 1,
+      "capacity.availableSeats": 1,
+      "pricing.totalPrice": 1,
+      "pricing.currency": 1,
+      images: {
+        $map: {
+          input: { $slice: [{ $ifNull: ["$images", []] }, 1] },
+          as: "image",
+          in: { url: "$$image.url" },
+        },
+      },
+    },
+  },
+];
 
 export const getPublicUmrahProgramById = async (programId) => {
   const program = await UmrahProgram.findOne({

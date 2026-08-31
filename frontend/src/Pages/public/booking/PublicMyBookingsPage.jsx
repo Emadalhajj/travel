@@ -6,6 +6,13 @@ import { useTranslation } from "react-i18next";
 import {
   fetchPublicMyBookings,
   fetchPublicPendingBookingReviews,
+  selectPublicBookingsListError,
+  selectPublicBookingsListLoading,
+  selectPublicBookingsPagination,
+  selectPublicMyBookings,
+  selectPublicPendingBookingReviews,
+  selectPublicPendingReviewsError,
+  selectPublicPendingReviewsLoading,
 } from "../../../redux/public/bookingSlice";
 
 import BookingCard from "../../../Components/shared/booking-cards/BookingCard";
@@ -26,17 +33,13 @@ export default function PublicMyBookingsPage() {
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
 
-  const {
-    myBookings,
-    pagination,
-    loading,
-    error,
-    pendingBookingReviews,
-    pendingReviewsLoading,
-    pendingReviewsError,
-  } = useSelector(
-    (state) => state.publicBooking,
-  );
+  const myBookings = useSelector(selectPublicMyBookings);
+  const pagination = useSelector(selectPublicBookingsPagination);
+  const loading = useSelector(selectPublicBookingsListLoading);
+  const error = useSelector(selectPublicBookingsListError);
+  const pendingBookingReviews = useSelector(selectPublicPendingBookingReviews);
+  const pendingReviewsLoading = useSelector(selectPublicPendingReviewsLoading);
+  const pendingReviewsError = useSelector(selectPublicPendingReviewsError);
 
   const handleLimitChange = (limit) => {
     dispatch(
@@ -142,7 +145,7 @@ export default function PublicMyBookingsPage() {
               total={pagination?.total || 0}
               page={pagination?.page || 1}
               limit={pagination?.limit || 10}
-              totalPages={pagination?.pages || 1}
+              totalPages={pagination?.totalPages || 0}
               onPageChange={handlePageChange}
               onLimitChange={handleLimitChange}
             />

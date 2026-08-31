@@ -38,9 +38,9 @@ const renderPage = () => render(<MemoryRouter><AdminOperationsPage /></MemoryRou
 
 test("operations page handles loading, empty results and RTL", async () => {
   apiGetBookingOperations.mockResolvedValue({ data: { items: [], pagination: {} } });
-  const { container } = renderPage();
+  renderPage();
   expect(screen.getByText("loading")).not.toBeNull();
-  expect(container.firstChild.getAttribute("dir")).toBe("rtl");
+  expect(screen.getByTestId("operations-page").dir).toBe("rtl");
   expect(await screen.findByText("لا توجد حالات تشغيلية ضمن الفلاتر")).not.toBeNull();
 });
 
@@ -53,6 +53,18 @@ test("attentionRequired is displayed and filters update backend query after appl
   fireEvent.change(screen.getByLabelText("bookingStatus"), { target: { value: "confirmed" } });
   fireEvent.click(screen.getByText("apply"));
   await waitFor(() => expect(apiGetBookingOperations).toHaveBeenLastCalledWith(expect.objectContaining({ bookingStatus: "confirmed" })));
+});
+
+test("search changes refresh operations without refetching overview", async () => {
+  apiGetBookingOperations.mockResolvedValue({ data: { items: [], pagination: {} } });
+  renderPage();
+  await waitFor(() => expect(apiGetReportsOverview).toHaveBeenCalledTimes(1));
+
+  fireEvent.change(screen.getByLabelText("search"), { target: { value: "BK-22" } });
+  fireEvent.click(screen.getByText("apply"));
+
+  await waitFor(() => expect(apiGetBookingOperations).toHaveBeenCalledTimes(2));
+  expect(apiGetReportsOverview).toHaveBeenCalledTimes(1);
 });
 
 test("operations page displays backend errors", async () => {

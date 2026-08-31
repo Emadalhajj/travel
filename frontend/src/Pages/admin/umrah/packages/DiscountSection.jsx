@@ -1,5 +1,6 @@
 import { Card, Form, Row, Col } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
+import CalendarField from "../../../../Components/common/CalendarField";
 
 export default function DiscountSection({
   discount = {
@@ -95,12 +96,10 @@ export default function DiscountSection({
                 {isArabic ? "تاريخ انتهاء الخصم" : "Discount Expiry Date"}
               </Form.Label>
 
-              <Form.Control
-                type="date"
+              <CalendarField
                 value={discount.discountExpiresAt || ""}
-                onChange={(e) =>
-                  handleChange("discountExpiresAt", e.target.value)
-                }
+                onChange={(value) => handleChange("discountExpiresAt", value)}
+                isArabic={isArabic}
               />
             </Col>
           )}

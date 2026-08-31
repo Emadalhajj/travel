@@ -9,9 +9,12 @@ import {
   fetchTrips,
   setLimit,
   setPage,
-  updateExitingTrip,
+  updateExistingTrip,
+  selectTripItems,
+  selectTripPagination,
+  selectTripListLoading,
+  selectTripError,
 } from "../../../redux/transports/tripSlice";
-import { fetchTransports } from "../../../redux/transports/transportSlice";
 import { buildQuery } from "../../../Utils/buildQuery";
 import { createHandleSave } from "../../../Utils/formData/createHandleSave";
 import { normalizeForForm } from "../../../Utils/formData/normalize";
@@ -34,20 +37,20 @@ import ConfirmDialog from "../../../Components/common/ConfirmModal";
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
 import AdminPageActions from "../../../Components/layout/AdminPageActions";
+import useAdminLookups from "../../../hooks/admin/useAdminLookups";
 
-const emptyPagination = { total: 0, page: 1, limit: 10, totalPages: 0 };
+const EMPTY_LOOKUP = [];
 
 export default function TransportTrips() {
   const dispatch = useDispatch();
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
-  const {
-    loading,
-    tripList = [],
-    error,
-    pagination = emptyPagination,
-  } = useSelector((state) => state.trip || {});
-  const { transportList = [] } = useSelector((state) => state.transport || {});
+  const tripList = useSelector(selectTripItems);
+  const pagination = useSelector(selectTripPagination);
+  const loading = useSelector(selectTripListLoading);
+  const error = useSelector(selectTripError);
+  const { lookups, loadLookup } = useAdminLookups();
+  const transportList = lookups.transport || EMPTY_LOOKUP;
 
   const [filters, setFilters] = useState({
     search: "",
@@ -70,10 +73,6 @@ export default function TransportTrips() {
     dispatch(fetchTrips(listQuery));
   }, [dispatch, listQuery]);
 
-  useEffect(() => {
-    dispatch(fetchTransports({ page: 1, limit: 100 }));
-  }, [dispatch]);
-
   const prepareTripForForm = (trip) => ({
     ...normalizeForForm(trip, formConfig),
     vehicleType:
@@ -89,9 +88,9 @@ export default function TransportTrips() {
     formErrors,
     loadingSave,
     deleteModal,
-    openCreate: openCreateModal,
-    openEdit: openEditModal,
-    openClone: openCloneModal,
+    openCreate: openCreateBase,
+    openEdit: openEditBase,
+    openClone: openCloneBase,
     openDetails,
     openDelete,
     closeForm,
@@ -110,10 +109,23 @@ export default function TransportTrips() {
     }),
   });
 
+  const openCreateModal = async () => {
+    await loadLookup("transport");
+    openCreateBase();
+  };
+  const openEditModal = async (item) => {
+    await loadLookup("transport");
+    openEditBase(item);
+  };
+  const openCloneModal = async (item) => {
+    await loadLookup("transport");
+    openCloneBase(item);
+  };
+
   const handleSave = createHandleSave({
     dispatch,
     createAction: createNewTrip,
-    updateAction: updateExitingTrip,
+    updateAction: updateExistingTrip,
     fetchAction: () => fetchTrips(listQuery),
     getId: (item) => item._id,
     formConfig,

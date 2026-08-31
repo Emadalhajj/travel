@@ -6,6 +6,10 @@ import { useTranslation } from "react-i18next";
 import {
   fetchPublicDraftBookingById,
   cancelPublicDraftBooking,
+  selectPublicBookingSubmitLoading,
+  selectPublicDraftBooking,
+  selectPublicDraftError,
+  selectPublicDraftLoading,
 } from "../../../redux/public/bookingSlice";
 
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
@@ -50,9 +54,10 @@ export default function PublicDraftBookingDetailsPage() {
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
 
-  const { draftBooking, loading, submitLoading, error } = useSelector(
-    (state) => state.publicBooking,
-  );
+  const draftBooking = useSelector(selectPublicDraftBooking);
+  const loading = useSelector(selectPublicDraftLoading);
+  const submitLoading = useSelector(selectPublicBookingSubmitLoading);
+  const error = useSelector(selectPublicDraftError);
 
   const [localError, setLocalError] = useState("");
   const [isCancelling, setIsCancelling] = useState(false);

@@ -68,6 +68,9 @@ import {
   get,
   set,
 } from "./utils/objectPath";
+import { validateFormFields } from "./utils/formValidation";
+
+const EMPTY_FORM_ERRORS = {};
 
 /*
 =============================================================================
@@ -117,13 +120,15 @@ const UniversalForm = forwardRef(
       أخطاء الـ backend
       */
 
-      errors = {},
+      errors = EMPTY_FORM_ERRORS,
 
       /*
       loading state
       */
 
       loading = false,
+
+      onFormStateChange,
 
       /*
       renderActions
@@ -424,7 +429,7 @@ const UniversalForm = forwardRef(
 
     */
 
-    const helpers = useFieldHelpers(formState, setFieldErrors);
+    const helpers = useFieldHelpers(formState, setFieldErrors, isArabic);
 
     /*
     =========================================================================
@@ -440,6 +445,10 @@ const UniversalForm = forwardRef(
       setFieldErrors(errors || {});
     }, [errors]);
 
+    useEffect(() => {
+      onFormStateChange?.(formState);
+    }, [formState, onFormStateChange]);
+
     /*
     =========================================================================
     Submit
@@ -450,6 +459,11 @@ const UniversalForm = forwardRef(
     */
 
     const handleSubmit = () => {
+      const validationErrors = validateFormFields(activeFields, formState, isArabic);
+      if (Object.keys(validationErrors).length) {
+        setFieldErrors((previous) => ({ ...previous, ...validationErrors }));
+        return;
+      }
       /*
       دمج الحقول المحسوبة
       */

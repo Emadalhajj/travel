@@ -27,8 +27,18 @@ export const createNotificationServiceLayer = ({
   const resolveNotificationRecipient = async (notification) => {
     const userId = notification.user?._id || notification.user;
     const bookingId = notification.booking?._id || notification.booking;
-    const user = userId ? await UserModel.findById(userId) : null;
-    const booking = bookingId ? await BookingModel.findById(bookingId) : null;
+    const user = userId
+      ? await UserModel.findById(userId).select("email phone whatsapp").lean()
+      : null;
+    const hasRequiredUserRecipient =
+      (notification.channel === NOTIFICATION_CHANNELS.EMAIL && user?.email) ||
+      (notification.channel === NOTIFICATION_CHANNELS.SMS && user?.phone) ||
+      (notification.channel === NOTIFICATION_CHANNELS.WHATSAPP && (user?.whatsapp || user?.phone));
+    const booking = bookingId && !hasRequiredUserRecipient
+      ? await BookingModel.findById(bookingId)
+        .select("customer.email customer.phone customer.whatsapp")
+        .lean()
+      : null;
     return {
       email: user?.email || booking?.customer?.email || "",
       phone: user?.phone || booking?.customer?.phone || "",

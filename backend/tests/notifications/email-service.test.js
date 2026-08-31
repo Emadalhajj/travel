@@ -22,6 +22,9 @@ test("SMTP adapter sends through a cached transporter", async () => {
       createTransport: (configuration) => {
         transporterCreations += 1;
         assert.equal(configuration.host, "smtp.example.com");
+        assert.equal(configuration.connectionTimeout, 10000);
+        assert.equal(configuration.greetingTimeout, 10000);
+        assert.equal(configuration.socketTimeout, 20000);
         return { sendMail: async (message) => messages.push(message) };
       },
     },

@@ -16,12 +16,18 @@ useFieldHelpers.js
 المسارات والأخطاء
 */
 import { get } from "../utils/objectPath";
+import { useCallback, useMemo, useRef } from "react";
+import { validateFormField } from "../utils/formValidation";
 
 export default function useFieldHelpers(
   formState,
   setFieldErrors,
+  isArabic,
 ) {
-  const getFieldStatePath = (field) => {
+  const formStateRef = useRef(formState);
+  formStateRef.current = formState;
+
+  const getFieldStatePath = useCallback((field) => {
     if (field.path) {
       return field.path;
     }
@@ -31,16 +37,16 @@ export default function useFieldHelpers(
     }
 
     return field.name;
-  };
+  }, []);
 
-  const getFieldValue = (field) => {
+  const getFieldValue = useCallback((field) => {
     return get(
-      formState,
+      formStateRef.current,
       getFieldStatePath(field),
     );
-  };
+  }, [getFieldStatePath]);
 
-  const clearFieldError = (field) => {
+  const clearFieldError = useCallback((field) => {
     const path =
       getFieldStatePath(field);
 
@@ -48,11 +54,19 @@ export default function useFieldHelpers(
       ...prev,
       [path]: "",
     }));
-  };
+  }, [getFieldStatePath, setFieldErrors]);
 
-  return {
+  const validateField = useCallback((field, value) => {
+    const path = getFieldStatePath(field);
+    const message = validateFormField(field, value, isArabic);
+    setFieldErrors((previous) => ({ ...previous, [path]: message }));
+    return message;
+  }, [getFieldStatePath, isArabic, setFieldErrors]);
+
+  return useMemo(() => ({
     getFieldStatePath,
     getFieldValue,
     clearFieldError,
-  };
+    validateField,
+  }), [clearFieldError, getFieldStatePath, getFieldValue, validateField]);
 }

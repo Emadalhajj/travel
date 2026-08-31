@@ -7,6 +7,10 @@ import {
   deleteRoomType,
   setPage,
   setLimit,
+  selectRoomTypeItems,
+  selectRoomTypePagination,
+  selectRoomTypeListLoading,
+  selectRoomTypeError,
 } from "../../../redux/hotels/roomtypeSlice";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
 import { toast } from "react-toastify";
@@ -28,23 +32,22 @@ import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
 import UniversalTable from "../../../Components/common/tables/UniversalTable";
 import ImagePreviewCell from "../../../Components/common/tables/ImagePreviewCell";
 import { roomTypeFormConfig } from "../../../Components/common/ModalForms/hotel/roomTypeFormConfig";
-import { fetchHotels } from "../../../redux/hotels/hotelSlice";
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import AdminPageActions from "../../../Components/layout/AdminPageActions";
 import { handleApiError } from "../../../Utils/handleApiError";
 import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
+import useAdminLookups from "../../../hooks/admin/useAdminLookups";
+
+const EMPTY_LOOKUP = [];
 
 export default function AdminRoomTypeList() {
   const dispatch = useDispatch();
-  const {
-    roomTypesList = [],
-    loading,
-    error,
-    pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
-  } = useSelector((state) => state.roomTypes || {});
-  const { hotelslist: hotels = [] } = useSelector(
-    (state) => state.hotels || {},
-  );
+  const roomTypesList = useSelector(selectRoomTypeItems);
+  const pagination = useSelector(selectRoomTypePagination);
+  const loading = useSelector(selectRoomTypeListLoading);
+  const error = useSelector(selectRoomTypeError);
+  const { lookups, loadLookup } = useAdminLookups();
+  const hotels = lookups.hotels || EMPTY_LOOKUP;
 
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
@@ -77,9 +80,9 @@ export default function AdminRoomTypeList() {
     formErrors,
     loadingSave,
     deleteModal,
-    openCreate: openCreateModal,
-    openEdit: openEditModal,
-    openClone: openCloneModal,
+    openCreate: openCreateBase,
+    openEdit: openEditBase,
+    openClone: openCloneBase,
     openDetails,
     openDelete,
     closeForm,
@@ -100,9 +103,18 @@ export default function AdminRoomTypeList() {
   useEffect(() => {
     dispatch(fetchRoomTypes(listQuery));
   }, [dispatch, listQuery]);
-  useEffect(() => {
-    dispatch(fetchHotels({ page: 1, limit: 1000 }));
-  }, [dispatch]);
+  const openCreateModal = async () => {
+    await loadLookup("hotels");
+    openCreateBase();
+  };
+  const openEditModal = async (item) => {
+    await loadLookup("hotels");
+    openEditBase(item);
+  };
+  const openCloneModal = async (item) => {
+    await loadLookup("hotels");
+    openCloneBase(item);
+  };
   const handleSave = createHandleSave({
     dispatch,
     createAction: createRoomType,

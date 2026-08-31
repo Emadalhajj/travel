@@ -9,7 +9,7 @@ export const resisterValidation = Joi.object({
   profileImage: Joi.string().optional(),
 });
 
-export const logingValidation = Joi.object({
+export const loginValidation = Joi.object({
   email: Joi.string().trim().lowercase().email().max(254).required(),
   password: Joi.string().required(),
 });

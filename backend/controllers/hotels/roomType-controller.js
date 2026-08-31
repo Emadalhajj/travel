@@ -44,8 +44,7 @@ const normalizePricing = (pricing = {}) => ({
     Math.max(0, Number(pricing.discountPercent) || 0),
   ),
   pricingPeriods: normalizePricingPeriods(pricing.pricingPeriods),
-}); 
-
+});
 
 const normalizeOptionalNumber = (value) => {
   if (value === "" || value === null || value === undefined) return undefined;
@@ -101,7 +100,7 @@ export const getAllRoomType = asyncHandler(async (req, res) => {
 
   // if (hotelId) filter.hotel = hotelId;
 
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
 
   const [roomTypes, total] = await Promise.all([
     RoomType.find(filter)
@@ -121,8 +120,8 @@ export const getAllRoomType = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total, // العدد الإجمالي للنتائج المطابقة,
-    page: Number(req.query.page) || 1,
-    limit: Number(req.query.limit) || 10,
+    page,
+    limit,
     roomTypes, // أنواع الغرف بعد تطبيق الفلترة والفرز والpagination
   });
 });
@@ -308,10 +307,10 @@ export const createRoomType = asyncHandler(async (req, res) => {
     images,
     createdBy: req.user?._id,
     availability: {
-  availablePeriods: normalizeAvailablePeriods(
-    data.availability?.availablePeriods,
-  ),
-},
+      availablePeriods: normalizeAvailablePeriods(
+        data.availability?.availablePeriods,
+      ),
+    },
   };
   const newRoomType = await RoomType.create(normalizedData);
   await newRoomType.populate([
@@ -327,119 +326,6 @@ export const createRoomType = asyncHandler(async (req, res) => {
   });
 });
 
-// export const createRoomType = asyncHandler(async (req, res) => {
-//   try{
-//     // parse data
-//     let data = req.body.data ? JSON.parse(req.body.data) : req.body
-
-//   }catch(err){
-//     return res.status(500).json({
-//       success: false,
-//       message: "حدث خطأ أثناء إنشاء نوع الغرفة",
-//       error: err.message
-//     });
-//   }
-//   // console.log("createRoomType: req.files=", req.files);
-//   // console.log("createRoomType: req.body.newImages=", req.body.newImages);
-//   const {
-//     hotel,
-//     nameAr,
-//     nameEn,
-//     descriptionAr,
-//     descriptionEn,
-//     capacity,
-//     size,
-//     bedType,
-//     totalRooms,
-//     // newImages, // من parseFormData
-//     amenities,
-//     pricing,
-//     mealPlan,
-//     isActive,
-//   } = req.body;
-
-//   // التحقق من وجود الفندق
-
-//   // const hotelExists = await Hotel.findById(hotel);
-//   // if (!hotelExists) {
-//   //   return res.status(404).json({
-//   //     success: false,
-//   //     message: "الفندق غير موجود",
-//   //   });
-//   // }
-
-//   // التحقق من عدم تكرار الاسم في نفس الفندق
-
-//   // const exists = await RoomType.findOne({
-//   //   hotel,
-//   //   $or: [{ nameEn: nameEn.trim() }, { nameAr: nameAr.trim() }],
-//   // });
-
-//   // if (exists) {
-//   //   return res.status(400).json({
-//   //     success: false,
-//   //     message: "نوع الغرفة موجود مسبقاً في هذا الفندق",
-//   //   });
-//   // }
-//   // معالجة الصور
-
-//   // جمع مسارات الصور الجديدة
-//   const imagePaths =
-//     req.files?.images?.map((file) => `/uploads/room-types/${file.filename}`) ||
-//     [];
-
-//   // ✅ حفظ الصور باستخدام المساعد
-//   // ✅ تنسيق الصور المرفوعة
-//   // تحليل البيانات المعقدة
-//   const parsedCapacity =
-//     typeof capacity === "string" ? JSON.parse(capacity) : capacity;
-//   const parsedPricing =
-//     typeof pricing === "string" ? JSON.parse(pricing) : pricing;
-//   const parsedAmenities =
-//     typeof amenities === "string" ? JSON.parse(amenities) : amenities;
-
-//   // الصور: خذها من الميدلوير (req.body.newImages) إن وُجدت، وإلا أنشئ مسارات من req.files
-//   const imagesToSave =
-//     req.files?.images?.map((file) => ({
-//       url: `/uploads/room-types/${file.filename}`,
-//       alt: "",
-//       isMain: false,
-//     })) || [];
-
-//   console.log(req.body);
-
-//   const newRoomType = await RoomType.create({
-//     hotel,
-//     nameAr: nameAr?.trim(),
-//     nameEn: nameEn?.trim(),
-//     descriptionAr: descriptionAr?.trim(),
-//     descriptionEn: descriptionEn?.trim(),
-//     capacity: parsedCapacity || {
-//       maxAdults: 2,
-//       maxChildren: 0,
-//       maxOccupancy: 2,
-//     },
-//     size: size ? Number(size) : undefined,
-//     bedType: bedType || "double",
-//     totalRooms: totalRooms ? Number(totalRooms) : 1,
-//     images: imagesToSave || [],
-//     amenities: parsedAmenities || [],
-//     pricing: parsedPricing,
-//     mealPlan: mealPlan || "room_only",
-//     isActive: isActive !== false,
-//   });
-
-//   // Populate بعد الإنشاء
-//   await newRoomType.populate("hotel", "name location.city");
-
-//   res.status(201).json({
-//     success: true,
-//     message: "تم إنشاء نوع الغرفة بنجاح",
-//     roomType: newRoomType,
-//   });
-// });
-
-// ==================== update roomtype  تحديث نوع الغرفة
 
 export const updateRoomType = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -530,10 +416,10 @@ export const updateRoomType = asyncHandler(async (req, res) => {
     isActive: normalizeBoolean(data.isActive),
     updatedBy: req.user?._id,
     availability: {
-  availablePeriods: normalizeAvailablePeriods(
-    data.availability?.availablePeriods,
-  ),
-},
+      availablePeriods: normalizeAvailablePeriods(
+        data.availability?.availablePeriods,
+      ),
+    },
   };
 
   //3. Database mutation
@@ -552,169 +438,6 @@ export const updateRoomType = asyncHandler(async (req, res) => {
     data: roomType,
   });
 
-  // const { id } = req.params;
-
-  // const roomType = await RoomType.findById(id);
-  // if (!roomType) {
-  //   return res.status(404).json({
-  //     success: false,
-  //     message: "نوع الغرفة غير موجود",
-  //   });
-  // }
-
-  // Object.assign(roomType, req.body);
-  // await roomType.save();
-  // return res.status(200).json({
-  //   success: true,
-  //   message: "تم تحديث نوع الغرفة بنجاح",
-  //   data: roomType,
-  // });
-
-  // console.log("updateRoomType: req.files=", req.files);
-  // console.log("updateRoomType: req.body.newImages=", req.body.newImages);
-  // const { id } = req.params;
-  // const data = req.body.data ? JSON.parse(req.body.data) : {};
-  // const {
-  //   hotel,
-  //   nameAr,
-  //   nameEn,
-  //   descriptionAr,
-  //   descriptionEn,
-  //   capacity,
-  //   size,
-  //   bedType,
-  //   totalRooms,
-  //   // newImages, // من parseFormData
-  //   amenities,
-  //   pricing,
-  //   mealPlan,
-  //   isActive,
-  // } = data;
-
-  // // 1. الصور الجديدة
-  // const newImages =
-  //   req.files?.images?.map((file) => ({
-  //     url: `/uploads/room-types/${file.filename}`,
-  //     alt: "",
-  //     isMain: false,
-  //   })) || [];
-
-  // // 2️⃣ الصور المحذوفة
-  // let deleteImages = [];
-  // if (Array.isArray(req.body["deleteImages[]"])) {
-  //   deleteImages = req.body["deleteImages[]"];
-  // } else if (Array.isArray(req.body.deleteImages)) {
-  //   deleteImages = req.body.deleteImages;
-  // } else if (req.body.deleteImages) {
-  //   deleteImages = [req.body.deleteImages];
-  // }
-
-  // const normalizeUploadPath = (p) => {
-  //   if (!p) return null;
-  //   try {
-  //     if (/^https?:\/\//i.test(p)) {
-  //       const idx = p.indexOf("/uploads/");
-  //       return idx !== -1 ? p.substring(idx) : p;
-  //     }
-  //   } catch (e) {
-  //     // ignore
-  //   }
-  //   return p;
-  // };
-
-  // // 3️⃣ حذف الصور من السيرفر
-  // console.log("updateRoomType: deleteImages:", deleteImages);
-  // const roomBefore = await RoomType.findById(id).lean();
-  // console.log("updateRoomType: before images:", roomBefore?.images);
-  // deleteImages.forEach((rawPath) => {
-  //   const imgPath = normalizeUploadPath(rawPath) || rawPath;
-  //   const relative = imgPath.replace(/^\/?uploads\/?/, "");
-  //   const fullPath = path.join(process.cwd(), "public", relative);
-  //   if (fs.existsSync(fullPath)) {
-  //     try {
-  //       fs.unlinkSync(fullPath);
-  //     } catch (err) {
-  //       console.warn("Failed to delete file", fullPath, err.message);
-  //     }
-  //   } else {
-  //     // file not found — log for debugging
-  //     console.warn("File to delete not found:", fullPath);
-  //   }
-  // });
-
-  // // 4️⃣ تحديث البيانات الأساسية
-  // const updateData = {
-  //   ...data,
-  //   size: data.size ? Number(data.size) : undefined,
-  //   totalRooms: data.totalRooms ? Number(data.totalRooms) : undefined,
-  //   pricing: data.pricing,
-  // };
-  // // 5️⃣ إضافة / حذف الصور (مثل التأشيرات)
-  // if (newImages.length > 0) {
-  //   updateData.$push = { images: { $each: newImages } };
-  // }
-
-  // if (deleteImages.length > 0) {
-  //   updateData.$pull = {
-  //     images: { url: { $in: deleteImages } },
-  //   };
-  //   console.log("updateRoomType: after images:", updatedRoomType?.images);
-  // }
-  // // التحقق من عدم تكرار الاسم
-  // if (req.body.nameAr || req.body.nameEn) {
-  //   const duplicate = await RoomType.findOne({
-  //     _id: { $ne: id }, // استثناء النوع الحالي
-  //     // hotel: req.body.hotel || roomType.hotel,
-  //     $or: [
-  //       { nameEn: req.body.nameEn?.trim() },
-  //       { nameAr: req.body.nameAr?.trim() },
-  //     ],
-  //   });
-
-  //   if (duplicate) {
-  //     return res.status(400).json({
-  //       success: false,
-  //       message: "اسم نوع الغرفة موجود مسبقاً",
-  //     });
-  //   }
-  // }
-  // const updateQuery = { $set: updateData };
-
-  // if (newImages.length > 0) {
-  //   updateQuery.$push = {
-  //     images: { $each: newImages },
-  //   };
-  // }
-
-  // // Apply base update (set + push) first
-  // let updatedRoomType = await RoomType.findByIdAndUpdate(id, updateQuery, {
-  //   new: true,
-  //   runValidators: true,
-  // });
-
-  // // Then perform pulls to remove both object entries (with url) and string entries
-  // if (deleteImages.length > 0) {
-  //   // pull elements that are objects with matching url
-  //   updatedRoomType = await RoomType.findByIdAndUpdate(
-  //     id,
-  //     { $pull: { images: { url: { $in: deleteImages } } } },
-  //     { new: true },
-  //   );
-
-  //   // pull elements that are simple string paths equal to any deleteImages
-  //   updatedRoomType = await RoomType.findByIdAndUpdate(
-  //     id,
-  //     { $pull: { images: { $in: deleteImages } } },
-  //     { new: true },
-  //   );
-  // }
-  // // .populate("hotel", "nameAr nameEn location");//
-
-  // res.status(200).json({
-  //   success: true,
-  //   message: "تم التحديث بنجاح",
-  //   roomType: updatedRoomType,
-  // });
 });
 
 //delet  حذف نوع الغرفة

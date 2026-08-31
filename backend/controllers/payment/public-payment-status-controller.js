@@ -12,6 +12,7 @@ export const getPublicPaymentStatus = async (
       await getPublicPaymentTransactionStatusService({
         transactionId:
           req.params.transactionId,
+        userId: req.user?._id,
       });
 
     return res.status(200).json({

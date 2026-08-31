@@ -6,10 +6,14 @@ import {
   calculateAvailableCount,
   checkInventoryForWholePeriod,
   filterProductsByAvailabilityPolicy,
+  getInventoryAvailabilityByProduct,
 } from "../../services/availability/inventory-availability-service.js";
 import { checkRoomAvailability } from "../../services/booking/availability.js";
 
-const queryWith = (records) => ({ lean: async () => records });
+const queryWith = (records) => ({
+  select() { return this; },
+  lean: async () => records,
+});
 
 test("inventory availability uses atomic available and computed fallback", async () => {
   const Inventory = {
@@ -55,6 +59,39 @@ test("availability policy bypasses inventory only when product explicitly allows
 
   assert.deepEqual(result.map(({ id }) => id), ["always"]);
   assert.equal(inventoryChecks, 1);
+});
+
+test("availability batches all products of one resource type into one inventory query", async () => {
+  let inventoryQueries = 0;
+  let receivedFilter;
+  const Inventory = {
+    find: (filter) => {
+      inventoryQueries += 1;
+      receivedFilter = filter;
+      return queryWith([
+        { itemId: "one", date: "2026-09-01", available: 4 },
+        { itemId: "one", date: "2026-09-02", available: 2 },
+        { itemId: "two", date: "2026-09-01", available: 5 },
+      ]);
+    },
+  };
+  const availability = await getInventoryAvailabilityByProduct({
+    products: [{ _id: "one" }, { _id: "two" }],
+    Inventory,
+    inventoryType: "trip",
+    startDate: "2026-09-01",
+    endDate: "2026-09-03",
+    requestedQuantity: 2,
+  });
+
+  assert.equal(inventoryQueries, 1);
+  assert.deepEqual(receivedFilter.itemId, { $in: ["one", "two"] });
+  assert.deepEqual(availability.get("one"), {
+    isAvailable: true,
+    minAvailable: 2,
+    reason: "AVAILABLE",
+  });
+  assert.equal(availability.get("two").reason, "MISSING_INVENTORY");
 });
 
 test("legacy room availability reads the shared Inventory model", async () => {

@@ -3,6 +3,8 @@ import {
   apiGetPublicPrograms,
   apiGetPublicProgramById,
 } from "../../services/api/public/programApi";
+import { createEmptyPagination, normalizePagination } from "../utils/pagination";
+import { handleApiError } from "../../Utils/handleApiError";
 
 /*
 =========================================================
@@ -25,9 +27,9 @@ export const fetchPublicPrograms = createAsyncThunk(
     try {
       return await apiGetPublicPrograms(params);
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || "حدث خطأ أثناء جلب البرامج"
-      );
+      return handleApiError(error, rejectWithValue, "ar", {
+        fallbackMessage: "حدث خطأ أثناء جلب البرامج",
+      });
     }
   }
 );
@@ -39,9 +41,9 @@ export const fetchPublicProgramById = createAsyncThunk(
     try {
       return await apiGetPublicProgramById(programId);
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || "حدث خطأ أثناء جلب تفاصيل البرنامج"
-      );
+      return handleApiError(error, rejectWithValue, "ar", {
+        fallbackMessage: "حدث خطأ أثناء جلب تفاصيل البرنامج",
+      });
     }
   }
 );
@@ -50,7 +52,7 @@ const initialState = {
   programs: [],
   selectedProgram: null,
 
-  pagination: null,
+  pagination: createEmptyPagination(),
 
   loading: false,
   detailsLoading: false,
@@ -60,15 +62,6 @@ const initialState = {
 
 const getProgramsFromResponse = (payload) =>
   payload?.data || payload?.items || payload?.programs || [];
-
-const getPaginationFromResponse = (payload) =>
-  payload?.pagination ||
-  payload?.meta || {
-    total: payload?.total || 0,
-    page: payload?.page || 1,
-    pages: payload?.pages || 1,
-    limit: payload?.limit || 10,
-  };
 
 const publicProgramSlice = createSlice({
   name: "publicPrograms",
@@ -97,7 +90,7 @@ const publicProgramSlice = createSlice({
 
         state.programs = getProgramsFromResponse(action.payload);
 
-        state.pagination = getPaginationFromResponse(action.payload);
+        state.pagination = normalizePagination(action.payload, state.pagination);
       })
       .addCase(fetchPublicPrograms.rejected, (state, action) => {
         state.loading = false;

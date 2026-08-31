@@ -80,6 +80,7 @@ export const userFormConfig = ({
       labelEn: "Profile Image",
       type: "file",
       multiple: false,
+      maxImages: 1,
       col: 12,
     },
     {

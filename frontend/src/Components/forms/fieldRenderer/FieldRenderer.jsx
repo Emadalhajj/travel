@@ -12,6 +12,7 @@ field.type === "file"
 تحديد أي component يتم عرضه.
 
 */
+import { memo } from "react";
 import { Form } from "react-bootstrap";
 
 import ArrayField from "./ArrayField";
@@ -23,7 +24,7 @@ import DefaultField from "./DefaultField";
 
 import { getNestedValue } from "../../../Utils/formHelpers";
 
-export default function FieldRenderer(props) {
+function FieldRenderer(props) {
   const { field, isArabic, fieldErrors = {} } = props;
 
   if (!field) return null;
@@ -80,9 +81,44 @@ export default function FieldRenderer(props) {
           {errorMessage}
         </div>
       )}
+
+      {!errorMessage && (isArabic ? field.helpTextAr : field.helpTextEn) && (
+        <div className="text-muted small mt-1">
+          {isArabic ? field.helpTextAr : field.helpTextEn}
+        </div>
+      )}
     </Form.Group>
   );
 }
+
+const alwaysRenderTypes = new Set(["array", "computed", "searchable-select"]);
+
+function areFieldRendererPropsEqual(previous, next) {
+  if (
+    previous.field !== next.field ||
+    previous.isArabic !== next.isArabic ||
+    previous.loading !== next.loading ||
+    alwaysRenderTypes.has(next.field?.type) ||
+    typeof next.field?.options === "function"
+  ) return false;
+
+  const fieldName = next.field?.path || (next.field?.isSpec
+    ? `specs.${next.field.name}`
+    : next.field?.name);
+  if (!fieldName) return false;
+
+  return (
+    getNestedValue(previous.formState, fieldName) === getNestedValue(next.formState, fieldName) &&
+    getNestedValue(previous.fieldErrors, fieldName) === getNestedValue(next.fieldErrors, fieldName) &&
+    previous.fieldErrors?.[fieldName] === next.fieldErrors?.[fieldName] &&
+    previous.fieldErrors?.[next.field.name] === next.fieldErrors?.[next.field.name] &&
+    previous.imageState?.[fieldName] === next.imageState?.[fieldName] &&
+    previous.imageState?.[next.field.name] === next.imageState?.[next.field.name] &&
+    previous.initialData === next.initialData
+  );
+}
+
+export default memo(FieldRenderer, areFieldRendererPropsEqual);
 
 
 /*

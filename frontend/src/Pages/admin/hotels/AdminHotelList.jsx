@@ -7,6 +7,10 @@ import {
   deleteHotel,
   setPaginationLimit,
   setPaginationPage,
+  selectHotelItems,
+  selectHotelPagination,
+  selectHotelListLoading,
+  selectHotelError,
 } from "../../../redux/hotels/hotelSlice";
 
 import { toast } from "react-toastify";
@@ -39,12 +43,10 @@ export default function AdminHotelList() {
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar"; // ar أو en
 
-  const {
-    hotelslist: hotels = [],
-    loading,
-    error,
-    pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
-  } = useSelector((state) => state.hotels || {});
+  const hotels = useSelector(selectHotelItems);
+  const pagination = useSelector(selectHotelPagination);
+  const loading = useSelector(selectHotelListLoading);
+  const error = useSelector(selectHotelError);
 
   const [filters, setFilters] = useState({
     hotelType: "",

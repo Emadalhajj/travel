@@ -3,7 +3,13 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { fetchPublicMyDraftBookings } from "../../../redux/public/bookingSlice";
+import {
+  fetchPublicMyDraftBookings,
+  selectPublicDraftsListError,
+  selectPublicDraftsListLoading,
+  selectPublicDraftsPagination,
+  selectPublicMyDraftBookings,
+} from "../../../redux/public/bookingSlice";
 
 import EmptyState from "../../../Components/shared/common/EmptyState";
 import DraftBookingCard from "../../../Components/shared/draft-bookings/DraftBookingCard";
@@ -21,9 +27,10 @@ export default function PublicMyDraftBookingsPage() {
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
 
-  const { myDraftBookings, draftPagination, loading, error } = useSelector(
-    (state) => state.publicBooking,
-  );
+  const myDraftBookings = useSelector(selectPublicMyDraftBookings);
+  const draftPagination = useSelector(selectPublicDraftsPagination);
+  const loading = useSelector(selectPublicDraftsListLoading);
+  const error = useSelector(selectPublicDraftsListError);
 
   useEffect(() => {
     dispatch(fetchPublicMyDraftBookings({ page: 1, limit: 10 }));
@@ -97,7 +104,7 @@ export default function PublicMyDraftBookingsPage() {
               total={draftPagination?.total || 0}
               page={draftPagination?.page || 1}
               limit={draftPagination?.limit || 10}
-              totalPages={draftPagination?.pages || 1}
+              totalPages={draftPagination?.totalPages || 0}
               onPageChange={handlePageChange}
               onLimitChange={handleLimitChange}
             />

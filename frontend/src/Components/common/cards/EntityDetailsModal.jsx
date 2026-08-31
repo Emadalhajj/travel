@@ -1,4 +1,4 @@
-import { Modal, Image, Badge, Carousel } from "react-bootstrap";
+import { Modal, Image, Carousel } from "react-bootstrap";
 import { formatImagePath } from "../../../Utils/imageUtils";
 
 export default function EntityDetailsModal({
@@ -37,6 +37,8 @@ export default function EntityDetailsModal({
                 <Image
                   src={formatImagePath(img)}
                   alt={`${title} - صورة ${i + 1}`}
+                  loading={i === 0 ? "eager" : "lazy"}
+                  decoding="async"
                   className="d-block w-100"
                   style={{ height: "400px", objectFit: "cover" }}
                 />

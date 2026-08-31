@@ -236,7 +236,214 @@ export const buildProgramReport = ({ bookings = [] }) => {
   })).sort((left, right) => right.bookingsCount - left.bookingsCount);
 };
 
+const statusCountExpression = (statuses) => ({
+  $sum: { $cond: [{ $in: ["$status", [...statuses]] }, 1, 0] },
+});
+
+export const buildBookingReportAggregation = (filter, { includeAttention = false } = {}) => {
+  const pipeline = [{ $match: filter }];
+  if (includeAttention) {
+    pipeline.push({
+      $lookup: {
+        from: PaymentTransaction.collection.name,
+        let: { bookingId: "$_id" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$booking", "$$bookingId"] }, isDeleted: false } },
+          { $project: { _id: 0, status: 1 } },
+        ],
+        as: "attentionPayments",
+      },
+    });
+  }
+  pipeline.push({
+    $facet: {
+      summary: [{
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          travelersTotal: {
+            $sum: { $ifNull: ["$totalPilgrims", { $size: { $ifNull: ["$pilgrims", []] } }] },
+          },
+          totalBookingValue: { $sum: { $ifNull: ["$pricing.totalPrice", 0] } },
+          paidAmount: { $sum: { $ifNull: ["$paidAmount", 0] } },
+          remainingAmount: { $sum: { $ifNull: ["$remainingAmount", 0] } },
+        },
+      }],
+      byStatus: [{ $group: { _id: "$bookingStatus", count: { $sum: 1 } } }],
+      byPaymentStatus: [{ $group: { _id: "$paymentStatus", count: { $sum: 1 } } }],
+      programs: [
+        { $match: { "program.programId": { $ne: null } } },
+        {
+          $group: {
+            _id: "$program.programId",
+            programNameAr: { $first: "$program.nameAr" },
+            programNameEn: { $first: "$program.nameEn" },
+            bookingsCount: { $sum: 1 },
+            travelersCount: {
+              $sum: { $ifNull: ["$totalPilgrims", { $size: { $ifNull: ["$pilgrims", []] } }] },
+            },
+            grossBookingValue: { $sum: { $ifNull: ["$pricing.totalPrice", 0] } },
+            paidAmount: { $sum: { $ifNull: ["$paidAmount", 0] } },
+          },
+        },
+        { $sort: { bookingsCount: -1 } },
+      ],
+      ...(includeAttention ? {
+        attentionRows: [{
+          $project: {
+            _id: 1,
+            bookingStatus: 1,
+            paymentStatus: 1,
+            payments: "$attentionPayments",
+          },
+        }],
+      } : {}),
+    },
+  });
+  return pipeline;
+};
+
+export const buildPaymentReportAggregation = (filter) => [{
+  $match: filter,
+}, {
+  $facet: {
+    summary: [{
+      $group: {
+        _id: null,
+        total: { $sum: 1 },
+        successful: statusCountExpression(SUCCESSFUL_TRANSACTION_STATUSES),
+        failed: statusCountExpression(FAILED_TRANSACTION_STATUSES),
+        pending: statusCountExpression(PENDING_TRANSACTION_STATUSES),
+        refunded: statusCountExpression([
+          PAYMENT_TRANSACTION_STATUSES.REFUNDED,
+          PAYMENT_TRANSACTION_STATUSES.PARTIALLY_REFUNDED,
+        ]),
+        legacyPaid: statusCountExpression([LEGACY_PAYMENT_TRANSACTION_STATUSES.PAID]),
+        paidPendingBooking: statusCountExpression([
+          PAYMENT_TRANSACTION_STATUSES.PAID_PENDING_BOOKING,
+        ]),
+        bankPendingVerification: {
+          $sum: { $cond: [{
+            $and: [
+              { $eq: ["$methodCode", PAYMENT_METHOD_CODES.BANK_TRANSFER] },
+              { $eq: ["$status", PAYMENT_TRANSACTION_STATUSES.PENDING_VERIFICATION] },
+            ],
+          }, 1, 0] },
+        },
+        bankPendingReview: {
+          $sum: { $cond: [{
+            $and: [
+              { $eq: ["$methodCode", PAYMENT_METHOD_CODES.BANK_TRANSFER] },
+              { $in: ["$status", [...BANK_REVIEW_STATUSES]] },
+            ],
+          }, 1, 0] },
+        },
+      },
+    }],
+    byMethod: [{
+      $group: {
+        _id: { $ifNull: ["$methodCode", "UNSPECIFIED"] },
+        transactionsCount: { $sum: 1 },
+        totalAmount: { $sum: { $ifNull: ["$amount", 0] } },
+        settledAmount: {
+          $sum: { $cond: [{ $in: ["$status", [...SUCCESSFUL_TRANSACTION_STATUSES]] }, { $ifNull: ["$amount", 0] }, 0] },
+        },
+      },
+    }, { $sort: { settledAmount: -1 } }],
+    byProvider: [{
+      $group: {
+        _id: { $cond: [{ $eq: [{ $ifNull: ["$providerCode", ""] }, ""] }, "NONE", "$providerCode"] },
+        transactionsCount: { $sum: 1 },
+        totalAmount: { $sum: { $ifNull: ["$amount", 0] } },
+        settledAmount: {
+          $sum: { $cond: [{ $in: ["$status", [...SUCCESSFUL_TRANSACTION_STATUSES]] }, { $ifNull: ["$amount", 0] }, 0] },
+        },
+      },
+    }, { $sort: { settledAmount: -1 } }],
+  },
+}];
+
+const countsFromAggregation = (rows, keys) => ({
+  ...Object.fromEntries(keys.map((key) => [key, 0])),
+  ...Object.fromEntries((rows || []).map((row) => [String(row._id || "").toLowerCase(), row.count])),
+});
+
+const groupsFromAggregation = (rows = []) => rows.map((row) => ({
+  code: row._id,
+  transactionsCount: row.transactionsCount,
+  totalAmount: money(row.totalAmount),
+  settledAmount: money(row.settledAmount),
+}));
+
+const reportsFromAggregations = ({ bookingAggregation = {}, paymentAggregation = {} }) => {
+  const bookingSummary = bookingAggregation.summary?.[0] || {};
+  const paymentSummary = paymentAggregation.summary?.[0] || {};
+  const paymentStatusesByBooking = new Map(
+    (bookingAggregation.attentionRows || []).map((row) => [
+      String(row._id),
+      row.payments || [],
+    ]),
+  );
+  const attentionRequired = (bookingAggregation.attentionRows || []).reduce(
+    (count, row) => count + Number(deriveAttentionRequired({
+      booking: row,
+      payments: paymentStatusesByBooking.get(String(row._id)) || [],
+    })),
+    0,
+  );
+  const byStatus = countsFromAggregation(bookingAggregation.byStatus, BOOKING_STATUS_LIST);
+  const byPaymentStatus = countsFromAggregation(
+    bookingAggregation.byPaymentStatus,
+    PAYMENT_STATUS_LIST,
+  );
+  const bookings = {
+    total: bookingSummary.total || 0,
+    byStatus,
+    byPaymentStatus,
+    confirmed: byStatus[BOOKING_STATUS.CONFIRMED] || 0,
+    pending: byStatus[BOOKING_STATUS.PENDING] || 0,
+    cancelled: byStatus[BOOKING_STATUS.CANCELLED] || 0,
+    travelers: { total: bookingSummary.travelersTotal || 0 },
+    attentionRequired,
+  };
+  const payments = {
+    totalBookingValue: money(bookingSummary.totalBookingValue),
+    paidAmount: money(bookingSummary.paidAmount),
+    remainingAmount: money(bookingSummary.remainingAmount),
+    transactions: {
+      total: paymentSummary.total || 0,
+      successful: paymentSummary.successful || 0,
+      failed: paymentSummary.failed || 0,
+      pending: paymentSummary.pending || 0,
+      refunded: paymentSummary.refunded || 0,
+      legacyPaid: paymentSummary.legacyPaid || 0,
+    },
+    byMethod: groupsFromAggregation(paymentAggregation.byMethod),
+    byProvider: groupsFromAggregation(paymentAggregation.byProvider),
+    bankTransfers: {
+      pendingVerification: paymentSummary.bankPendingVerification || 0,
+      pendingReview: paymentSummary.bankPendingReview || 0,
+    },
+    paidPendingBooking: paymentSummary.paidPendingBooking || 0,
+  };
+  const programs = (bookingAggregation.programs || []).map((row) => ({
+    programId: row._id,
+    programNameAr: row.programNameAr || "",
+    programNameEn: row.programNameEn || "",
+    bookingsCount: row.bookingsCount || 0,
+    travelersCount: row.travelersCount || 0,
+    grossBookingValue: money(row.grossBookingValue),
+    paidAmount: money(row.paidAmount),
+  }));
+  return { bookings, payments, programs };
+};
+
 const defaultRepository = {
+  aggregateBookings: async (filter, options) =>
+    (await Booking.aggregate(buildBookingReportAggregation(filter, options)))[0] || {},
+  aggregatePayments: async (filter) =>
+    (await PaymentTransaction.aggregate(buildPaymentReportAggregation(filter)))[0] || {},
+  findBookingIds: (filter) => Booking.distinct("_id", filter),
   findBookingIdsByPaymentMethod: (methodCode) => PaymentTransaction.distinct("booking", {
     methodCode,
     booking: { $ne: null },
@@ -257,6 +464,33 @@ const defaultRepository = {
 
 export const createReportServiceLayer = (repository = {}) => {
   const repo = { ...defaultRepository, ...repository };
+
+  const loadAggregatedReports = async (
+    rawFilters = {},
+    { includePayments = true, includeAttention = true } = {},
+  ) => {
+    const filters = normalizeReportFilters(rawFilters);
+    const paymentMethodBookingIds = filters.paymentMethod
+      ? await repo.findBookingIdsByPaymentMethod(filters.paymentMethod)
+      : [];
+    const bookingFilter = buildReportBookingFilter(filters, paymentMethodBookingIds);
+    const hasBookingDimensionFilter = Boolean(
+      filters.bookingStatus || filters.paymentStatus || filters.programId,
+    );
+    const dimensionBookingIds = includePayments && hasBookingDimensionFilter
+      ? await repo.findBookingIds(bookingFilter)
+      : null;
+    const [bookingAggregation, paymentAggregation] = await Promise.all([
+      repo.aggregateBookings(bookingFilter, { includeAttention }),
+      includePayments
+        ? repo.aggregatePayments(buildReportPaymentFilter(
+          filters,
+          dimensionBookingIds,
+        ))
+        : {},
+    ]);
+    return reportsFromAggregations({ bookingAggregation, paymentAggregation });
+  };
 
   const loadReportContext = async (
     rawFilters = {},
@@ -291,6 +525,12 @@ export const createReportServiceLayer = (repository = {}) => {
   };
 
   const getBookingsReportService = async (filters) => {
+    if (typeof repo.aggregateBookings === "function" && !repository.getBookings) {
+      return (await loadAggregatedReports(filters, {
+        includePayments: false,
+        includeAttention: true,
+      })).bookings;
+    }
     const context = await loadReportContext(filters, {
       includePayments: false,
       includeAttention: true,
@@ -299,6 +539,12 @@ export const createReportServiceLayer = (repository = {}) => {
   };
 
   const getPaymentsReportService = async (filters) => {
+    if (typeof repo.aggregateBookings === "function" && !repository.getBookings) {
+      return (await loadAggregatedReports(filters, {
+        includePayments: true,
+        includeAttention: false,
+      })).payments;
+    }
     const context = await loadReportContext(filters, {
       includePayments: true,
       includeAttention: false,
@@ -307,6 +553,12 @@ export const createReportServiceLayer = (repository = {}) => {
   };
 
   const getProgramsReportService = async (filters) => {
+    if (typeof repo.aggregateBookings === "function" && !repository.getBookings) {
+      return (await loadAggregatedReports(filters, {
+        includePayments: false,
+        includeAttention: false,
+      })).programs;
+    }
     const context = await loadReportContext(filters, {
       includePayments: false,
       includeAttention: false,
@@ -315,6 +567,32 @@ export const createReportServiceLayer = (repository = {}) => {
   };
 
   const getReportsOverviewService = async (filters) => {
+    if (typeof repo.aggregateBookings === "function" && !repository.getBookings) {
+      const reports = await loadAggregatedReports(filters);
+      return {
+        bookings: {
+          total: reports.bookings.total,
+          confirmed: reports.bookings.confirmed,
+          pending: reports.bookings.pending,
+          cancelled: reports.bookings.cancelled,
+          attentionRequired: reports.bookings.attentionRequired,
+          byStatus: reports.bookings.byStatus,
+          byPaymentStatus: reports.bookings.byPaymentStatus,
+        },
+        travelers: reports.bookings.travelers,
+        payments: {
+          totalAmount: reports.payments.totalBookingValue,
+          paidAmount: reports.payments.paidAmount,
+          remainingAmount: reports.payments.remainingAmount,
+          successfulTransactions: reports.payments.transactions.successful,
+          failedTransactions: reports.payments.transactions.failed,
+          pendingTransactions: reports.payments.transactions.pending,
+          paidPendingBooking: reports.payments.paidPendingBooking,
+        },
+        bankTransfers: reports.payments.bankTransfers,
+        reports,
+      };
+    }
     const context = await loadReportContext(filters);
     const bookings = buildBookingReport(context);
     const payments = buildPaymentReport(context);

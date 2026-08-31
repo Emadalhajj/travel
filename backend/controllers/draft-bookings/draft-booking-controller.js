@@ -63,7 +63,10 @@ export const createDraft = async (req, res, next) => {
 
 export const uploadDraftDocument = async (req, res, next) => {
   try {
-    const draft = await getDraftBookingById(req.params.id);
+    const draft = await getDraftBookingById({
+      draftId: req.params.id,
+      userId: req.user?._id,
+    });
 
     if (
       String(draft.user?._id || draft.user || "") !==
@@ -80,7 +83,7 @@ export const uploadDraftDocument = async (req, res, next) => {
       success: true,
       data: {
         name: req.file.originalname,
-        url: `/uploads/draft-bookings/${req.file.filename}`,
+        url: `/api/private-files/drafts/${draft._id}/${req.file.filename}`,
         mimeType: req.file.mimetype,
         size: req.file.size,
       },
@@ -128,7 +131,10 @@ getDraft
 
 export const getDraft = async (req, res, next) => {
   try {
-    const draft = await getDraftBookingById(req.params.id);
+    const draft = await getDraftBookingById({
+      draftId: req.params.id,
+      userId: req.user?._id,
+    });
 
     res.status(200).json({
       success: true,

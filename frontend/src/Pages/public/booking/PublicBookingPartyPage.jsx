@@ -15,7 +15,13 @@ import BookingProgressTimeline, {
 } from "../../../Components/shared/booking/BookingProgressTimeline";
 import BookingPartyDetailsForm from "../../../Components/shared/booking/BookingPartyDetailsForm";
 import BookingWizardNavigation from "../../../Components/shared/booking-wizard/BookingWizardNavigation";
-import { fetchPublicDraftBookingById } from "../../../redux/public/bookingSlice";
+import {
+  ensurePublicDraftBooking,
+  selectPublicBookingSubmitLoading,
+  selectPublicDraftBooking,
+  selectPublicDraftError,
+  selectPublicDraftLoading,
+} from "../../../redux/public/bookingSlice";
 import useDraftBookingPartyForm from "../../../hooks/public-booking/useDraftBookingPartyForm";
 
 export default function PublicBookingPartyPage() {
@@ -24,9 +30,10 @@ export default function PublicBookingPartyPage() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
-  const { draftBooking, loading, submitLoading, error } = useSelector(
-    (state) => state.publicBooking,
-  );
+  const draftBooking = useSelector(selectPublicDraftBooking);
+  const loading = useSelector(selectPublicDraftLoading);
+  const submitLoading = useSelector(selectPublicBookingSubmitLoading);
+  const error = useSelector(selectPublicDraftError);
 
   const party = useDraftBookingPartyForm({
     draftId,
@@ -36,7 +43,7 @@ export default function PublicBookingPartyPage() {
   });
 
   useEffect(() => {
-    if (draftId) dispatch(fetchPublicDraftBookingById(draftId));
+    if (draftId) dispatch(ensurePublicDraftBooking(draftId));
   }, [dispatch, draftId]);
 
   const handleBack = () => {

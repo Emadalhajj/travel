@@ -8,6 +8,8 @@ import {
   createPublicDraftBooking,
   updatePublicDraftBooking,
   resetPublicBooking,
+  selectPublicBookingSubmitError,
+  selectPublicBookingSubmitLoading,
 } from "../../../redux/public/bookingSlice";
 import useAvailableProducts from "../../../hooks/products/useAvailableProducts";
 import useCustomPackageBuilder from "../../../hooks/public-booking/useCustomPackageBuilder";
@@ -30,7 +32,8 @@ export default function PublicCustomPackageBuilderPage() {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
-  const { submitLoading, error } = useSelector((state) => state.publicBooking);
+  const submitLoading = useSelector(selectPublicBookingSubmitLoading);
+  const error = useSelector(selectPublicBookingSubmitError);
   const [validationError, setValidationError] = useState("");
 
   const {

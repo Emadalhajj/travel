@@ -12,7 +12,10 @@ import {
   setLimit,
 } from "../../../redux/transports/vehicleRentalSlice";
 
-import { fetchTransports } from "../../../redux/transports/transportSlice";
+import {
+  fetchTransports,
+  selectTransportItems,
+} from "../../../redux/transports/transportSlice";
 
 // import { vehicleRentalFormConfig } from "../../../Components/common/ModalForms/transports/vehicleRentalFormConfig";
 
@@ -50,9 +53,7 @@ export default function AdminVehicleRentalList() {
     pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
   } = useSelector((state) => state.vehicleRentals || {});
 
-  const { transportList = [] } = useSelector(
-    (state) => state.transport || {},
-  );
+  const transportList = useSelector(selectTransportItems);
 
   const [filters, setFilters] = useState({
     search: "",

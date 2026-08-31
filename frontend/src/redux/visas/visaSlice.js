@@ -74,7 +74,8 @@ export const visaSlice = createSlice({
   initialState: {
     list: [],
     currentVisa: null,
-    loading: false,
+    listLoading: false,
+    mutationLoading: false,
     error: null,
     pagination: {
       total: 0,
@@ -98,11 +99,11 @@ export const visaSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(fetchVisas.pending, (state) => {
-        state.loading = true;
+        state.listLoading = true;
         state.error = null;
       })
       .addCase(fetchVisas.fulfilled, (state, action) => {
-        state.loading = false;
+        state.listLoading = false;
         state.error = null;
         state.list = Array.isArray(action.payload?.visas)
           ? action.payload.visas
@@ -120,12 +121,12 @@ export const visaSlice = createSlice({
       })
       .addCase(fetchVisas.rejected, (state, action) => {
         state.error = action.payload;
-        state.loading = false;
+        state.listLoading = false;
       });
 
     builder
       .addCase(createVisa.pending, (s) => {
-        s.loading = true;
+        s.mutationLoading = true;
         s.error = null;
       })
       .addCase(createVisa.fulfilled, (s, a) => {
@@ -133,16 +134,16 @@ export const visaSlice = createSlice({
         if (visa) {
           s.list.unshift(visa);
         }
-        s.loading = false;
+        s.mutationLoading = false;
         s.error = null;
       })
       .addCase(createVisa.rejected, (s, a) => {
         s.error = a.payload || a.error?.message;
-        s.loading = false;
+        s.mutationLoading = false;
       })
 
-      .addCase(updateVisa.pending, (s, a) => {
-        s.loading = true;
+      .addCase(updateVisa.pending, (s) => {
+        s.mutationLoading = true;
         s.error = null;
       })
       .addCase(updateVisa.fulfilled, (s, a) => {
@@ -153,27 +154,50 @@ export const visaSlice = createSlice({
             visa._id === updatedVisa._id ? updatedVisa : visa,
           );
         }
-        s.loading = false;
+        s.mutationLoading = false;
         s.error = null;
       })
       .addCase(updateVisa.rejected, (s, a) => {
-        s.loading = false;
+        s.mutationLoading = false;
         s.error = a.payload || a.error?.message;
       })
+      .addCase(deleteVisa.pending, (s) => {
+        s.mutationLoading = true;
+        s.error = null;
+      })
       .addCase(deleteVisa.fulfilled, (s, a) => {
+        s.mutationLoading = false;
         const deletedVisaId = a.payload?.id || a.meta.arg; //
         if (deletedVisaId) {
           s.list = s.list.filter((visa) => visa._id !== deletedVisaId);
         }
       })
+      .addCase(deleteVisa.rejected, (s, a) => {
+        s.mutationLoading = false;
+        s.error = a.payload || a.error?.message;
+      })
+      .addCase(toggleVisa.pending, (s) => {
+        s.mutationLoading = true;
+        s.error = null;
+      })
       .addCase(toggleVisa.fulfilled, (s, a) => {
+        s.mutationLoading = false;
         const updatedVisa = a.payload;
         s.list = s.list.map((v) =>
           v._id === updatedVisa._id ? updatedVisa : v,
         );
+      })
+      .addCase(toggleVisa.rejected, (s, a) => {
+        s.mutationLoading = false;
+        s.error = a.payload || a.error?.message;
       });
   },
 });
 
 export const { clearVisasError, setPage, setLimit } = visaSlice.actions;
+export const selectVisaItems = (state) => state.visas.list;
+export const selectVisaPagination = (state) => state.visas.pagination;
+export const selectVisaListLoading = (state) => state.visas.listLoading;
+export const selectVisaError = (state) => state.visas.error;
+export const selectVisaMutationLoading = (state) => state.visas.mutationLoading;
 export default visaSlice.reducer;

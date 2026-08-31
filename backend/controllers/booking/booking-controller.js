@@ -5,26 +5,12 @@ getMyBookings يعرض حجوزات المستخدم الحالي فقط.
 
 getBookingById يعرض حجز واحد مع populate لكل العلاقات.
 
-createBooking يقوم بالترتيب التالي:
-
-قراءة البيانات.
-تطبيع البيانات.
-التحقق من وجود مستخدم ومعتمرين.
-التحقق من التوفر.
-حساب الأسعار.
-بناء snapshot.
-توليد رقم الحجز.
-إنشاء الحجز.
-
-updateBooking يعيد حساب التوفر والسعر والـ snapshot عند تعديل الحجز.
-
 cancelBooking يلغي الحجز بطريقة آمنة.
 
 changeBookingStatus يغير حالة الحجز حسب القواعد الموجودة في booking-status.js.
 
 changePaymentStatus يحدث الدفع ويغير حالة الحجز بناءً عليه.
 
-previewBookingPrice يعرض السعر المتوقع قبل إنشاء الحجز.
 */
 
 // controllers/booking/booking-controller.js
@@ -33,27 +19,16 @@ import asyncHandler from "express-async-handler";
 
 import Booking from "../../models/booking/booking-model.js";
 import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
-import Hotel from "../../models/hotels/hotel-model.js";
-import RoomType from "../../models/hotels/roomType-model.js";
-import Visa from "../../models/visa-model.js";
-import Trip from "../../models/transportition/trip-model.js";
-import Transport from "../../models/transportition/transport-model.js";
-import { Counter } from "../../models/counterModel.js";
 
-import { normalizeBooking } from "../../utils/domain/normalizeBooking.js";
 import {
   buildBookingFilter,
   allowedBookingSortFields,
 } from "../../utils/Builders/buildBookingFilter.js";
 import { buildNotDeletedFilter } from "../../utils/buildNotDeletedFilter.js";
 import { buildPagination } from "../../utils/Builders/buildPagination.js";
-import { safeJsonParse } from "../../utils/generic/safeJsonParse.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 import AppError from "../../utils/AppError.js";
 
-import { checkBookingAvailability } from "../../services/booking/availability.js";
-// import { calculateFullBookingPricing } from "../../services/booking/booking-pricing.js";
-import { calculateFullBookingPricing } from "../../services/pricing/booking-pricing.js";
 
 import {
   applyPaymentStatusToBooking,
@@ -66,15 +41,12 @@ import {
 import BookingLog from "../../models/bookingLog-model.js";
 
 import {
-  logBookingCreated,
-  logBookingUpdated,
   logBookingStatusChanged,
   logPaymentStatusChanged,
   logBookingCancelled,
 } from "../../services/booking/booking-log-service.js";
 
 import {
-  sendInitialBookingNotification,
   sendBookingConfirmedNotification,
   sendBookingCancelledNotification,
 } from "../../services/notifications/booking-notification-service.js";
@@ -85,16 +57,6 @@ import { softDeleteBooking } from "../../services/booking/bookingService.js";
 Helpers
 =====================================================
 */
-
-const generateBookingNumber = async () => {
-  const counter = await Counter.findOneAndUpdate(
-    { name: "booking" },
-    { $inc: { seq: 1 } },
-    { new: true, upsert: true },
-  );
-
-  return `BK-${String(counter.seq).padStart(6, "0")}`;
-};
 
 const buildBookingSort = (query = {}) => {
   if (!query.sort) {
@@ -112,7 +74,22 @@ const buildBookingSort = (query = {}) => {
   };
 };
 
-const bookingPopulate = [
+export const BOOKING_LIST_PROJECTION = {
+  _id: 1,
+  bookingNumber: 1,
+  bookingStatus: 1,
+  paymentStatus: 1,
+  "customer.name": 1,
+  "program.nameAr": 1,
+  "program.nameEn": 1,
+  "pricing.total": 1,
+  "pricing.totalPrice": 1,
+  "pricing.currency": 1,
+  totalPilgrims: 1,
+  createdAt: 1,
+};
+
+export const bookingDetailsPopulate = [
   { path: "user", select: "firstName lastName username email role" },
   { path: "hotel", select: "nameAr nameEn stars hotelType location images" },
   {
@@ -132,56 +109,25 @@ const bookingPopulate = [
   { path: "updatedBy", select: "firstName lastName username email" },
 ];
 
-const buildBookingItemsSnapshot = ({
-  hotel,
-  roomType,
-  visa,
-  trip,
-  transport,
-  data,
-  pricingResult,
-}) => {
-  return {
-    room: {
-      roomTypeId: roomType?._id,
-      roomNameAr: roomType?.nameAr || "",
-      roomNameEn: roomType?.nameEn || "",
-
-      hotelId: hotel?._id,
-      hotelNameAr: hotel?.nameAr || "",
-      hotelNameEn: hotel?.nameEn || "",
-
-      checkIn: data.checkIn,
-      checkOut: data.checkOut,
-
-      price: pricingResult?.pricing?.roomPrice || 0,
-    },
-
-    visa: {
-      visaId: visa?._id,
-      visaNameAr: visa?.name?.ar || "",
-      visaNameEn: visa?.name?.en || "",
-      price: pricingResult?.pricing?.visaPrice || 0,
-    },
-
-    trip: {
-      tripId: trip?._id,
-      tripNameAr: trip?.nameAr || "",
-      tripNameEn: trip?.nameEn || "",
-      travelDate: data.travelDate,
-      returnDate: data.returnDate,
-      price: pricingResult?.pricing?.tripPrice || 0,
-    },
-
-    transport: {
-      transportId: transport?._id,
-      transportNameAr: transport?.nameAr || "",
-      transportNameEn: transport?.nameEn || "",
-      vehicleType: transport?.vehicleType || "",
-      price: pricingResult?.pricing?.transportPrice || 0,
-    },
-  };
-};
+export const serializeBookingListItem = (booking = {}) => ({
+  _id: booking._id,
+  bookingNumber: booking.bookingNumber || "",
+  bookingStatus: booking.bookingStatus || "",
+  paymentStatus: booking.paymentStatus || "",
+  customer: { name: booking.customer?.name || "" },
+  program: {
+    nameAr: booking.program?.nameAr || "",
+    nameEn: booking.program?.nameEn || "",
+  },
+  pricing: {
+    total: booking.pricing?.total ?? booking.pricing?.totalPrice ?? 0,
+    totalPrice: booking.pricing?.totalPrice ?? booking.pricing?.total ?? 0,
+    currency: booking.pricing?.currency || "SAR",
+  },
+  pilgrimsCount: Number(booking.totalPilgrims) || 0,
+  totalPilgrims: Number(booking.totalPilgrims) || 0,
+  createdAt: booking.createdAt,
+});
 
 /*
 =====================================================
@@ -195,14 +141,14 @@ export const getAllBookings = asyncHandler(async (req, res) => {
   );
 
   const sortOption = buildBookingSort(req.query);
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
 
   const [bookings, total] = await Promise.all([
     Booking.find(filter)
       .sort(sortOption)
       .skip(skip)
       .limit(limit)
-      .populate(bookingPopulate),
+      .populate(bookingDetailsPopulate),
 
     Booking.countDocuments(filter),
   ]);
@@ -210,8 +156,8 @@ export const getAllBookings = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total,
-    page: Number(req.query.page) || 1,
-    limit: Number(req.query.limit) || 10,
+    page,
+    limit,
     data: bookings,
   });
 });
@@ -229,14 +175,15 @@ export const getMyBookings = asyncHandler(async (req, res) => {
   });
 
   const sortOption = buildBookingSort(req.query);
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
 
   const [bookings, total] = await Promise.all([
     Booking.find(filter)
+      .select(BOOKING_LIST_PROJECTION)
       .sort(sortOption)
       .skip(skip)
       .limit(limit)
-      .populate(bookingPopulate),
+      .lean(),
 
     Booking.countDocuments(filter),
   ]);
@@ -244,9 +191,9 @@ export const getMyBookings = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total,
-    page: Number(req.query.page) || 1,
-    limit: Number(req.query.limit) || 10,
-    data: bookings,
+    page,
+    limit,
+    data: bookings.map(serializeBookingListItem),
   });
 });
 
@@ -262,8 +209,9 @@ export const getBookingById = asyncHandler(async (req, res) => {
   const booking = await Booking.findOne(
     buildNotDeletedFilter({
       _id: req.params.id,
+      user: req.user._id,
     }),
-  ).populate(bookingPopulate);
+  ).populate(bookingDetailsPopulate);
 
   if (!booking) {
     throw new AppError(
@@ -310,254 +258,6 @@ export const getBookingById = asyncHandler(async (req, res) => {
 
 /*
 =====================================================
-CREATE BOOKING
-=====================================================
-*/
-
-export const createBooking = asyncHandler(async (req, res) => {
-  const isArabic = isArabicRequest(req);
-
-  const parsedData = safeJsonParse(req.body.data, req.body);
-
-  const normalizedData = normalizeBooking({
-    ...parsedData,
-    user: parsedData.user || req.user?._id,
-    createdBy: req.user?._id,
-  });
-
-  if (!normalizedData.user) {
-    throw new AppError(
-      isArabic ? "المستخدم مطلوب" : "User is required",
-      400,
-      "user",
-    );
-  }
-
-  if (!normalizedData.pilgrims?.length) {
-    throw new AppError(
-      isArabic
-        ? "يجب إضافة معتمر واحد على الأقل"
-        : "At least one pilgrim is required",
-      400,
-      "pilgrims",
-    );
-  }
-
-  await checkBookingAvailability({
-    data: normalizedData,
-    RoomType,
-    Booking,
-    Visa,
-    Trip,
-    Transport,
-    req,
-  });
-
-  const pricingResult = await calculateFullBookingPricing({
-    data: normalizedData,
-    RoomType,
-    Visa,
-    Trip,
-    Transport,
-    req,
-  });
-
-  const hotel = normalizedData.hotel
-    ? await Hotel.findById(normalizedData.hotel)
-    : null;
-
-  const bookingItems = buildBookingItemsSnapshot({
-    hotel,
-    roomType: pricingResult.docs.roomType,
-    visa: pricingResult.docs.visa,
-    trip: pricingResult.docs.trip,
-    transport: pricingResult.docs.transport,
-    data: normalizedData,
-    pricingResult,
-  });
-
-  const bookingNumber = await generateBookingNumber();
-
-  const paidAmount = pricingResult.payment.paidAmount || 0;
-  const totalPrice = pricingResult.pricing.totalPrice || 0;
-
-  const newBooking = await Booking.create({
-    ...normalizedData,
-
-    bookingNumber,
-
-    hotel: normalizedData.hotel || hotel?._id,
-    roomType: normalizedData.roomType,
-    visa: normalizedData.visa,
-    trip: normalizedData.trip,
-    transport: normalizedData.transport,
-
-    bookingItems,
-
-    pricing: pricingResult.pricing,
-
-    paidAmount,
-    remainingAmount: Math.max(0, totalPrice - paidAmount),
-
-    paymentStatus:
-      paidAmount >= totalPrice && totalPrice > 0
-        ? "paid"
-        : paidAmount > 0
-          ? "partial"
-          : "pending",
-
-    bookingStatus: normalizedData.bookingStatus || "draft",
-
-    createdBy: req.user?._id,
-  });
-
-  //مسارات Timeline الخاصة بالحجز.
-
-  await logBookingCreated({
-    BookingLog,
-    booking: newBooking,
-    req,
-  });
-
-  await sendInitialBookingNotification({
-  booking: newBooking,
-  req,
-});
-
-  await newBooking.populate(bookingPopulate);
-
-  res.status(201).json({
-    success: true,
-    message: isArabic ? "تم إنشاء الحجز بنجاح" : "Booking created successfully",
-    data: newBooking,
-  });
-});
-
-/*
-=====================================================
-UPDATE BOOKING
-=====================================================
-*/
-
-export const updateBooking = asyncHandler(async (req, res) => {
-  const isArabic = isArabicRequest(req);
-
-  const booking = await Booking.findById(req.params.id);
-
-  if (!booking) {
-    throw new AppError(
-      isArabic ? "الحجز غير موجود" : "Booking not found",
-      404,
-      "booking",
-    );
-  }
-
-  if (["cancelled", "completed"].includes(booking.bookingStatus)) {
-    throw new AppError(
-      isArabic
-        ? "لا يمكن تعديل حجز ملغي أو مكتمل"
-        : "Cannot update cancelled or completed booking",
-      400,
-      "bookingStatus",
-    );
-  }
-
-  const parsedData = safeJsonParse(req.body.data, req.body);
-
-  const normalizedData = normalizeBooking({
-    ...parsedData,
-    updatedBy: req.user?._id,
-  });
-
-  const mergedData = {
-    ...booking.toObject(),
-    ...normalizedData,
-  };
-
-  await checkBookingAvailability({
-    data: mergedData,
-    RoomType,
-    Booking,
-    Visa,
-    Trip,
-    Transport,
-    req,
-    excludeBookingId: booking._id,
-  });
-
-  const pricingResult = await calculateFullBookingPricing({
-    data: mergedData,
-    RoomType,
-    Visa,
-    Trip,
-    Transport,
-    req,
-  });
-
-  const hotel = mergedData.hotel
-    ? await Hotel.findById(mergedData.hotel)
-    : null;
-
-  const bookingItems = buildBookingItemsSnapshot({
-    hotel,
-    roomType: pricingResult.docs.roomType,
-    visa: pricingResult.docs.visa,
-    trip: pricingResult.docs.trip,
-    transport: pricingResult.docs.transport,
-    data: mergedData,
-    pricingResult,
-  });
-  //
-  const oldValue = {
-    bookingStatus: booking.bookingStatus,
-    paymentStatus: booking.paymentStatus,
-    pricing: booking.pricing,
-  };
-
-  Object.assign(booking, {
-    ...normalizedData,
-
-    bookingItems,
-
-    pricing: pricingResult.pricing,
-
-    paidAmount: pricingResult.payment.paidAmount || booking.paidAmount || 0,
-
-    remainingAmount:
-      pricingResult.payment.remainingAmount ??
-      Math.max(
-        0,
-        (pricingResult.pricing.totalPrice || 0) - (booking.paidAmount || 0),
-      ),
-
-    updatedBy: req.user?._id,
-  });
-
-  await booking.save();
-
-  await logBookingUpdated({
-    BookingLog,
-    booking,
-    oldValue,
-    newValue: {
-      bookingStatus: booking.bookingStatus,
-      paymentStatus: booking.paymentStatus,
-      pricing: booking.pricing,
-    },
-    req,
-  });
-
-  await booking.populate(bookingPopulate);
-
-  res.status(200).json({
-    success: true,
-    message: isArabic ? "تم تحديث الحجز بنجاح" : "Booking updated successfully",
-    data: booking,
-  });
-});
-
-/*
-=====================================================
 DELETE BOOKING
 =====================================================
 */
@@ -579,27 +279,6 @@ export const deleteBooking = asyncHandler(async (req, res, next) => {
   });
 });
 
-// export const deleteBooking = asyncHandler(async (req, res , next) => {
-//   const isArabic = isArabicRequest(req);
-
-//   const booking = await Booking.findById(req.params.id);
-
-//   if (!booking) {
-//     throw new AppError(
-//       isArabic ? "الحجز غير موجود" : "Booking not found",
-//       404,
-//       "booking",
-//     );
-//   }
-
-//   await booking.deleteOne();
-
-//   res.status(200).json({
-//     success: true,
-//     message: isArabic ? "تم حذف الحجز بنجاح" : "Booking deleted successfully",
-//   });
-// });
-
 /*
 =====================================================
 CANCEL BOOKING
@@ -609,7 +288,10 @@ CANCEL BOOKING
 export const cancelBooking = asyncHandler(async (req, res) => {
   const isArabic = isArabicRequest(req);
 
-  const booking = await Booking.findById(req.params.id);
+  const booking = await Booking.findOne(buildNotDeletedFilter({
+    _id: req.params.id,
+    user: req.user._id,
+  }));
 
   if (!booking) {
     throw new AppError(
@@ -859,40 +541,5 @@ const booking = await Booking.findById(req.params.id);
     success: true,
     message: isArabic ? "تم تحديث حالة الدفع" : "Payment status updated",
     data: booking,
-  });
-});
-
-/*
-=====================================================
-PREVIEW BOOKING PRICE
-=====================================================
-*/
-
-export const previewBookingPrice = asyncHandler(async (req, res) => {
-  const parsedData = safeJsonParse(req.body.data, req.body);
-  const normalizedData = normalizeBooking(parsedData);
-
-  await checkBookingAvailability({
-    data: normalizedData,
-    RoomType,
-    Booking,
-    Visa,
-    Trip,
-    Transport,
-    req,
-  });
-
-  const pricingResult = await calculateFullBookingPricing({
-    data: normalizedData,
-    RoomType,
-    Visa,
-    Trip,
-    Transport,
-    req,
-  });
-
-  res.status(200).json({
-    success: true,
-    data: pricingResult,
   });
 });

@@ -1,5 +1,5 @@
 // src/components/common/ImageUploader.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useId, useRef } from "react";
 import { Form, Image, Button, Row, Col } from "react-bootstrap";
 import { X, Image as ImageIcon } from "lucide-react";
 import { formatImagePath } from "../../Utils/imageUtils";
@@ -10,14 +10,24 @@ export default function ImageUploader({
   multiple = true,
   maxImages = 10,
   label = "الصور التوضيحية",
+  showLabel = true,
   className = "",
 }) {
+  const inputId = useId();
   const [images, setImages] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [oldImages, setOldImages] = useState([]); // هنا [] فقط
   const [deletedOld, setDeletedOld] = useState([]);
 
   const prevDataRef = useRef({ images: [], deletedOld: [] });
+  const initialImagesKey = (Array.isArray(initialImages) ? initialImages : [])
+    .map((img) => {
+      if (typeof img === "string") return img;
+      if (img && typeof img === "object") return img.url || img.path || "";
+      return "";
+    })
+    .filter(Boolean)
+    .join("\u0000");
 
   useEffect(() => {
     if (!onChange) return;
@@ -49,25 +59,17 @@ export default function ImageUploader({
     };
   }, [previews]);
 
-  // الحل النهائي هنا
-useEffect(() => {
-  // ✅ لا تعيد التهيئة في وضع الإنشاء
-  if (!Array.isArray(initialImages) || initialImages.length === 0) return;
+  useEffect(() => {
+    const safeImages = initialImagesKey
+      ? initialImagesKey.split("\u0000")
+      : [];
 
-  const safeImages = initialImages
-    .map((img) => {
-      if (typeof img === "string") return img;
-      if (img && typeof img === "object") return img.url || img.path || "";
-      return "";
-    })
-    .filter((s) => typeof s === "string" && s.trim() !== "");
-
-  setOldImages(safeImages);
-  setDeletedOld([]);
-  setImages([]);
-  setPreviews([]);
-  prevDataRef.current = { newImages: [], deletedOldImages: [] };
-}, [initialImages]);
+    setOldImages(safeImages);
+    setDeletedOld([]);
+    setImages([]);
+    setPreviews([]);
+    prevDataRef.current = { newImages: [], deletedOldImages: [] };
+  }, [initialImagesKey]);
 
 
 
@@ -112,7 +114,7 @@ useEffect(() => {
 
   return (
     <Form.Group className="mb-4">
-      <Form.Label className="fw-bold">{label}</Form.Label>
+      {showLabel && <Form.Label htmlFor={inputId} className="fw-bold">{label}</Form.Label>}
 
       {allImages.length > 0 ? (
         <Row className="g-3 mb-3">
@@ -156,6 +158,7 @@ useEffect(() => {
 
       {allImages.length < maxImages && (
         <Form.Control
+          id={inputId}
           type="file"
           accept="image/*"
           multiple={multiple}

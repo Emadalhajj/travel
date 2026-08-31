@@ -18,6 +18,49 @@ import { sanitizeSensitiveAuditData } from "../audit/audit-log-service.js";
 
 const MAX_PAGE_LIMIT = 100;
 const USER_FIELDS = "firstName lastName username email role";
+export const BOOKING_360_SELECT = [
+  "bookingNumber",
+  "bookingType",
+  "bookingStatus",
+  "paymentStatus",
+  "paymentMethod",
+  "paidAmount",
+  "remainingAmount",
+  "customer",
+  "pilgrims",
+  "hosts",
+  "pricing",
+  "program",
+  "bookingItems",
+  "createdBy",
+  "updatedBy",
+  "createdAt",
+  "updatedAt",
+].join(" ");
+export const BOOKING_360_AUDIT_SELECT = [
+  "action",
+  "entity",
+  "entityId",
+  "before",
+  "after",
+  "metadata",
+  "user",
+  "method",
+  "url",
+  "createdAt",
+].join(" ");
+export const BOOKING_360_HOLD_SELECT = [
+  "status",
+  "isActive",
+  "expiresAt",
+  "heldAt",
+  "committedAt",
+  "releasedAt",
+  "releaseReason",
+  "failureReason",
+  "inventoryReservations",
+  "programReservation",
+].join(" ");
 const ATTENTION_PAYMENT_STATUSES = new Set([
   PAYMENT_TRANSACTION_STATUSES.PENDING_APPROVAL,
   PAYMENT_TRANSACTION_STATUSES.PENDING_VERIFICATION,
@@ -228,8 +271,8 @@ const serializeAuditLog = (value) => {
   });
 };
 
-const serializeInventory = (holds = []) => {
-  const hold = asPlain(holds[0]);
+const serializeInventory = (value) => {
+  const hold = asPlain(Array.isArray(value) ? value[0] : value);
   if (!hold) return { hold: null, reservations: [], programReservation: null };
   return {
     hold: {
@@ -256,8 +299,9 @@ const serializeInventory = (holds = []) => {
   };
 };
 
-const defaultRepository = {
+export const bookingOperationsRepository = {
   getBooking: (bookingId) => Booking.findOne({ _id: bookingId, isDeleted: false })
+    .select(BOOKING_360_SELECT)
     .populate("createdBy", USER_FIELDS)
     .populate("updatedBy", USER_FIELDS)
     .lean(),
@@ -287,10 +331,17 @@ const defaultRepository = {
       { entity: AUDIT_ENTITIES.BOOKING, entityId: bookingId },
       { entity: AUDIT_ENTITIES.PAYMENT_TRANSACTION, entityId: { $in: paymentIds } },
     ],
-  }).populate("user", USER_FIELDS).sort({ createdAt: 1 }).lean(),
-  getInventoryHolds: (paymentIds) => paymentIds.length
-    ? InventoryHold.find({ paymentTransaction: { $in: paymentIds } }).sort({ createdAt: -1 }).lean()
-    : [],
+  })
+    .select(BOOKING_360_AUDIT_SELECT)
+    .populate("user", USER_FIELDS)
+    .sort({ createdAt: 1 })
+    .lean(),
+  getLatestInventoryHold: (paymentIds) => paymentIds.length
+    ? InventoryHold.findOne({ paymentTransaction: { $in: paymentIds } })
+      .sort({ createdAt: -1 })
+      .select(BOOKING_360_HOLD_SELECT)
+      .lean()
+    : null,
   findBookingIdsByPaymentMethod: (paymentMethod) => PaymentTransaction.distinct("booking", {
     methodCode: String(paymentMethod).trim().toUpperCase(),
     booking: { $ne: null },
@@ -309,7 +360,7 @@ const defaultRepository = {
 };
 
 export const createBookingOperationsServiceLayer = (repository = {}) => {
-  const repo = { ...defaultRepository, ...repository };
+  const repo = { ...bookingOperationsRepository, ...repository };
 
   const getBookingOperationsDetailsService = async ({ bookingId }) => {
     if (!mongoose.Types.ObjectId.isValid(bookingId)) {
@@ -322,15 +373,15 @@ export const createBookingOperationsServiceLayer = (repository = {}) => {
       repo.getTimeline(bookingId),
     ]);
     const paymentIds = rawPayments.map((payment) => id(payment)).filter(Boolean);
-    const [rawAudit, holds] = await Promise.all([
+    const [rawAudit, latestHold] = await Promise.all([
       repo.getAudit({ bookingId, paymentIds }),
-      repo.getInventoryHolds(paymentIds),
+      repo.getLatestInventoryHold(paymentIds),
     ]);
     const payments = rawPayments.map(serializeOperationsPayment);
     return {
       booking: serializeBooking(booking),
       payments,
-      inventory: serializeInventory(holds),
+      inventory: serializeInventory(latestHold),
       timeline: sortChronologically(rawTimeline.map(serializeBookingLog)),
       audit: sortChronologically(rawAudit.map(serializeAuditLog)),
       attentionRequired: deriveAttentionRequired({ booking, payments }),

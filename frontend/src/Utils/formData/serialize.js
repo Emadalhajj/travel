@@ -12,9 +12,17 @@ const isPlainObject = (val) =>
 
 export const serializeForApi = (formState, config) => {
   const fieldMap = buildFieldMap(config);
+  const fieldConfigMap = [
+    ...(config?.commonFields || []),
+    ...Object.values(config?.conditionalFields || {}).flat(),
+  ].reduce((map, field) => {
+    if (field?.name) map[field.name] = field;
+    return map;
+  }, {});
 
   const serialize = (value, fullPath = "") => {
     const fieldType = fieldMap[fullPath];
+    const fieldConfig = fieldConfigMap[fullPath];
 
     // ====================== معالجة المرفقات ======================
     if (fieldType === "file-attachment" || fullPath === "attachments") {
@@ -38,6 +46,12 @@ export const serializeForApi = (formState, config) => {
 
     // ====================== checkbox-group ======================
     if (fieldType === "checkbox-group" && isPlainObject(value)) {
+      if (fieldConfig?.valueMode === "object") {
+        return Object.fromEntries(
+          Object.entries(value).map(([key, checked]) => [key, Boolean(checked)]),
+        );
+      }
+
       return Object.entries(value)
         .filter(([_, checked]) => checked)
         .map(([key]) => key);

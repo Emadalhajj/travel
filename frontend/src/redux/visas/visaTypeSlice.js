@@ -7,6 +7,8 @@ import {
 } from "../../services/api/admin/visas";
 import { handleApiError } from "../../Utils/handleApiError";
 
+const VISA_TYPES_TTL = 5 * 60 * 1000;
+
 // 🟢 جلب جميع أنواع التأشيرات
 export const fetchVisaTypes = createAsyncThunk(
   "visaTypes/fetch",
@@ -19,6 +21,26 @@ export const fetchVisaTypes = createAsyncThunk(
     }
   },
 );
+
+export const ensureVisaTypes =
+  ({ force = false } = {}) =>
+  (dispatch, getState) => {
+    const state = getState().visaTypes;
+    const hasData = state.visaTypes?.length > 0;
+    const fresh =
+      Number(state.loadedAt) > 0 &&
+      Date.now() - state.loadedAt < VISA_TYPES_TTL;
+
+    if (!force && hasData && fresh) {
+      return Promise.resolve({ cached: true, data: state.visaTypes });
+    }
+
+    if (state.loading) {
+      return Promise.resolve({ skipped: true });
+    }
+
+    return dispatch(fetchVisaTypes());
+  };
 
 // create visa type
 export const createVisaType = createAsyncThunk(
@@ -66,6 +88,7 @@ export const visaTypeSlice = createSlice({
     visaTypes: [],
     loading: false,
     error: null,
+    loadedAt: null,
   },
   reducers: {},
   extraReducers: (builder) => {
@@ -78,6 +101,7 @@ export const visaTypeSlice = createSlice({
       .addCase(fetchVisaTypes.fulfilled, (state, action) => {
         state.visaTypes = action.payload?.visaTypes || action.payload || [];
         state.loading = false;
+        state.loadedAt = Date.now();
       })
       .addCase(fetchVisaTypes.rejected, (state, action) => {
         state.loading = false;
@@ -87,6 +111,7 @@ export const visaTypeSlice = createSlice({
       .addCase(createVisaType.fulfilled, (state, action) => {
         const visaType = action.payload?.visaType || action.payload;
         state.visaTypes.unshift(visaType);
+        state.loadedAt = Date.now();
       })
 
       // update
@@ -96,14 +121,20 @@ export const visaTypeSlice = createSlice({
         state.visaTypes = state.visaTypes.map((vt) =>
           vt._id === updatedVisaType._id ? updatedVisaType : vt,
         );
+        state.loadedAt = Date.now();
       })
       // delete
       .addCase(deleteVisaType.fulfilled, (state, action) => {
         state.visaTypes = state.visaTypes.filter(
           (vt) => vt._id !== action.payload,
         );
+        state.loadedAt = Date.now();
       });
   },
 });
+
+export const selectVisaTypeItems = (state) => state.visaTypes.visaTypes;
+export const selectVisaTypeLoading = (state) => state.visaTypes.loading;
+export const selectVisaTypeError = (state) => state.visaTypes.error;
 
 export default visaTypeSlice.reducer;

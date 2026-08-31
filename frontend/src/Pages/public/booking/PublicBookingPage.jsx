@@ -10,6 +10,8 @@ import {
 import {
   createPublicDraftBooking,
   resetPublicBooking,
+  selectPublicBookingSubmitError,
+  selectPublicBookingSubmitLoading,
 } from "../../../redux/public/bookingSlice";
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PageHeader from "../../../Components/layout/PageHeader";
@@ -66,9 +68,8 @@ export default function PublicBookingPage() {
   const { selectedProgram, detailsLoading, error: programError } = useSelector(
     (state) => state.publicPrograms,
   );
-  const { submitLoading, error: bookingError } = useSelector(
-    (state) => state.publicBooking,
-  );
+  const submitLoading = useSelector(selectPublicBookingSubmitLoading);
+  const bookingError = useSelector(selectPublicBookingSubmitError);
 
   useEffect(() => {
     dispatch(resetPublicBooking());

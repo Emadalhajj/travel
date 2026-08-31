@@ -1,13 +1,18 @@
 import React, { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
-import { fetchPublicMyBookings } from "../../redux/public/bookingSlice";
+import {
+  fetchPublicMyBookings,
+  selectPublicBookingsListError,
+  selectPublicBookingsListLoading,
+  selectPublicMyBookings,
+} from "../../redux/public/bookingSlice";
 
 export default function MyBookings() {
   const dispatch = useDispatch();
-  const { myBookings, loading, error } = useSelector(
-    (state) => state.publicBooking || {},
-  );
+  const myBookings = useSelector(selectPublicMyBookings);
+  const loading = useSelector(selectPublicBookingsListLoading);
+  const error = useSelector(selectPublicBookingsListError);
   const bookings = Array.isArray(myBookings) ? myBookings : [];
 
   useEffect(() => {
@@ -74,7 +79,7 @@ export default function MyBookings() {
                   />
                   <InfoItem
                     label="عدد المعتمرين"
-                    value={booking.pilgrims?.length || booking.travelers?.length || 0}
+                    value={booking.pilgrimsCount ?? booking.totalPilgrims ?? 0}
                   />
                   <InfoItem
                     label="الإجمالي"

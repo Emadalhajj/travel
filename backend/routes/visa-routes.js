@@ -38,7 +38,7 @@ const visaRouter = express.Router();
 visaRouter.post(
   "/",
   protect,
-  authorize("admin"),
+  authorize("admin", "superAdmin"),
  ...uploadAndParse,
   validate(createVisaSchema),
   createVisa
@@ -48,7 +48,7 @@ visaRouter.post(
 visaRouter.put(
   "/:id",
   protect,
-  authorize("admin"),
+  authorize("admin", "superAdmin"),
  ...uploadAndParse,
   validate(updateVisaSchema),
   updateVisa
@@ -62,16 +62,16 @@ visaRouter.put(
 visaRouter.patch(
   "/:id/toggle",
   protect,
-  authorize("admin"),
+  authorize("admin", "superAdmin"),
   toggleVisaStatus
 
 )
 
 // باقي المسارات
 visaRouter.get("/", getAllVisas);
-visaRouter.get("/admin", protect, authorize("admin"), getAllVisas);
+visaRouter.get("/admin", protect, authorize("admin", "superAdmin"), getAllVisas);
 visaRouter.get("/:id", getVisaById);
-visaRouter.delete("/:id", protect, authorize("admin"), deleteVisa);
+visaRouter.delete("/:id", protect, authorize("admin", "superAdmin"), deleteVisa);
 
 
 

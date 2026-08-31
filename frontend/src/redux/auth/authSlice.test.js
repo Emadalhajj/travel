@@ -1,7 +1,7 @@
 import authReducer, { loginUser } from "./authSlice";
 
 jest.mock("../../services/api", () => ({
-  loging: jest.fn(),
+  login: jest.fn(),
   register: jest.fn(),
 }));
 

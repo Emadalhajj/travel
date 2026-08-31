@@ -13,7 +13,7 @@ export default function UniversalCardsContainer({
   emptyMessageEn = "No items added yet",
 
   // دوال لاستخراج البيانات من كل عنصر (مرنة جداً)
-  getImage = (item) => item.images?.[0] || null,
+  getImage = (item) => item.thumbnailUrl || item.images?.[0]?.thumbnailUrl || item.images?.[0] || null,
   getTitle = (item) => item.nameAr || item.nameEn || "بدون اسم",
   getSubtitle = (item) => item.descriptionAr || item.descriptionEn || "",
 
@@ -55,7 +55,7 @@ export default function UniversalCardsContainer({
           key={item._id}
           title={getTitle(item)}
           subtitle={getSubtitle(item)}
-          image={getImage(item) ? getImage(item) : null}   // دعم formatImagePath خارجياً
+          image={getImage(item) || null}
           isActive={item.isActive ?? true}
           badges={getBadges(item)}
           onView={onView ? () => onView(item) : undefined}

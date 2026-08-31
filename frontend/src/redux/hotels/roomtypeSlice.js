@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice, isAnyOf } from "@reduxjs/toolkit";
 import {
   apiGetRoomType,
   apiCreateRoomType,
@@ -104,8 +104,8 @@ export const roomTypeSlice = createSlice({
   name: "roomTypes",
   initialState: {
     roomTypesList: [],
-    selectedRoomType: null,
-    loading: false,
+    listLoading: false,
+    mutationLoading: false,
     error: null,
     pagination: {
       total: 0,
@@ -174,102 +174,68 @@ export const roomTypeSlice = createSlice({
           room._id === updateStatus._id ? updateStatus : room,
         );
       })
-      // ================= GLOBAL PENDING =================
-      /*
-      في Redux Toolkit، addMatcher يعني:
-
-      "نفذ هذا الكود لأي action يطابق شرط معين."
-      */
       .addMatcher(
-        (action) =>
-          action.type.startsWith("roomTypes/") &&
-          action.type.endsWith("/pending"),
-
+        isAnyOf(fetchRoomTypes.pending, fetchRoomByHotelId.pending),
         (state) => {
-          state.loading = true;
+          state.listLoading = true;
           state.error = null;
         },
       )
-      // ================= GLOBAL FULFILLED =================
       .addMatcher(
-        (action) =>
-          action.type.startsWith("roomTypes/") &&
-          action.type.endsWith("/fulfilled"),
-
+        isAnyOf(fetchRoomTypes.fulfilled, fetchRoomByHotelId.fulfilled),
         (state) => {
-          state.loading = false;
+          state.listLoading = false;
         },
       )
-
-      // ================= GLOBAL REJECTED =================
       .addMatcher(
-        (action) =>
-          action.type.startsWith("roomTypes/") &&
-          action.type.endsWith("/rejected"),
-
+        isAnyOf(fetchRoomTypes.rejected, fetchRoomByHotelId.rejected),
         (state, action) => {
-          state.loading = false;
+          state.listLoading = false;
+          state.error = action.payload || action.error?.message;
+        },
+      )
+      .addMatcher(
+        isAnyOf(
+          createRoomType.pending,
+          updateRoomType.pending,
+          deleteRoomType.pending,
+          toggleRoomTypeActiveStatus.pending,
+        ),
+        (state) => {
+          state.mutationLoading = true;
+          state.error = null;
+        },
+      )
+      .addMatcher(
+        isAnyOf(
+          createRoomType.fulfilled,
+          updateRoomType.fulfilled,
+          deleteRoomType.fulfilled,
+          toggleRoomTypeActiveStatus.fulfilled,
+        ),
+        (state) => {
+          state.mutationLoading = false;
+        },
+      )
+      .addMatcher(
+        isAnyOf(
+          createRoomType.rejected,
+          updateRoomType.rejected,
+          deleteRoomType.rejected,
+          toggleRoomTypeActiveStatus.rejected,
+        ),
+        (state, action) => {
+          state.mutationLoading = false;
           state.error = action.payload || action.error?.message;
         },
       );
-    /*
-      .addCase(fetchRoomTypes.pending, (s) => {
-        s.loading = true;
-      })
-      .addCase(fetchRoomTypes.fulfilled, (state, action) => {
-    // أنواع الغرف بعد تطبيق الفلترة والفرز والpagination
-        state.roomTypes = action.payload?.roomTypes || action.payload || []; //تايب روم هنا يجب ان يتطابق مع الفرونت
-        state.loading = false;
-
-        // console.log("FETCH ROOM TYPES PAYLOAD => ", action.payload);
-      })
-      .addCase(fetchRoomTypes.rejected, (s, a) => {
-        s.loading = false;
-        s.error = a.payload;
-      })
-      .addCase(fetchRoomByHotelId.fulfilled, (state, action) => {
-        state.roomTypes =
-          action.payload?.roomTypes ||
-          action.payload?.rooms ||
-          action.payload ||
-          [];
-      })
-
-      //create
-      .addCase(createRoomType.fulfilled, (state, action) => {
-        state.roomTypes.unshift(action.payload?.roomTypes || action.payload);
-      })
-      //update
-      .addCase(updateRoomType.fulfilled, (state, action) => {
-        const updatedRoom = action.payload.roomType;
-        const index = state.roomTypes.findIndex(
-          (r) => r._id === updatedRoom._id
-        );
-
-        if (index !== -1) {
-          state.roomTypes[index] = updatedRoom; // 🔥 تحديث مباشر
-        }
-        // s.roomTypes = s.roomTypes.map((roomT) =>
-        //   roomT._id === a.payload._id ? a.payload : roomT
-        // );
-      })
-      //delete
-      .addCase(deleteRoomType.fulfilled, (s, a) => {
-        s.roomTypes = s.roomTypes.filter((roomT) => roomT._id !== a.payload);
-      })
-      // active status 
-      .addCase(toggleRoomTypeActiveStatus.fulfilled , (state , action)=>{
-          state.loading = false
-    const updateToggle = action.payload?.roomType || action.payload
-    state.roomTypes =  state.roomTypes.map((room)=>
-      room._id === updateToggle._id ? updateToggle : room
-    )
-
-    }
-    )
-    */
   },
 });
 
 export const { setPage, setLimit } = roomTypeSlice.actions;
+export const selectRoomTypeItems = (state) => state.roomTypes.roomTypesList;
+export const selectRoomTypePagination = (state) => state.roomTypes.pagination;
+export const selectRoomTypeListLoading = (state) => state.roomTypes.listLoading;
+export const selectRoomTypeError = (state) => state.roomTypes.error;
+export const selectRoomTypeMutationLoading = (state) => state.roomTypes.mutationLoading;
 export default roomTypeSlice.reducer;

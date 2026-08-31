@@ -3,14 +3,14 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
-import { Form, Button, Card, Spinner } from "react-bootstrap";
+import { Form, Button, Spinner } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
 import { updateMyProfile } from "../../redux/auth/authSlice"; // افترض أنك أضفت الـ thunk ده
 import ImageUploader from "../../Components/common/ImageUploader";
 import ChangePasswordModal from "../../Components/common/users/ChangePasswordModal";
 
 export default function Profile() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
   const dispatch = useDispatch();
   const navigate = useNavigate();

@@ -127,4 +127,7 @@ test("notification controller scopes user operations to database and active reco
   assert.match(source, /isDeleted:\s*false/);
   assert.match(source, /getMyUnreadCount/);
   assert.match(source, /markAllAsRead/);
+  assert.match(source, /select\("titleAr titleEn messageAr messageEn type status isRead readAt booking createdAt"\)/);
+  assert.match(source, /select\("status channel type failedReason booking user createdBy createdAt"\)/);
+  assert.equal(source.includes(".select(\"metadata"), false);
 });

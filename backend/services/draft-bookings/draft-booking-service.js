@@ -34,15 +34,16 @@ import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import Booking from "../../models/booking/booking-model.js";
 import BookingLog from "../../models/bookingLog-model.js";
 import Inventory from "../../models/inventory-model.js";
+import PaymentTransaction from "../../models/payments/paymentTransaction-model.js";
 import { Counter } from "../../models/counterModel.js";
 import AppError from "../../utils/AppError.js";
 import { deleteLocalUpload } from "../../utils/deleteLocalUpload.js";
+import { buildPagination } from "../../utils/Builders/buildPagination.js";
 
 import {
   attachBookingToPaymentTransactionService,
   createPaymentTransactionService,
   detachBookingFromPaymentTransactionService,
-  findPublicPaymentReviewTransactionsService,
   findPaymentTransactionService,
   markPaymentTransactionFailedService,
 } from "../payment/paymentTransaction-service.js";
@@ -274,12 +275,18 @@ const cleanupRemovedDraftDocuments = async (filePaths = []) => {
   if (!filePaths.length) return;
 
   const results = await Promise.allSettled(
-    filePaths.map((filePath) =>
-      deleteLocalUpload({
-        filePath,
-        allowedFolder: "uploads/draft-bookings",
-      }),
-    ),
+    filePaths.map((filePath) => {
+      const isPrivateDocument = String(filePath).startsWith("/api/private-files/drafts/");
+      const storedPath = isPrivateDocument
+        ? `private-uploads/draft-bookings/${String(filePath).split("/").pop()}`
+        : filePath;
+      return deleteLocalUpload({
+        filePath: storedPath,
+        allowedFolder: isPrivateDocument
+          ? "private-uploads/draft-bookings"
+          : "uploads/draft-bookings",
+      });
+    }),
   );
 
   results.forEach((result, index) => {
@@ -1240,9 +1247,10 @@ export const updateDraftBooking = async ({ draftId, data, userId }) => {
   return draft;
 };
 
-export const getDraftBookingById = async (draftId) => {
+export const getDraftBookingById = async ({ draftId, userId }) => {
   const draft = await DraftBooking.findOne({
     _id: draftId,
+    user: userId,
     isDeleted: false,
   })
     .populate("user", "name email role")
@@ -1302,90 +1310,155 @@ export const restoreDraftAfterPaymentRejectionService = async ({ draftId }) => {
   return draft;
 };
 
+export const buildMyDraftListPipeline = ({ filter, status, skip, limit }) => [
+  { $match: filter },
+  {
+    $lookup: {
+      from: PaymentTransaction.collection.name,
+      let: { draftId: "$_id" },
+      pipeline: [
+        {
+          $match: {
+            $expr: { $eq: ["$draftBooking", "$$draftId"] },
+            status: {
+              $in: [
+                PAYMENT_TRANSACTION_STATUSES.PENDING_VERIFICATION,
+                PAYMENT_TRANSACTION_STATUSES.PENDING_REVIEW,
+              ],
+            },
+            isDeleted: { $ne: true },
+          },
+        },
+        { $sort: { updatedAt: -1, _id: -1 } },
+        { $limit: 1 },
+        {
+          $project: {
+            status: 1,
+            methodCode: 1,
+            paymentReference: 1,
+          },
+        },
+      ],
+      as: "reviewTransactions",
+    },
+  },
+  {
+    $set: {
+      reviewTransaction: { $arrayElemAt: ["$reviewTransactions", 0] },
+    },
+  },
+  {
+    $match: status === DRAFT_BOOKING_STATUS.PENDING_REVIEW
+      ? {
+          $or: [
+            { status: DRAFT_BOOKING_STATUS.PENDING_REVIEW },
+            { reviewTransaction: { $ne: null } },
+          ],
+        }
+      : {
+          status: DRAFT_BOOKING_STATUS.DRAFT,
+          reviewTransaction: null,
+        },
+  },
+  {
+    $facet: {
+      items: [
+        { $sort: { createdAt: -1, _id: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $project: {
+            _id: 1,
+            status: 1,
+            currentStep: 1,
+            "customer.name": 1,
+            "program.nameAr": 1,
+            "program.nameEn": 1,
+            "pricing.total": 1,
+            "pricing.currency": 1,
+            finalBooking: 1,
+            expiresAt: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            reviewTransaction: 1,
+            travelersCount: {
+              $size: { $ifNull: ["$travelers", []] },
+            },
+          },
+        },
+      ],
+      total: [{ $count: "count" }],
+    },
+  },
+  {
+    $project: {
+      items: 1,
+      total: { $ifNull: [{ $arrayElemAt: ["$total.count", 0] }, 0] },
+    },
+  },
+];
+
+export const serializeDraftListItem = (draft = {}, reviewTransaction = null) => ({
+  _id: draft._id,
+  status: reviewTransaction
+    ? DRAFT_BOOKING_STATUS.PENDING_REVIEW
+    : draft.status,
+  currentStep: draft.currentStep || "",
+  customer: { name: draft.customer?.name || "" },
+  program: {
+    nameAr: draft.program?.nameAr || "",
+    nameEn: draft.program?.nameEn || "",
+  },
+  pricing: {
+    total: Number(draft.pricing?.total) || 0,
+    currency: draft.pricing?.currency || "SAR",
+  },
+  travelersCount: Number(draft.travelersCount) || 0,
+  finalBooking: draft.finalBooking || null,
+  expiresAt: draft.expiresAt || null,
+  createdAt: draft.createdAt,
+  updatedAt: draft.updatedAt,
+  ...(reviewTransaction ? {
+    paymentTransactionId: reviewTransaction._id,
+    paymentStatus: String(reviewTransaction.status || "").toUpperCase(),
+    paymentMethodCode: reviewTransaction.methodCode || "",
+    paymentReference: reviewTransaction.paymentReference || "",
+  } : {}),
+});
+
 export const getMyDraftBookings = async ({
   userId,
   page = 1,
   limit = 10,
   status = DRAFT_BOOKING_STATUS.DRAFT,
 }) => {
-  const skip = (page - 1) * limit;
-
-  /*
-  بعض معاملات الدفع القديمة لا تحتوي user، لذلك نعتمد كذلك
-  على ملكية المسودة عند تجميع طلبات الدفع قيد المراجعة.
-  */
-  const ownedDraftIds = await DraftBooking.find({
-    user: userId,
-    isDeleted: false,
-  }).distinct("_id");
-
-  const reviewTransactions =
-    await findPublicPaymentReviewTransactionsService({
-      userId,
-      draftBookingIds: ownedDraftIds,
-    });
-
-  const reviewByDraftId = new Map(
-    reviewTransactions.map((transaction) => [
-      String(transaction.draftBooking),
-      transaction,
-    ]),
-  );
-
-  const reviewDraftIds = [...reviewByDraftId.keys()];
+  const pagination = buildPagination({ page, limit });
 
   const filter = {
     user: userId,
     isDeleted: false,
   };
-
-  if (status === DRAFT_BOOKING_STATUS.PENDING_REVIEW) {
-    filter.$or = [
-      { status: DRAFT_BOOKING_STATUS.PENDING_REVIEW },
-      { _id: { $in: reviewDraftIds } },
-    ];
-  } else {
-    filter.status = DRAFT_BOOKING_STATUS.DRAFT;
-
-    if (reviewDraftIds.length) {
-      filter._id = { $nin: reviewDraftIds };
-    }
-  }
-
-  const [items, total] = await Promise.all([
-    DraftBooking.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-
-    DraftBooking.countDocuments(filter),
-  ]);
+  const [result = { items: [], total: 0 }] = await DraftBooking.aggregate(
+    buildMyDraftListPipeline({
+      filter,
+      status,
+      skip: pagination.skip,
+      limit: pagination.limit,
+    }),
+  );
 
   return {
-    items: items.map((draft) => {
-      const reviewTransaction = reviewByDraftId.get(String(draft._id));
-
-      if (!reviewTransaction) return draft;
-
-      return {
-        ...draft,
-        status: DRAFT_BOOKING_STATUS.PENDING_REVIEW,
-        paymentTransactionId: reviewTransaction._id,
-        paymentStatus: String(reviewTransaction.status || "").toUpperCase(),
-        paymentMethodCode: reviewTransaction.methodCode || "",
-        paymentReference: reviewTransaction.paymentReference || "",
-      };
-    }),
-    total,
-    page,
-    pages: Math.ceil(total / limit),
-    limit,
+    items: result.items.map((draft) =>
+      serializeDraftListItem(draft, draft.reviewTransaction)),
+    total: result.total,
+    page: pagination.page,
+    pages: Math.ceil(result.total / pagination.limit),
+    limit: pagination.limit,
   };
 };
 
 export const getAllDraftBookings = async ({ page = 1, limit = 10, status }) => {
-  const skip = (page - 1) * limit;
+  const pagination = buildPagination({ page, limit });
 
   const filter = {
     isDeleted: false,
@@ -1400,8 +1473,8 @@ export const getAllDraftBookings = async ({ page = 1, limit = 10, status }) => {
       .populate("user", "name email role")
       .populate("finalBooking")
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit),
+      .skip(pagination.skip)
+      .limit(pagination.limit),
 
     DraftBooking.countDocuments(filter),
   ]);
@@ -1409,15 +1482,16 @@ export const getAllDraftBookings = async ({ page = 1, limit = 10, status }) => {
   return {
     items,
     total,
-    page,
-    pages: Math.ceil(total / limit),
-    limit,
+    page: pagination.page,
+    pages: Math.ceil(total / pagination.limit),
+    limit: pagination.limit,
   };
 };
 
 export const cancelDraftBooking = async ({ draftId, userId }) => {
   const draft = await DraftBooking.findOne({
     _id: draftId,
+    user: userId,
     isDeleted: false,
   });
 

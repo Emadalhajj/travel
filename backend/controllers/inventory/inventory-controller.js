@@ -68,7 +68,7 @@ export const getAllInventory = asyncHandler(async (req, res) => {
 
   filter.isDeleted = { $ne: true };
 
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
 
   const [items, total] = await Promise.all([
     Inventory.find(filter)
@@ -84,8 +84,8 @@ export const getAllInventory = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total,
-    page: Number(req.query.page) || 1,
-    limit: Number(req.query.limit) || 10,
+    page,
+    limit,
     data: items,
   });
 });
@@ -97,7 +97,6 @@ CREATE INVENTORY
 */
 
 export const createInventory = asyncHandler(async (req, res) => {
-  console.log("CREATE INVENTORY BODY:", req.body);
   const isArabic = isArabicRequest(req);
 
   const {
@@ -179,7 +178,6 @@ UPSERT INVENTORY PERIOD
 */
 
 export const upsertInventoryPeriod = asyncHandler(async (req, res) => {
-  console.log("UPSERT INVENTORY BODY:", req.body);
   const isArabic = isArabicRequest(req);
 
   const {

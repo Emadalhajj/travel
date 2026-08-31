@@ -21,11 +21,9 @@ import ActionButton from "../../../Components/common/buttons/ActionButton";
 import UniversalTable from "../../../Components/common/tables/UniversalTable";
 import ReportKpiCard from "../../../Components/admin/reports/ReportKpiCard";
 import SimpleBarChart from "../../../Components/admin/reports/SimpleBarChart";
+import CalendarField from "../../../Components/common/CalendarField";
 import { formatNumber } from "../../../Utils/numberFormat";
 import {
-  apiGetBookingsReport,
-  apiGetPaymentsReport,
-  apiGetProgramsReport,
   apiGetReportsOverview,
 } from "../../../services/api/admin/reports";
 
@@ -61,17 +59,14 @@ export default function AdminReportsPage() {
       const params = Object.fromEntries(
         Object.entries(filters).filter(([, value]) => value),
       );
-      const [overview, bookings, payments, programs] = await Promise.all([
-        apiGetReportsOverview(params),
-        apiGetBookingsReport(params),
-        apiGetPaymentsReport(params),
-        apiGetProgramsReport(params),
-      ]);
+      const response = await apiGetReportsOverview(params);
+      const overview = response.data?.data || null;
+      const reports = overview?.reports || {};
       setData({
-        overview: overview.data?.data || null,
-        bookings: bookings.data?.data || null,
-        payments: payments.data?.data || null,
-        programs: programs.data?.data || [],
+        overview,
+        bookings: reports.bookings || null,
+        payments: reports.payments || null,
+        programs: reports.programs || [],
       });
     } catch (requestError) {
       setError(
@@ -231,34 +226,32 @@ export default function AdminReportsPage() {
               <span className={filterLabelClassName}>
                 {isArabic ? "من تاريخ" : "From date"}
               </span>
-              <Form.Control
-                className={fieldClassName}
-                type="date"
-                aria-label="dateFrom"
+              <CalendarField
+                id="reports-date-from"
                 value={draftFilters.dateFrom}
-                onChange={(event) =>
+                onChange={(value) =>
                   setDraftFilters((old) => ({
                     ...old,
-                    dateFrom: event.target.value,
+                    dateFrom: value,
                   }))
                 }
+                isArabic={isArabic}
               />
             </label>
             <label>
               <span className={filterLabelClassName}>
                 {isArabic ? "إلى تاريخ" : "To date"}
               </span>
-              <Form.Control
-                className={fieldClassName}
-                type="date"
-                aria-label="dateTo"
+              <CalendarField
+                id="reports-date-to"
                 value={draftFilters.dateTo}
-                onChange={(event) =>
+                onChange={(value) =>
                   setDraftFilters((old) => ({
                     ...old,
-                    dateTo: event.target.value,
+                    dateTo: value,
                   }))
                 }
+                isArabic={isArabic}
               />
             </label>
             <label>
@@ -557,4 +550,3 @@ export default function AdminReportsPage() {
     </div>
   );
 }
-

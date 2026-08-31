@@ -41,11 +41,13 @@ const validateObjectId = (value, field) => {
   }
 };
 
-const getDraftBooking = async (draftId) => {
+const getDraftBooking = async ({ draftId, userId }) => {
   validateObjectId(draftId, "draftId");
+  validateObjectId(userId, "userId");
 
   const draft = await DraftBooking.findOne({
     _id: draftId,
+    user: userId,
     status: "draft",
     isDeleted: { $ne: true },
   });
@@ -308,7 +310,7 @@ export const initializePublicPaymentService = async ({
   userId,
   req,
 }) => {
-  const draft = await getDraftBooking(draftId);
+  const draft = await getDraftBooking({ draftId, userId });
 
   const existingPayment =
     await findBlockingPublicPaymentForDraftService({

@@ -6,6 +6,10 @@ import { AUDIT_ENTITIES } from "../../constants/audit/audit-entities.js";
 import { PAYMENT_METHOD_CODES } from "../../constants/payments/payment-method-codes.js";
 import { PAYMENT_TRANSACTION_STATUSES } from "../../constants/payments/payment-transaction-statuses.js";
 import {
+  BOOKING_360_AUDIT_SELECT,
+  BOOKING_360_HOLD_SELECT,
+  BOOKING_360_SELECT,
+  bookingOperationsRepository,
   buildOperationsBookingFilter,
   createBookingOperationsServiceLayer,
   deriveAttentionRequired,
@@ -59,7 +63,7 @@ const repository = (overrides = {}) => ({
       { entity: AUDIT_ENTITIES.PAYMENT_TRANSACTION, entityId: paymentId, metadata: { apiKey: "hidden" }, createdAt: new Date("2026-08-02T00:00:00Z") },
     ];
   },
-  getInventoryHolds: async () => [],
+  getLatestInventoryHold: async () => null,
   ...overrides,
 });
 
@@ -87,6 +91,70 @@ test("timeline is chronological and actors use real User fields", async () => {
   const result = await service.getBookingOperationsDetailsService({ bookingId });
   assert.deepEqual(result.timeline.map((entry) => entry.action), ["first", "second"]);
   assert.equal(result.timeline[0].performedBy.firstName, "Admin");
+});
+
+test("Booking 360 queries use explicit projections and request only the latest hold", () => {
+  const bookingQuery = bookingOperationsRepository.getBooking(bookingId);
+  assert.deepEqual(Object.keys(bookingQuery.projection()).sort(), BOOKING_360_SELECT.split(" ").sort());
+
+  const auditQuery = bookingOperationsRepository.getAudit({ bookingId, paymentIds: [paymentId] });
+  assert.deepEqual(Object.keys(auditQuery.projection()).sort(), BOOKING_360_AUDIT_SELECT.split(" ").sort());
+  assert.equal("ip" in auditQuery.projection(), false);
+  assert.equal("userAgent" in auditQuery.projection(), false);
+
+  const holdQuery = bookingOperationsRepository.getLatestInventoryHold([paymentId]);
+  assert.equal(holdQuery.op, "findOne");
+  assert.deepEqual(holdQuery.getOptions().sort, { createdAt: -1 });
+  assert.deepEqual(Object.keys(holdQuery.projection()).sort(), BOOKING_360_HOLD_SELECT.split(" ").sort());
+});
+
+test("Booking 360 returns the selected latest hold with its operational reservations", async () => {
+  const latestHold = {
+    _id: "507f191e810c19729de860ec",
+    status: "active",
+    isActive: true,
+    expiresAt: new Date("2026-08-04T00:00:00Z"),
+    inventoryReservations: [{
+      _id: "507f191e810c19729de860ed",
+      inventoryType: "program",
+      itemId: "507f191e810c19729de860ee",
+      quantity: 2,
+    }],
+    programReservation: { quantity: 2 },
+    internalRetryCount: 9,
+  };
+  const service = createBookingOperationsServiceLayer(repository({
+    getLatestInventoryHold: async () => latestHold,
+  }));
+  const result = await service.getBookingOperationsDetailsService({ bookingId });
+
+  assert.equal(result.inventory.hold.id, latestHold._id);
+  assert.equal(result.inventory.reservations[0].quantity, 2);
+  assert.deepEqual(result.inventory.programReservation, { quantity: 2 });
+  assert.equal(JSON.stringify(result).includes("internalRetryCount"), false);
+});
+
+test("Booking 360 audit keeps before, after and metadata while excluding request internals", async () => {
+  const service = createBookingOperationsServiceLayer(repository({
+    getAudit: async () => [{
+      action: "update",
+      entity: AUDIT_ENTITIES.BOOKING,
+      entityId: bookingId,
+      before: { bookingStatus: "pending" },
+      after: { bookingStatus: "confirmed" },
+      metadata: { reason: "verified" },
+      ip: "127.0.0.1",
+      userAgent: "internal-agent",
+      createdAt: new Date("2026-08-02T00:00:00Z"),
+    }],
+  }));
+  const result = await service.getBookingOperationsDetailsService({ bookingId });
+
+  assert.deepEqual(result.audit[0].before, { bookingStatus: "pending" });
+  assert.deepEqual(result.audit[0].after, { bookingStatus: "confirmed" });
+  assert.deepEqual(result.audit[0].metadata, { reason: "verified" });
+  assert.equal("ip" in result.audit[0], false);
+  assert.equal("userAgent" in result.audit[0], false);
 });
 
 test("operations response does not expose raw provider data or audit secrets", async () => {

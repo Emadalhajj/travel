@@ -5,7 +5,6 @@ import {
 
 import {
   apiGetBankAccounts,
-  apiGetBankAccountById,
   apiCreateBankAccount,
   apiUpdateBankAccount,
   apiUpdateBankAccountStatus,
@@ -54,31 +53,6 @@ export const fetchBankAccounts =
           );
 
         return res.data;
-      } catch (err) {
-        return handleApiError(
-          err,
-          rejectWithValue,
-        );
-      }
-    },
-  );
-
-export const fetchBankAccountById =
-  createAsyncThunk(
-    "bankAccounts/fetchById",
-    async (
-      id,
-      {
-        rejectWithValue,
-      },
-    ) => {
-      try {
-        const res =
-          await apiGetBankAccountById(
-            id,
-          );
-
-        return res.data.data;
       } catch (err) {
         return handleApiError(
           err,
@@ -241,10 +215,8 @@ const bankAccountSlice =
 
     initialState: {
       bankAccountsList: [],
-      selectedAccount: null,
-
-      loading: false,
-      saving: false,
+      listLoading: false,
+      mutationLoading: false,
 
       error: null,
 
@@ -275,44 +247,12 @@ const bankAccountSlice =
         state.pagination.page = 1;
       },
 
-      clearSelectedBankAccount: (
-        state,
-      ) => {
-        state.selectedAccount = null;
-        state.error = null;
-      },
     },
 
     extraReducers: (
       builder,
     ) => {
       builder
-
-        .addCase(
-          fetchBankAccountById.pending,
-          (state) => {
-            state.loading = true;
-            state.error = null;
-          },
-        )
-
-        .addCase(
-          fetchBankAccountById.fulfilled,
-          (state, action) => {
-            state.loading = false;
-            state.selectedAccount =
-              action.payload;
-          },
-        )
-
-        .addCase(
-          fetchBankAccountById.rejected,
-          (state, action) => {
-            state.loading = false;
-            state.error =
-              action.payload;
-          },
-        )
 
         /*
         =================================================
@@ -324,7 +264,7 @@ const bankAccountSlice =
           fetchBankAccounts.pending,
 
           (state) => {
-            state.loading = true;
+            state.listLoading = true;
             state.error = null;
           },
         )
@@ -336,7 +276,7 @@ const bankAccountSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.listLoading = false;
 
             /*
             لأن apiGetBankAccounts يعيد response.data،
@@ -391,7 +331,7 @@ const bankAccountSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.listLoading = false;
 
             state.error =
               action.payload;
@@ -408,8 +348,7 @@ const bankAccountSlice =
           createBankAccount.pending,
 
           (state) => {
-            state.loading = true;
-            state.saving = true;
+            state.mutationLoading = true;
             state.error = null;
           },
         )
@@ -421,8 +360,7 @@ const bankAccountSlice =
             state,
             action,
           ) => {
-            state.loading = false;
-            state.saving = false;
+            state.mutationLoading = false;
 
             if (
               action.payload
@@ -469,8 +407,7 @@ const bankAccountSlice =
             state,
             action,
           ) => {
-            state.loading = false;
-            state.saving = false;
+            state.mutationLoading = false;
 
             state.error =
               action.payload;
@@ -487,8 +424,7 @@ const bankAccountSlice =
           updateBankAccount.pending,
 
           (state) => {
-            state.loading = true;
-            state.saving = true;
+            state.mutationLoading = true;
             state.error = null;
           },
         )
@@ -500,8 +436,7 @@ const bankAccountSlice =
             state,
             action,
           ) => {
-            state.loading = false;
-            state.saving = false;
+            state.mutationLoading = false;
 
             const updated =
               action.payload;
@@ -564,8 +499,7 @@ const bankAccountSlice =
             state,
             action,
           ) => {
-            state.loading = false;
-            state.saving = false;
+            state.mutationLoading = false;
 
             state.error =
               action.payload;
@@ -582,7 +516,7 @@ const bankAccountSlice =
           updateBankAccountStatus.pending,
 
           (state) => {
-            state.loading = true;
+            state.mutationLoading = true;
             state.error = null;
           },
         )
@@ -594,7 +528,7 @@ const bankAccountSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.mutationLoading = false;
 
             const updated =
               action.payload;
@@ -651,7 +585,7 @@ const bankAccountSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.mutationLoading = false;
 
             state.error =
               action.payload;
@@ -668,7 +602,7 @@ const bankAccountSlice =
           deleteBankAccount.pending,
 
           (state) => {
-            state.loading = true;
+            state.mutationLoading = true;
             state.error = null;
           },
         )
@@ -680,7 +614,7 @@ const bankAccountSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.mutationLoading = false;
 
             state.bankAccountsList =
               state.bankAccountsList.filter(
@@ -700,7 +634,7 @@ const bankAccountSlice =
             state,
             action,
           ) => {
-            state.loading = false;
+            state.mutationLoading = false;
 
             state.error =
               action.payload;
@@ -712,7 +646,12 @@ const bankAccountSlice =
 export const {
   setPage,
   setLimit,
-  clearSelectedBankAccount,
 } = bankAccountSlice.actions;
+
+export const selectBankAccountItems = (state) => state.bankAccounts.bankAccountsList;
+export const selectBankAccountPagination = (state) => state.bankAccounts.pagination;
+export const selectBankAccountListLoading = (state) => state.bankAccounts.listLoading;
+export const selectBankAccountError = (state) => state.bankAccounts.error;
+export const selectBankAccountMutationLoading = (state) => state.bankAccounts.mutationLoading;
 
 export default bankAccountSlice.reducer;

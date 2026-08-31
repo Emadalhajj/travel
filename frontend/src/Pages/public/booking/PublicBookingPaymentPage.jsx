@@ -26,7 +26,12 @@ import PageHeader from "../../../Components/layout/PageHeader";
 import BookingProgressTimeline from "../../../Components/shared/booking/BookingProgressTimeline";
 import CopyableValue from "../../../Components/common/CopyableValue";
 
-import { fetchPublicDraftBookingById } from "../../../redux/public/bookingSlice";
+import {
+  ensurePublicDraftBooking,
+  selectPublicDraftBooking,
+  selectPublicDraftError,
+  selectPublicDraftLoading,
+} from "../../../redux/public/bookingSlice";
 
 import {
   fetchPublicPaymentConfigurations,
@@ -73,9 +78,9 @@ export default function PublicBookingPaymentPage() {
 
   const navigate = useNavigate();
 
-  const { draftBooking, loading, error } = useSelector(
-    (state) => state.publicBooking,
-  );
+  const draftBooking = useSelector(selectPublicDraftBooking);
+  const loading = useSelector(selectPublicDraftLoading);
+  const error = useSelector(selectPublicDraftError);
 
   const paymentConfigurations = useSelector(selectPublicPaymentConfigurations);
 
@@ -122,7 +127,7 @@ export default function PublicBookingPaymentPage() {
       return;
     }
 
-    dispatch(fetchPublicDraftBookingById(draftId));
+    dispatch(ensurePublicDraftBooking(draftId));
   }, [dispatch, draftId]);
 
   /*

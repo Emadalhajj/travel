@@ -1,8 +1,9 @@
 // src/components/common/EntityFilter.jsx
 import React from "react";
-import { Row, Col, Form, Button, InputGroup } from "react-bootstrap";
+import { Row, Col, Form, Button } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import CustomSelect from "../ui/CustomSelecte";
+import CalendarField from "./CalendarField";
 
 export default function EntityFilter({
   filters = {},
@@ -12,7 +13,7 @@ export default function EntityFilter({
   onReset, // اختياري: دالة إعادة تعيين مخصصة
   showSearchButton = false, // هل نريد زر بحث منفصل؟
 }) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
 
   // دالة إعادة تعيين افتراضية
@@ -71,7 +72,16 @@ export default function EntityFilter({
 
           return (
             <Col md={field.col || 2} key={key}>
-              {field.type === "select" ? (
+              {field.type === "date" ? (
+                <CalendarField
+                  id={key}
+                  value={filters[key] || ""}
+                  onChange={(value) => setFilters({ ...filters, [key]: value })}
+                  min={field.min}
+                  max={field.max}
+                  isArabic={lang === "ar"}
+                />
+              ) : field.type === "select" ? (
 <CustomSelect
           value={filters[key] || ""}
           onChange={(newValue) => {

@@ -12,8 +12,15 @@ import {
   setPage,
   toggleVisa,
   updateVisa,
+  selectVisaItems,
+  selectVisaPagination,
+  selectVisaListLoading,
+  selectVisaError,
 } from "../../../redux/visas/visaSlice";
-import { fetchVisaTypes } from "../../../redux/visas/visaTypeSlice";
+import {
+  ensureVisaTypes,
+  selectVisaTypeItems,
+} from "../../../redux/visas/visaTypeSlice";
 import { buildQuery } from "../../../Utils/buildQuery";
 import { createHandleSave } from "../../../Utils/formData/createHandleSave";
 import { normalizeForForm } from "../../../Utils/formData/normalize";
@@ -36,19 +43,15 @@ import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
 import AdminPageActions from "../../../Components/layout/AdminPageActions";
 
-const emptyPagination = { total: 0, page: 1, limit: 10, totalPages: 0 };
-
 export default function AdminVisaList() {
   const dispatch = useDispatch();
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
-  const {
-    list: visas = [],
-    loading,
-    error,
-    pagination = emptyPagination,
-  } = useSelector((state) => state.visas || {});
-  const { visaTypes = [] } = useSelector((state) => state.visaTypes || {});
+  const visas = useSelector(selectVisaItems);
+  const pagination = useSelector(selectVisaPagination);
+  const loading = useSelector(selectVisaListLoading);
+  const error = useSelector(selectVisaError);
+  const visaTypes = useSelector(selectVisaTypeItems);
 
   const [filters, setFilters] = useState({
     search: "",
@@ -63,7 +66,7 @@ export default function AdminVisaList() {
   );
 
   useEffect(() => {
-    dispatch(fetchVisaTypes());
+    dispatch(ensureVisaTypes());
   }, [dispatch]);
 
   useEffect(() => {

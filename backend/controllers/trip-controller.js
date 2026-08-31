@@ -36,7 +36,7 @@ export const getAllTrips = asyncHandler(async (req, res) => {
   }
   //  3️⃣ Sort + Pagination
   const sortOption = buildSort(req.query);
-  const { skip, limit } = buildPagination(req.query);
+  const { page, skip, limit } = buildPagination(req.query);
   // 4️⃣ Query
   const [trips, total] = await Promise.all([
     Trip.find(filter)
@@ -52,7 +52,7 @@ export const getAllTrips = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     total,
-    page: Number(req.query.page) || 1,
+    page,
     limit,
     totalPages: Math.ceil(total / limit),
     trips,

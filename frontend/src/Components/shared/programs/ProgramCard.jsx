@@ -18,6 +18,8 @@ const imageSrc = formatImagePath(image);
        <img
   src={imageSrc}
   alt={name}
+  loading="lazy"
+  decoding="async"
   className="h-full w-full object-cover transition hover:scale-105"
 />
       </div>
@@ -103,8 +105,9 @@ function getProgramDescription(program, isArabic) {
 }
 
 function getProgramImage(program) {
+  if (program.thumbnailUrl) return program.thumbnailUrl;
   if (Array.isArray(program.images) && program.images.length > 0) {
-    return program.images[0]?.url || program.images[0];
+    return program.images[0]?.thumbnailUrl || program.images[0]?.url || program.images[0];
   }
 
   return "/images/default-program.jpg";

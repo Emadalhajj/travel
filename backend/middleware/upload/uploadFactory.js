@@ -10,8 +10,13 @@ import path from "path";
 import fs from "fs";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 
-export const createUploader = ({ folder, fieldRules = {}, maxSizeMB = 10 }) => {
-  const uploadDir = `uploads/${folder}`;
+export const createUploader = ({
+  folder,
+  fieldRules = {},
+  maxSizeMB = 10,
+  storageRoot = "uploads",
+}) => {
+  const uploadDir = `${storageRoot}/${folder}`;
   
 
   if (!fs.existsSync(uploadDir)) {

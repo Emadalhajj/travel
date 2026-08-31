@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch } from "react-redux";
 import { updatePublicDraftBooking } from "../../redux/public/bookingSlice";
 import { apiUploadDraftDocument } from "../../services/api/public/bookingApi";
@@ -69,30 +69,32 @@ export default function useDraftBookingPartyForm({
     hydratedDraftIdRef.current = draftBooking._id;
   }, [draftBooking, initialTravelerCount]);
 
-  const clearError = (key) => setErrors((previous) => ({ ...previous, [key]: "" }));
-  const handleCustomerChange = (name, value) => {
+  const clearError = useCallback((key) => setErrors((previous) => ({ ...previous, [key]: "" })), []);
+  const handleCustomerChange = useCallback((name, value) => {
     setCustomer((previous) => ({ ...previous, [name]: value }));
     clearError(`customer.${name}`);
-  };
-  const handleTravelerChange = (index, name, value) => {
+  }, [clearError]);
+  const handleTravelerChange = useCallback((index, name, value) => {
     setTravelers((previous) => previous.map((traveler, travelerIndex) =>
       travelerIndex === index ? { ...traveler, [name]: value } : traveler));
     clearError(`travelers.${index}.${name}`);
-  };
-  const handleHostsChange = (nextHosts) => {
+  }, [clearError]);
+  const handleHostsChange = useCallback((nextHosts) => {
     setHosts(nextHosts);
     setErrors((previous) => Object.fromEntries(
       Object.entries(previous).filter(([key]) => !key.startsWith("hosts.")),
     ));
-  };
+  }, []);
   const canAddTraveler = availableSeats === null
     ? travelers.length < initialTravelerCount
     : travelers.length < availableSeats;
-  const addTraveler = () => {
+  const addTraveler = useCallback(() => {
     if (!canAddTraveler) return;
     setTravelers((previous) => [...previous, createEmptyTraveler()]);
-  };
-  const removeTraveler = (index) => setTravelers((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
+  }, [canAddTraveler]);
+  const removeTraveler = useCallback((index) => setTravelers(
+    (previous) => previous.filter((_, itemIndex) => itemIndex !== index),
+  ), []);
 
   const validateForm = () => {
     const nextErrors = validateBookingParty({ customer, travelers, hosts, isArabic });

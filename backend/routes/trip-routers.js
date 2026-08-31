@@ -38,7 +38,7 @@ tripRoutes.get("/:id" , getTripById)
 tripRoutes.post(
     "/",
     protect,
-    authorize("admin") ,
+    authorize("admin", "superAdmin") ,
     ...uploadAndParse,
     validate(createTripSchema),
     createTrip
@@ -47,7 +47,7 @@ tripRoutes.post(
 tripRoutes.patch(
     "/:id",
     protect,
-     authorize("admin") ,
+     authorize("admin", "superAdmin") ,
     ...uploadAndParse,
     validate(updateTripSchema),
     updateTrip
@@ -56,14 +56,14 @@ tripRoutes.patch(
 tripRoutes.delete(
     "/:id",
     protect,
-    authorize("admin"),
+    authorize("admin", "superAdmin"),
     deleteTrip
 )
 
 tripRoutes.patch(
     "/toggle/:id" ,
     protect ,
-    authorize("admin"),
+    authorize("admin", "superAdmin"),
     toggleTripStatus
 
 )

@@ -33,6 +33,7 @@ PaymentTransaction Model الحالي.
 
 const normalizeUploadedFiles = (
   files = [],
+  transactionId,
 ) =>
   files.map((file) => ({
     name:
@@ -40,10 +41,7 @@ const normalizeUploadedFiles = (
       file.name ||
       "",
 
-    url:
-      file.path ||
-      file.url ||
-      "",
+    url: `/api/private-files/payment-proofs/${transactionId}/${file.filename}`,
 
     publicId:
       file.filename ||
@@ -70,6 +68,7 @@ export const submitBankTransferProofService =
     const proofAttachments =
       normalizeUploadedFiles(
         uploadedFiles,
+        transactionId,
       );
 
     const transaction =

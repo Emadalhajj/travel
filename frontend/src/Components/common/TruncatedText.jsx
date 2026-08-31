@@ -12,7 +12,7 @@ export default function TruncatedText({
   maxLines = 2,        // عدد الأسطر قبل "عرض المزيد"
   maxWidth = "100%",   // عرض العنصر
 }) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const [showAll, setShowAll] = useState(false);
   const isArabic = i18n.language === "ar";
 

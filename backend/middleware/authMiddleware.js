@@ -48,9 +48,7 @@ export const protect = async (req, res, next) => {
         req,
         type: SECURITY_EVENT_TYPES.INVALID_TOKEN,
         message: "Token user not found",
-        metadata: {
-          decoded,
-        },
+        metadata: { userId: decoded?.userId || null },
       });
 
       return res.status(401).json({
@@ -82,9 +80,7 @@ export const protect = async (req, res, next) => {
       req,
       type: SECURITY_EVENT_TYPES.INVALID_TOKEN,
       message: "Token invalid or expired",
-      metadata: {
-        error: err.message,
-      },
+      metadata: { reason: err?.name || "TokenError" },
     });
 
     return res.status(401).json({
@@ -146,47 +142,4 @@ export const authorize = (...roles) => async (req, res, next) => {
 
   next();
 };
-
-// import jwt from "jsonwebtoken";
-// import User from "../models/user-model.js";
-// import { createSecurityEvent } from "../services/audit/security-event-service.js";
-// import { SECURITY_EVENT_TYPES } from "../constants/audit/security-event-types.js";
-// export const protect = async (req, res, next) => {
-//   try {
-//     const auth = req.headers.authorization;
-//     if (!auth || !auth.startsWith("Bearer ")) return res.status(401).json({ message: "Not authorized" })//
-//     const token = auth.split(" ")[1];
-//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-//     const user = await User.findById(decoded.userId).select("-password");
-//     if (!user) return res.status(401).json({ message: "User not found" });
-//     if (!user.isActive) {
-//       return res.status(403).json({ message: "Account is inactive" });
-//     }
-//     req.user = user;
-//     next();
-//   } catch (err) {
-//     return res.status(401).json({ message: "Token invalid or expired" });
-//   }
-// };
-
-// export const authorize = (roles = []) => async (req, res, next) => {
-
-//   await createSecurityEvent({
-//   req,
-//   type: SECURITY_EVENT_TYPES.FORBIDDEN_ACCESS,
-//   message: "User tried to access forbidden resource",
-//   metadata: {
-//     requiredRoles: roles,
-//     userRole: req.user?.role,
-//   },
-// });
-
-//   // roles can be string or array
-//   const allowed = Array.isArray(roles) ? roles : [roles];
-//   if (!req.user) return res.status(401).json({ message: "Not authorized" });
-//   if (!allowed.includes(req.user.role)) return res.status(403).json({ message: "Forbidden" });
-//   next();
-// };
-
-
 

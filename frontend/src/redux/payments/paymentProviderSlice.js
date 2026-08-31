@@ -15,6 +15,7 @@ import {
 import {
   handleApiError,
 } from "../../Utils/handleApiError";
+import { normalizePagination } from "../utils/pagination";
 
 const initialPagination = {
   total: 0,
@@ -28,9 +29,9 @@ const initialPagination = {
 const initialState = {
   paymentProvidersList: [],
   selectedProvider: null,
-  loading: false,
+  listLoading: false,
   detailsLoading: false,
-  saving: false,
+  mutationLoading: false,
   error: null,
   pagination: initialPagination,
 };
@@ -253,27 +254,26 @@ const paymentProviderSlice =
         .addCase(
           fetchPaymentProviders.pending,
           (state) => {
-            state.loading = true;
+            state.listLoading = true;
             state.error = null;
           },
         )
         .addCase(
           fetchPaymentProviders.fulfilled,
           (state, action) => {
-            state.loading = false;
+            state.listLoading = false;
             state.paymentProvidersList =
               action.payload?.data || [];
             state.pagination = {
               ...initialPagination,
-              ...action.payload
-                ?.pagination,
+              ...normalizePagination(action.payload, state.pagination),
             };
           },
         )
         .addCase(
           fetchPaymentProviders.rejected,
           (state, action) => {
-            state.loading = false;
+            state.listLoading = false;
             state.error =
               action.payload;
           },
@@ -306,14 +306,14 @@ const paymentProviderSlice =
         .addCase(
           createPaymentProvider.pending,
           (state) => {
-            state.saving = true;
+            state.mutationLoading = true;
             state.error = null;
           },
         )
         .addCase(
           createPaymentProvider.fulfilled,
           (state, action) => {
-            state.saving = false;
+            state.mutationLoading = false;
 
             if (action.payload) {
               state.paymentProvidersList.unshift(
@@ -326,7 +326,7 @@ const paymentProviderSlice =
         .addCase(
           createPaymentProvider.rejected,
           (state, action) => {
-            state.saving = false;
+            state.mutationLoading = false;
             state.error =
               action.payload;
           },
@@ -335,14 +335,14 @@ const paymentProviderSlice =
         .addCase(
           updatePaymentProvider.pending,
           (state) => {
-            state.saving = true;
+            state.mutationLoading = true;
             state.error = null;
           },
         )
         .addCase(
           updatePaymentProvider.fulfilled,
           (state, action) => {
-            state.saving = false;
+            state.mutationLoading = false;
             state.paymentProvidersList =
               replaceProvider(
                 state.paymentProvidersList,
@@ -355,7 +355,7 @@ const paymentProviderSlice =
         .addCase(
           updatePaymentProvider.rejected,
           (state, action) => {
-            state.saving = false;
+            state.mutationLoading = false;
             state.error =
               action.payload;
           },
@@ -364,14 +364,14 @@ const paymentProviderSlice =
         .addCase(
           updatePaymentProviderStatus.pending,
           (state) => {
-            state.loading = true;
+            state.mutationLoading = true;
             state.error = null;
           },
         )
         .addCase(
           updatePaymentProviderStatus.fulfilled,
           (state, action) => {
-            state.loading = false;
+            state.mutationLoading = false;
             state.paymentProvidersList =
               replaceProvider(
                 state.paymentProvidersList,
@@ -382,7 +382,7 @@ const paymentProviderSlice =
         .addCase(
           updatePaymentProviderStatus.rejected,
           (state, action) => {
-            state.loading = false;
+            state.mutationLoading = false;
             state.error =
               action.payload;
           },
@@ -391,14 +391,14 @@ const paymentProviderSlice =
         .addCase(
           deletePaymentProvider.pending,
           (state) => {
-            state.loading = true;
+            state.mutationLoading = true;
             state.error = null;
           },
         )
         .addCase(
           deletePaymentProvider.fulfilled,
           (state, action) => {
-            state.loading = false;
+            state.mutationLoading = false;
             state.paymentProvidersList =
               state.paymentProvidersList.filter(
                 (provider) =>
@@ -416,7 +416,7 @@ const paymentProviderSlice =
         .addCase(
           deletePaymentProvider.rejected,
           (state, action) => {
-            state.loading = false;
+            state.mutationLoading = false;
             state.error =
               action.payload;
           },
@@ -455,7 +455,7 @@ export const selectPaymentProvidersLoading = (
   state,
 ) =>
   Boolean(
-    state.paymentProviders?.loading,
+    state.paymentProviders?.listLoading,
   );
 
 export const selectPaymentProviderDetailsLoading = (
@@ -470,7 +470,7 @@ export const selectPaymentProviderSaving = (
   state,
 ) =>
   Boolean(
-    state.paymentProviders?.saving,
+    state.paymentProviders?.mutationLoading,
   );
 
 export const selectPaymentProviderError = (
@@ -478,5 +478,8 @@ export const selectPaymentProviderError = (
 ) =>
   state.paymentProviders?.error ||
   null;
+
+export const selectPaymentProviderListLoading = selectPaymentProvidersLoading;
+export const selectPaymentProviderMutationLoading = selectPaymentProviderSaving;
 
 export default paymentProviderSlice.reducer;

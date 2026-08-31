@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "start:recovery": "node jobs/payment-recovery-worker.js",
+    "migrate:drop-obsolete-booking-indexes": "node scripts/migrations/drop-obsolete-booking-indexes.js",
     "test": "node --test tests/payment/*.test.js",
     "test:program-seats": "node --test tests/umrah-programs/atomic-program-seats.test.js",
     "test:inventory": "node --test tests/inventory/atomic-daily-inventory.test.js",
@@ -27,6 +29,8 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "joi": "^18.0.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.1",
@@ -36,7 +40,6 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pdfkit": "^0.18.0",
-    "qs": "^6.14.1",
     "slugify": "^1.6.6",
     "stripe": "^22.4.0"
   },

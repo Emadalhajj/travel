@@ -34,22 +34,6 @@ Constants
 =====================================================
 */
 
-// export const BOOKING_STATUS = {
-//   DRAFT: "draft",
-//   PENDING: "pending",
-//   CONFIRMED: "confirmed",
-//   COMPLETED: "completed",
-//   CANCELLED: "cancelled",
-// };
-
-// export const PAYMENT_STATUS = {
-//   PENDING: "pending",
-//   PARTIAL: "partial",
-//   PAID: "paid",
-//   FAILED: "failed",
-//   REFUNDED: "refunded",
-// };
-
 /*
 =====================================================
 Allowed Transitions
