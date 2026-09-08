@@ -1,5 +1,5 @@
 import { Button } from "react-bootstrap";
-import { Edit, Trash2, Eye, EyeOff, Plus, Copy, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, KeyRound, UserCheck, UserX, FileDown, Sheet, Filter, Star } from "lucide-react";
+import { Edit, Trash2, Eye, EyeOff, Plus, Copy, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, KeyRound, UserCheck, UserX, FileDown, Sheet, Filter, Star, CalendarDays, CalendarCheck, CircleX, CircleCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";   // ← أضفنا هذا
 const ACTION_CONFIG = {
@@ -36,6 +36,34 @@ const ACTION_CONFIG = {
     variant: "outline-info",
     labelKeyEn: "View",
     labelKeyAr: "عرض",
+    className: "bg-blue-100 text-blue-700 hover:bg-blue-200",
+  },
+  departures: {
+    icon: CalendarDays,
+    variant: "outline-info",
+    labelKeyEn: "Departures",
+    labelKeyAr: "المغادرات",
+    className: "bg-cyan-100 text-cyan-700 hover:bg-cyan-200",
+  },
+  schedule: {
+    icon: CalendarCheck,
+    variant: "outline-success",
+    labelKeyEn: "Schedule",
+    labelKeyAr: "جدولة",
+    className: "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
+  },
+  cancel: {
+    icon: CircleX,
+    variant: "outline-danger",
+    labelKeyEn: "Cancel",
+    labelKeyAr: "إلغاء",
+    className: "bg-rose-100 text-rose-700 hover:bg-rose-200",
+  },
+  complete: {
+    icon: CircleCheck,
+    variant: "outline-primary",
+    labelKeyEn: "Complete",
+    labelKeyAr: "إكمال",
     className: "bg-blue-100 text-blue-700 hover:bg-blue-200",
   },
   resetPassword: {

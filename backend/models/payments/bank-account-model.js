@@ -23,6 +23,7 @@ BANK_TRANSFER
 */
 
 import mongoose from "mongoose";
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
 
 /*
 =====================================================
@@ -33,16 +34,6 @@ Supported Currencies
 استخدمت في موديلات أخرى.
 =====================================================
 */
-
-const SUPPORTED_CURRENCIES = [
-  "SAR",
-  "USD",
-  "EUR",
-  "GBP",
-  "AED",
-  "EGP",
-  "TRY",
-];
 
 /*
 =====================================================
@@ -168,7 +159,7 @@ const bankAccountSchema =
       currency: {
         type: String,
         enum: SUPPORTED_CURRENCIES,
-        default: "SAR",
+        default: DEFAULT_CURRENCY,
         uppercase: true,
         trim: true,
       },

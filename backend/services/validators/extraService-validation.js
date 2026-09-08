@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 // import { isArabicRequest } from "../../utils/isArabicRequest.js"; // تأكد من المسار الصحيح
 
@@ -103,8 +104,8 @@ export const createExtraServiceSchema = ({ req, isArabic } = {}) => {
         }),
 
       currency: Joi.string()
-        .valid("SAR", "USD", "EUR", "GBP", "AED", "EGP", "TRY")
-        .default("SAR")
+        .valid(...SUPPORTED_CURRENCIES)
+        .default(DEFAULT_CURRENCY)
         .messages({
           "any.only": useArabic ? "عملة غير مدعومة" : "Unsupported currency",
         }),

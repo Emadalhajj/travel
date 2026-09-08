@@ -95,9 +95,10 @@ export const createProviderCheckout = async ({
 
     default:
       throw new AppError(
-        `مزود الدفع ${normalizedProviderCode} غير مدعوم`,
+        "PAYMENT_PROVIDER_UNSUPPORTED",
         400,
         "providerCode",
+        { provider: normalizedProviderCode },
       );
   }
 };
@@ -139,9 +140,10 @@ export const verifyProviderPayment = async ({
 
     default:
       throw new AppError(
-        `مزود الدفع ${normalizedProviderCode} غير مدعوم`,
+        "PAYMENT_PROVIDER_UNSUPPORTED",
         400,
         "providerCode",
+        { provider: normalizedProviderCode },
       );
   }
 };
@@ -153,7 +155,12 @@ const executeProviderOperation = async ({
 }) => {
   const code = String(providerCode || "").toUpperCase();
   if (!isPaymentProviderAdapterSupported(code)) {
-    throw new AppError(`مزود الدفع ${code} غير مدعوم`, 400, "providerCode");
+    throw new AppError(
+      "PAYMENT_PROVIDER_UNSUPPORTED",
+      400,
+      "providerCode",
+      { provider: code },
+    );
   }
 
   const operations = {

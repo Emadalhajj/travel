@@ -234,7 +234,12 @@ export const deleteTransport = asyncHandler(async (req, res) => {
   }
   // 🔴منع الحذف اذا كان هناك رحلة مرتبطة بنقل -  تحقق هل هناك رحلة مرتبطة
   const hasTrips = await Trip.exists({
-    vehicleType: id,
+    $or: [
+      { transportId: id },
+      // Legacy read compatibility until the trip migration is verified.
+      { vehicleType: id },
+    ],
+    isDeleted: false,
   });
   if (hasTrips) {
     return res.status(400).json({

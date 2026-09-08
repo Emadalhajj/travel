@@ -196,8 +196,13 @@ export const logInventoryReserved = async ({
     messageEn: "Inventory has been reserved for this booking",
     newValue: {
       reservations: inventoryReservations.map((item) => ({
-        type: item.type,
+        inventoryType: item.inventoryType || item.type,
+        reservationMode: item.reservationMode || "PERIOD",
         itemId: item.itemId,
+        quantity: item.quantity || item.requested || 1,
+        date: item.date || null,
+        startDate: item.startDate || null,
+        endDate: item.endDate || null,
         reservedDates: item.result?.reservedDates || 0,
       })),
     },

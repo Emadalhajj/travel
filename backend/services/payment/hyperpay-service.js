@@ -15,7 +15,7 @@ const fetchHyperPay = async (url, options = {}) => {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (error) {
     if (error?.name === "AbortError") {
-      throw new AppError("انتهت مهلة الاتصال بمزود HyperPay", 504, "hyperpay");
+      throw new AppError("PROVIDER_TIMEOUT", 504, "hyperpay");
     }
     throw error;
   } finally {
@@ -30,7 +30,7 @@ const parseHyperPayResponse = async (response) => {
     }
 
     throw new AppError(
-      "تعذر قراءة استجابة مزود الدفع",
+      "PROVIDER_RESPONSE_READ_FAILED",
       502,
       "hyperpay",
     );
@@ -40,7 +40,7 @@ const parseHyperPayResponse = async (response) => {
 
   if (!responseText.trim()) {
     throw new AppError(
-      "مزود الدفع أعاد استجابة فارغة",
+      "PROVIDER_EMPTY_RESPONSE",
       502,
       "hyperpay",
     );
@@ -50,32 +50,11 @@ const parseHyperPayResponse = async (response) => {
     return JSON.parse(responseText);
   } catch {
     throw new AppError(
-      "استجابة مزود الدفع غير صالحة. تحقق من عنوان HyperPay وإعدادات البيئة",
+      "HYPERPAY_RESPONSE_INVALID",
       502,
       "hyperpay",
     );
   }
-};
-
-const getHyperPayErrorMessage = (
-  data,
-  fallback,
-) => {
-  const providerMessage = String(
-    data?.result?.description ||
-      data?.message ||
-      "",
-  ).trim();
-
-  if (
-    /invalid authentication|authentication information|unauthori[sz]ed/i.test(
-      providerMessage,
-    )
-  ) {
-    return "بيانات اعتماد HyperPay غير صحيحة أو لا تتوافق مع البيئة المحددة. تحقق من Entity ID وAccess Token";
-  }
-
-  return providerMessage || fallback;
 };
 
 export const createHyperPayCheckout = async ({
@@ -120,7 +99,7 @@ export const createHyperPayCheckout = async ({
 
   if (!entityId || !accessToken) {
     throw new AppError(
-      "HyperPay credentials are missing",
+      "HYPERPAY_CREDENTIALS_MISSING",
       500,
       "hyperpay",
     );
@@ -128,7 +107,7 @@ export const createHyperPayCheckout = async ({
 
   if (!baseUrl) {
     throw new AppError(
-      "HyperPay base URL is missing",
+      "HYPERPAY_BASE_URL_MISSING",
       500,
       "hyperpay",
     );
@@ -200,10 +179,7 @@ export const createHyperPayCheckout = async ({
 
   if (!response.ok || !data?.id) {
     throw new AppError(
-      getHyperPayErrorMessage(
-        data,
-        "تعذر إنشاء جلسة الدفع لدى HyperPay",
-      ),
+      "HYPERPAY_CHECKOUT_FAILED",
       400,
       "hyperpay",
     );
@@ -294,7 +270,7 @@ export const verifyHyperPayPayment = async ({
 
   if (!entityId || !accessToken || !baseUrl) {
     throw new AppError(
-      "HyperPay verification configuration is missing",
+      "HYPERPAY_VERIFICATION_CONFIG_MISSING",
       500,
       "hyperpay",
     );
@@ -322,7 +298,7 @@ export const verifyHyperPayPayment = async ({
       );
     } catch {
       throw new AppError(
-        "HyperPay resourcePath is invalid",
+        "HYPERPAY_RESOURCE_PATH_INVALID",
         400,
         "resourcePath",
       );
@@ -337,7 +313,7 @@ export const verifyHyperPayPayment = async ({
       baseUrlObject.origin
     ) {
       throw new AppError(
-        "HyperPay resourcePath origin is not allowed",
+        "HYPERPAY_RESOURCE_ORIGIN_FORBIDDEN",
         400,
         "resourcePath",
       );
@@ -348,7 +324,7 @@ export const verifyHyperPayPayment = async ({
   } else {
     if (!checkoutId) {
       throw new AppError(
-        "HyperPay checkoutId is required",
+        "HYPERPAY_CHECKOUT_ID_REQUIRED",
         400,
         "checkoutId",
       );
@@ -380,10 +356,7 @@ export const verifyHyperPayPayment = async ({
 
   if (!response.ok) {
     throw new AppError(
-      getHyperPayErrorMessage(
-        data,
-        "تعذر التحقق من عملية الدفع لدى HyperPay",
-      ),
+      "HYPERPAY_VERIFICATION_FAILED",
       response.status >= 500 ? 502 : 400,
       "hyperpay",
     );
@@ -444,7 +417,7 @@ const executeHyperPayReferencedPayment = async ({
 
   if (!entityId || !accessToken || !baseUrl) {
     throw new AppError(
-      "HyperPay operation configuration is missing",
+      "HYPERPAY_OPERATION_CONFIG_MISSING",
       500,
       "hyperpay",
     );
@@ -452,7 +425,7 @@ const executeHyperPayReferencedPayment = async ({
 
   if (!referencedPaymentId) {
     throw new AppError(
-      "HyperPay referenced payment ID is required",
+      "HYPERPAY_PAYMENT_ID_REQUIRED",
       400,
       "providerReference",
     );
@@ -465,7 +438,7 @@ const executeHyperPayReferencedPayment = async ({
   if (amount !== undefined && amount !== null) {
     const normalizedAmount = Number(amount);
     if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
-      throw new AppError("Invalid payment amount", 400, "amount");
+      throw new AppError("PAYMENT_AMOUNT_INVALID", 400, "amount");
     }
     params.append("amount", normalizedAmount.toFixed(2));
   }
@@ -493,12 +466,10 @@ const executeHyperPayReferencedPayment = async ({
 
   if (!response.ok || operationStatus !== "SUCCESS") {
     throw new AppError(
-      getHyperPayErrorMessage(
-        data,
-        `تعذر تنفيذ عملية ${paymentType} لدى HyperPay`,
-      ),
+      "HYPERPAY_OPERATION_FAILED",
       response.status >= 500 ? 502 : 409,
       "providerOperation",
+      { operation: paymentType },
     );
   }
 

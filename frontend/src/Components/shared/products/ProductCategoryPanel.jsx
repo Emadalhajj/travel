@@ -1,5 +1,6 @@
 import { Row, Col, Alert, Spinner } from "react-bootstrap";
 import ProductCard from "./ProductCard";
+import { getProductSelectionId } from "../../../Utils/products/productSelection";
 
 export default function ProductCategoryPanel({
   category,
@@ -11,20 +12,11 @@ export default function ProductCategoryPanel({
   onRemoveItem,
   lang = "ar",
   mode = "admin",
+  travelersCount = 1,
 }) {
-  const getProductId = (product) => {
-    return (
-      product?.productId ||
-      product?._id ||
-      product?.id ||
-      product?.refId ||
-      product?.itemId
-    );
-  };
-
   const isSelected = (productId) => {
     return selectedItems.some((item) => {
-      const itemId = getProductId(item);
+      const itemId = getProductSelectionId(item);
 
       return (
         String(itemId) === String(productId) &&
@@ -61,7 +53,7 @@ export default function ProductCategoryPanel({
   return (
     <Row className="g-4">
       {products.map((product) => {
-        const productId = getProductId(product);
+        const productId = getProductSelectionId(product);
 
         const normalizedProduct = {
           ...product,
@@ -80,6 +72,7 @@ export default function ProductCategoryPanel({
               onRemoveItem={onRemoveItem}
               lang={lang}
               mode={mode}
+              travelersCount={travelersCount}
             />
           </Col>
         );

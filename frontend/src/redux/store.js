@@ -7,6 +7,7 @@ import roomTypeReducer from "./hotels/roomtypeSlice";
 import hotelReducer from "./hotels/hotelSlice";
 import transportReducer from "./transports/transportSlice";
 import tripReducer from "./transports/tripSlice";
+import tripDepartureReducer from "./transports/tripDepartureSlice";
 import usersReducer from "./auth/usersSlice";
 import umrahProgramReducer from "./umrah/umrahProgramSlice";
 import extraServiceReducer from "./extraServices/extraServiceSlice";
@@ -31,6 +32,7 @@ const store = configureStore({
     hotels: hotelReducer,
     transport: transportReducer,
     trip: tripReducer,
+    tripDepartures: tripDepartureReducer,
     users: usersReducer,
     umrahPrograms: umrahProgramReducer,
     extraServices: extraServiceReducer,

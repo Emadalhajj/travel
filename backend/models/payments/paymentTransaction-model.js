@@ -14,6 +14,7 @@ Payment Transaction Model
 */
 
 import mongoose from "mongoose";
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
 
 import { PAYMENT_METHOD_CODE_VALUES } from "../../constants/payments/payment-method-codes.js";
 import { PAYMENT_PROVIDER_CODE_VALUES } from "../../constants/payments/payment-provider-codes.js";
@@ -200,8 +201,8 @@ const paymentTransactionSchema = new mongoose.Schema(
 
     currency: {
       type: String,
-      enum: ["SAR", "USD", "EUR", "GBP", "AED", "EGP", "TRY"],
-      default: "SAR",
+      enum: SUPPORTED_CURRENCIES,
+      default: DEFAULT_CURRENCY,
       uppercase: true,
       trim: true,
     },

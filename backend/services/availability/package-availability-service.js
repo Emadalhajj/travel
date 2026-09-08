@@ -13,19 +13,22 @@ Package Availability Service
 
 import RoomType from "../../models/hotels/roomtype-model.js";
 import Visa from "../../models/visa-model.js";
-import Trip from "../../models/transportition/trip-model.js";
+import TripDeparture from "../../models/transportition/trip-departure-model.js";
 import Transport from "../../models/transportition/transport-model.js";
 import VehicleRental from "../../models/transportition/vehicle-rental-model.js";
 
 
 import Inventory from "../../models/inventory-model.js";
 import ExtraService from "../../models/extra-services/extra-service-model.js";
-import { normalizeDate } from "../../utils/generic/normalizeDate.js";
 import {
+  calculateAvailableCount,
   filterProductsByInventory,
   filterProductsByAvailabilityPolicy,
   getInventoryAvailabilityByProduct,
 } from "../../services/availability/inventory-availability-service.js";
+import { TRIP_TYPES } from "../../constants/trips/trip.constants.js";
+import { TRIP_DEPARTURE_STATUS } from "../../constants/trips/trip-departure.constants.js";
+import { INVENTORY_TYPES } from "../../constants/inventory/inventory-types.js";
 
 /*
 =====================================================
@@ -288,38 +291,170 @@ Trips Availability
 =====================================================
 
 السياسة:
-trip = حسب Inventory دائمًا
+Trip هو تعريف المنتج، بينما TripDeparture هو العنصر القابل للبيع.
+لكل Departure سجل Inventory مستقل، وليس سجلًا لكل يوم في فترة البرنامج.
 */
-const getAvailableTrips = async ({ startDate, endDate, pilgrimsCount = 1 }) => {
-  const trips = await Trip.find({
+const getTripDepartureInventory = async ({
+  departures,
+  pilgrimsCount,
+}) => {
+  if (!departures.length) return new Map();
+
+  const departureIds = departures.map(({ _id }) => _id);
+  const records = await Inventory.find({
+    inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+    itemId: { $in: departureIds },
     isActive: true,
     isDeleted: { $ne: true },
-  }).lean();
+  })
+    .select("itemId total reserved blocked available")
+    .lean();
 
-  const normalizedStartDate = normalizeDate(startDate);
-  const normalizedEndDate = normalizeDate(endDate);
-  const tripsInPeriod = trips.filter((trip) => {
-      const tripStartDate = normalizeDate(trip.startDate);
-      if (!tripStartDate) return false;
-      return tripStartDate >= normalizedStartDate && tripStartDate < normalizedEndDate;
+  const requested = Number(pilgrimsCount || 1);
+  const availabilityByDepartureId = new Map();
+
+  for (const record of records) {
+    const storedAvailable = Number(record.available);
+    const availableCount =
+      Number.isFinite(storedAvailable) && storedAvailable >= 0
+        ? storedAvailable
+        : calculateAvailableCount(record);
+
+    availabilityByDepartureId.set(String(record.itemId), {
+      isAvailable: availableCount >= requested,
+      availableCount,
+      total: Number(record.total || 0),
+      reserved: Number(record.reserved || 0),
+      blocked: Number(record.blocked || 0),
+      available: availableCount,
     });
+  }
 
-  return filterProductsByInventory({
-    products: tripsInPeriod,
-    Inventory,
-    inventoryType: "trip",
-    startDate,
-    endDate,
-    requestedQuantity: pilgrimsCount,
-    mapProduct: (args) => mapProduct({
-      ...args,
-      extra: {
-        ...args.extra,
-        startDate: args.doc.startDate,
-        capacity: args.doc.capacity,
+  return availabilityByDepartureId;
+};
+
+const getAvailableTrips = async ({ startDate, endDate, pilgrimsCount = 1 }) => {
+  const now = new Date();
+  const departures = await TripDeparture.find({
+    departureAt: {
+      $gte: startDate,
+      $lt: endDate,
+      $gt: now,
+    },
+    status: TRIP_DEPARTURE_STATUS.SCHEDULED,
+    isActive: true,
+    isDeleted: { $ne: true },
+  })
+    .populate({
+      path: "tripId",
+      match: {
+        isActive: true,
+        isDeleted: { $ne: true },
       },
-    }),
+      select: [
+        "nameAr",
+        "nameEn",
+        "descriptionAr",
+        "descriptionEn",
+        "images",
+        "type",
+        "scope",
+        "subtype",
+        "source",
+        "fromCity",
+        "toCity",
+        "features",
+        "airline",
+        "flightNumber",
+        "originAirport",
+        "destinationAirport",
+        "cabinClass",
+        "baggage",
+        "transportId",
+        "routeStops",
+        "vesselName",
+        "ports",
+        "cabinTypes",
+        "mealsIncluded",
+        "baggagePolicy",
+      ].join(" "),
+    })
+    .lean();
+
+  const validDepartures = departures.filter(({ tripId }) => Boolean(tripId));
+  const availabilityByDepartureId = await getTripDepartureInventory({
+    departures: validDepartures,
+    pilgrimsCount,
   });
+
+  return validDepartures
+    .filter(({ _id }) =>
+      availabilityByDepartureId.get(String(_id))?.isAvailable,
+    )
+    .map((departure) => {
+      const trip = departure.tripId;
+      const availability = availabilityByDepartureId.get(
+        String(departure._id),
+      );
+      const basePrice = getNumber(departure.pricing?.basePrice);
+      const discountPrice = getNumber(departure.pricing?.discountPrice);
+
+      return {
+        _id: departure._id,
+        type: trip.type === TRIP_TYPES.AIR ? "flight" : "trip",
+        category: trip.type === TRIP_TYPES.AIR ? "flights" : "trips",
+        tripId: trip._id,
+        departureId: departure._id,
+        nameAr: trip.nameAr || "",
+        nameEn: trip.nameEn || "",
+        descriptionAr: trip.descriptionAr || "",
+        descriptionEn: trip.descriptionEn || "",
+        images: trip.images || [],
+        tripType: trip.type,
+        scope: trip.scope,
+        subtype: trip.subtype,
+        source: departure.source || trip.source,
+        fromCity: trip.fromCity,
+        toCity: trip.toCity,
+        features: trip.features,
+        airline: trip.airline,
+        flightNumber: trip.flightNumber,
+        originAirport: trip.originAirport,
+        destinationAirport: trip.destinationAirport,
+        cabinClass: trip.cabinClass,
+        baggage: trip.baggage,
+        transport: trip.transportId,
+        routeStops: trip.routeStops || [],
+        vesselName: trip.vesselName,
+        ports: trip.ports || [],
+        cabinTypes: trip.cabinTypes,
+        mealsIncluded: trip.mealsIncluded,
+        baggagePolicy: trip.baggagePolicy,
+        departureAt: departure.departureAt,
+        arrivalAt: departure.arrivalAt,
+        segments: departure.segments || [],
+        status: departure.status,
+        price: discountPrice > 0 ? discountPrice : basePrice,
+        basePrice,
+        discountPrice,
+        currency: departure.pricing?.currency || "SAR",
+        pricing: {
+          basePrice,
+          discountPrice,
+          finalPrice: discountPrice > 0 ? discountPrice : basePrice,
+          currency: departure.pricing?.currency || "SAR",
+        },
+        inventory: {
+          total: availability.total,
+          reserved: availability.reserved,
+          blocked: availability.blocked,
+          available: availability.available,
+        },
+        availableCount: availability.availableCount,
+        inventoryAvailability: availability,
+        isActive: departure.isActive,
+      };
+    });
 };
 
 /*
@@ -443,15 +578,18 @@ export const getAvailablePackageProductsService = async ({
       getAvailableVehicleRentals({ startDate, endDate, pilgrimsCount: requestedCount }),
     ]);
 
+  const flights = trips.filter(({ tripType }) => tripType === TRIP_TYPES.AIR);
+  const nonAirTrips = trips.filter(({ tripType }) => tripType !== TRIP_TYPES.AIR);
+
   return {
     roomTypes,
     visas,
-    trips,
+    trips: nonAirTrips,
     transports,
     extraServices,
     vehicleRentals,
     hotels: getHotelsFromAvailableRooms(roomTypes),
-    flights: [],
+    flights,
     ziyarats: [],
     services: extraServices,
   };

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildInventoryRequirementsFromDraft } from "../../services/draft-bookings/draft-inventory-builder.js";
+import { INVENTORY_RESERVATION_MODES } from "../../constants/inventory/inventory-reservation-modes.js";
+import { INVENTORY_TYPES } from "../../constants/inventory/inventory-types.js";
 
 const dates = {
   startDate: "2026-10-01",
@@ -54,29 +56,57 @@ test("room reservation preserves its unit quantity", () => {
     }),
   });
 
-  assert.equal(reservationOf(result, "roomType").quantity, 2);
+  const room = reservationOf(result, INVENTORY_TYPES.ROOM_TYPE);
+  assert.equal(room.quantity, 2);
+  assert.equal(room.reservationMode, INVENTORY_RESERVATION_MODES.PERIOD);
 });
 
-test("trip PER_TRAVELER uses traveler count", () => {
+test("TripDeparture produces one SINGLE inventory reservation", () => {
   const result = buildInventoryRequirementsFromDraft({
     draft: buildDraft({
-      travelersCount: 4,
-      products: [product("trip", { chargeType: "PER_TRAVELER", travelDate: dates.startDate, returnDate: dates.endDate })],
+      travelersCount: 3,
+      products: [product("flight", {
+        tripId: "trip-id",
+        departureId: "departure-id",
+        departureAt: "2026-10-02T08:00:00.000Z",
+        capacity: { totalSeats: 40 },
+        chargeType: "PER_TRAVELER",
+      })],
     }),
   });
+  const departure = reservationOf(result, INVENTORY_TYPES.TRIP_DEPARTURE);
 
-  assert.equal(reservationOf(result, "trip").quantity, 4);
+  assert.deepEqual(departure, {
+    inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+    reservationMode: INVENTORY_RESERVATION_MODES.SINGLE,
+    itemId: "departure-id",
+    date: "2026-10-02T08:00:00.000Z",
+    quantity: 3,
+    defaultTotal: 0,
+  });
+  assert.equal(
+    result.inventoryReservations.some(({ inventoryType }) => inventoryType === "trip"),
+    false,
+  );
 });
 
-test("trip PER_UNIT preserves selected quantity", () => {
-  const result = buildInventoryRequirementsFromDraft({
-    draft: buildDraft({
-      travelersCount: 4,
-      products: [product("trip", { chargeType: "PER_UNIT", quantity: 2, travelDate: dates.startDate, returnDate: dates.endDate })],
+test("new Draft with tripId but no departureId is rejected", () => {
+  assert.throws(
+    () => buildInventoryRequirementsFromDraft({
+      draft: buildDraft({
+        travelersCount: 4,
+        products: [product("trip", {
+          tripId: "trip-id",
+          chargeType: "PER_TRAVELER",
+          travelDate: dates.startDate,
+          returnDate: dates.endDate,
+        })],
+      }),
     }),
-  });
-
-  assert.equal(reservationOf(result, "trip").quantity, 2);
+    ({ code, field }) =>
+      code === "TRIP_DEPARTURE_DATA_INCOMPLETE" &&
+      field === "trip.departureId",
+  );
 });
 
 test("transport PER_BOOKING uses one unit", () => {
@@ -127,7 +157,12 @@ test("missing resources do not create inventory reservations", () => {
 test("ready and custom packages produce the same requirements for equal resources", () => {
   const products = [
     product("room", { quantity: 2 }),
-    product("trip", { chargeType: "PER_TRAVELER" }),
+    product("trip", {
+      tripId: "trip-id",
+      departureId: "departure-id",
+      departureAt: "2026-10-02T08:00:00.000Z",
+      chargeType: "PER_TRAVELER",
+    }),
     product("transport", { chargeType: "PER_BOOKING" }),
     product("visa", { chargeType: "PER_TRAVELER" }),
   ];

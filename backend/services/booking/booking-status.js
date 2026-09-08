@@ -24,7 +24,6 @@ Booking Status Service
 */
 
 import AppError from "../../utils/AppError.js";
-import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 import { BOOKING_STATUS } from "../../constants/booking/booking-status.js";
 import { PAYMENT_STATUS } from "../../constants/booking/payment-status.js";
 
@@ -74,10 +73,6 @@ Helpers
 =====================================================
 */
 
-const getLanguage = (req) => {
-  return req ? isArabicRequest(req) : true;
-};
-
 export const isValidBookingStatus = (status) => {
   return Object.values(BOOKING_STATUS).includes(status);
 };
@@ -115,11 +110,10 @@ export const validateBookingStatusChange = ({
   nextStatus,
   req = null,
 }) => {
-  const isArabic = getLanguage(req);
 
   if (!isValidBookingStatus(nextStatus)) {
     throw new AppError(
-      isArabic ? "حالة الحجز غير صحيحة" : "Invalid booking status",
+      "INVALID_BOOKING_STATUS",
       400,
       "bookingStatus",
     );
@@ -127,9 +121,7 @@ export const validateBookingStatusChange = ({
 
   if (!isValidBookingStatus(currentStatus)) {
     throw new AppError(
-      isArabic
-        ? "حالة الحجز الحالية غير صحيحة"
-        : "Current booking status is invalid",
+      "INVALID_CURRENT_BOOKING_STATUS",
       400,
       "bookingStatus",
     );
@@ -137,11 +129,10 @@ export const validateBookingStatusChange = ({
 
   if (!canChangeBookingStatus(currentStatus, nextStatus)) {
     throw new AppError(
-      isArabic
-        ? `لا يمكن تغيير حالة الحجز من ${currentStatus} إلى ${nextStatus}`
-        : `Cannot change booking status from ${currentStatus} to ${nextStatus}`,
+      "BOOKING_STATUS_TRANSITION_INVALID",
       400,
       "bookingStatus",
+      { from: currentStatus, to: nextStatus },
     );
   }
 
@@ -160,11 +151,10 @@ export const validatePaymentStatus = ({
   paymentStatus,
   req = null,
 }) => {
-  const isArabic = getLanguage(req);
 
   if (!isValidPaymentStatus(paymentStatus)) {
     throw new AppError(
-      isArabic ? "حالة الدفع غير صحيحة" : "Invalid payment status",
+      "INVALID_PAYMENT_STATUS",
       400,
       "paymentStatus",
     );
@@ -280,13 +270,10 @@ export const getCancelBookingData = ({
   booking,
   req = null,
 }) => {
-  const isArabic = getLanguage(req);
 
   if (!canCancelBooking(booking)) {
     throw new AppError(
-      isArabic
-        ? "لا يمكن إلغاء هذا الحجز"
-        : "This booking cannot be cancelled",
+      "BOOKING_CANCELLATION_FORBIDDEN",
       400,
       "bookingStatus",
     );

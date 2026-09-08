@@ -65,7 +65,7 @@ export const sanitizeAuditValue = ({ entity, value }) => {
 const parseDate = (value, field, endOfDay = false) => {
   if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new AppError(`Invalid ${field}`, 400, field);
+  if (Number.isNaN(date.getTime())) throw new AppError("INVALID_FILTER_FIELD", 400, field);
   if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(String(value))) date.setUTCHours(23, 59, 59, 999);
   return date;
 };
@@ -78,24 +78,24 @@ export const normalizeAuditPagination = ({ page = 1, limit = 20 } = {}) => ({
 export const buildAuditLogFilter = ({ action, entity, entityId, user, dateFrom, dateTo } = {}) => {
   const filter = {};
   if (action) {
-    if (!AUDIT_ACTIONS_LIST.includes(action)) throw new AppError("Invalid audit action", 400, "action");
+    if (!AUDIT_ACTIONS_LIST.includes(action)) throw new AppError("INVALID_AUDIT_ACTION", 400, "action");
     filter.action = action;
   }
   if (entity) {
-    if (!AUDIT_ENTITIES_LIST.includes(entity)) throw new AppError("Invalid audit entity", 400, "entity");
+    if (!AUDIT_ENTITIES_LIST.includes(entity)) throw new AppError("INVALID_AUDIT_ENTITY", 400, "entity");
     filter.entity = entity;
   }
   if (entityId) {
-    if (!mongoose.Types.ObjectId.isValid(entityId)) throw new AppError("Invalid entityId", 400, "entityId");
+    if (!mongoose.Types.ObjectId.isValid(entityId)) throw new AppError("INVALID_ENTITY_ID", 400, "entityId");
     filter.entityId = entityId;
   }
   if (user) {
-    if (!mongoose.Types.ObjectId.isValid(user)) throw new AppError("Invalid user", 400, "user");
+    if (!mongoose.Types.ObjectId.isValid(user)) throw new AppError("INVALID_USER_ID", 400, "user");
     filter.user = user;
   }
   const from = parseDate(dateFrom, "dateFrom");
   const to = parseDate(dateTo, "dateTo", true);
-  if (from && to && from > to) throw new AppError("dateFrom must be before dateTo", 400, "dateFrom");
+  if (from && to && from > to) throw new AppError("DATE_FROM_AFTER_DATE_TO", 400, "dateFrom");
   if (from || to) filter.createdAt = { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) };
   return filter;
 };

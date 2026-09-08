@@ -56,7 +56,7 @@ const validateObjectId = (
 ) => {
   if (!mongoose.Types.ObjectId.isValid(value)) {
     throw new AppError(
-      "المعرف المرسل غير صالح",
+      "INVALID_LOOKUP_ID",
       400,
       field,
     );
@@ -92,7 +92,7 @@ const executeExternalProviderOperation = async ({
   if (!hasExternalProvider(transaction)) return null;
 
   if (!transaction.paymentProvider) {
-    throw new AppError("معاملة المزود لا تحتوي مرجع المزود", 409, "providerId");
+    throw new AppError("PROVIDER_REFERENCE_ABSENT", 409, "providerId");
   }
 
   const provider = await getPaymentProviderByIdService({
@@ -259,7 +259,7 @@ export const listPaymentTransactionsAdminService =
 
         if (Number.isNaN(start.getTime())) {
           throw new AppError(
-            "تاريخ البداية غير صالح",
+            "START_DATE_INVALID",
             400,
             "dateFrom",
           );
@@ -273,7 +273,7 @@ export const listPaymentTransactionsAdminService =
 
         if (Number.isNaN(end.getTime())) {
           throw new AppError(
-            "تاريخ النهاية غير صالح",
+            "END_DATE_INVALID",
             400,
             "dateTo",
           );
@@ -489,7 +489,7 @@ export const getPaymentTransactionDetailsAdminService =
 
     if (!transaction) {
       throw new AppError(
-        "معاملة الدفع غير موجودة",
+        "PAYMENT_TRANSACTION_NOT_FOUND",
         404,
         "transactionId",
       );
@@ -595,7 +595,7 @@ export const capturePaymentTransactionAdminService =
       transaction.status !== PAYMENT_TRANSACTION_STATUSES.AUTHORIZED
     ) {
       throw new AppError(
-        "لا يمكن تأكيد التحصيل قبل اكتمال تفويض الدفع لدى المزود",
+        "PAYMENT_CAPTURE_NOT_AUTHORIZED",
         409,
         "status",
       );
@@ -681,7 +681,7 @@ export const refundPaymentTransactionAdminService =
       )
     ) {
       throw new AppError(
-        "لا يمكن استرجاع معاملة غير مدفوعة",
+        "PAYMENT_REFUND_NOT_PAID",
         409,
         "status",
       );
@@ -752,7 +752,7 @@ export const cancelPaymentTransactionAdminService =
       ].includes(transaction.status)
     ) {
       throw new AppError(
-        "لا يمكن إلغاء معاملة مالية مكتملة؛ استخدم الاسترجاع بدلًا من ذلك",
+        "PAID_PAYMENT_CANCEL_FORBIDDEN",
         409,
         "status",
       );

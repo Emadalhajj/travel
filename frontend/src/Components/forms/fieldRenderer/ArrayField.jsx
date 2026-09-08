@@ -125,6 +125,8 @@ export default function ArrayField({
     }
 
     setFormState((prev) => set(prev, path, value));
+    clearFieldError({ name: path });
+    clearFieldError({ name: `${fieldPath}.${index}` });
   };
 
   /*
@@ -147,10 +149,16 @@ export default function ArrayField({
     }
 
     setFormState((prev) => set(prev, path, updated));
+    clearFieldError({ name: path });
+    clearFieldError({ name: `${fieldPath}.${index}` });
   };
 
   const getLabel = (item) =>
     (isArabic ? item.labelAr : item.labelEn) || item.label || "";
+
+  const itemLabel = isArabic
+    ? field.itemLabelAr || "الفترة"
+    : field.itemLabelEn || "period";
 
   /*
   =========================
@@ -167,9 +175,11 @@ export default function ArrayField({
           {isArabic ? field.labelAr : field.labelEn}
         </div>
 
-        <Button variant="primary" size="sm" onClick={handleAddItem}>
-          {isArabic ? "إضافة" : "Add"}
-        </Button>
+        {!field.structureLocked && (
+          <Button variant="primary" size="sm" onClick={handleAddItem}>
+            {isArabic ? "إضافة" : "Add"}
+          </Button>
+        )}
       </div>
 
       {/* items */}
@@ -183,17 +193,25 @@ export default function ArrayField({
 
           <div className="d-flex justify-content-between align-items-center mb-4">
             <div className="fw-bold text-secondary">
-              {isArabic ? `#${index + 1} الفترة` : `period #${index + 1}`}
+              {isArabic ? `${itemLabel} ${index + 1}` : `${itemLabel} ${index + 1}`}
             </div>
 
-            <Button
-              variant="outline-danger"
-              size="sm"
-              onClick={() => handleRemoveItem(index)}
-            >
-              {isArabic ? "حذف" : "Remove"}
-            </Button>
+            {!field.structureLocked && (
+              <Button
+                variant="outline-danger"
+                size="sm"
+                onClick={() => handleRemoveItem(index)}
+              >
+                {isArabic ? "حذف" : "Remove"}
+              </Button>
+            )}
           </div>
+
+          {getFieldError(`${fieldPath}.${index}`) && (
+            <div className="text-danger small mb-3" role="alert">
+              {getFieldError(`${fieldPath}.${index}`)}
+            </div>
+          )}
 
           {/* fields */}
 
@@ -321,6 +339,7 @@ export default function ArrayField({
                       <Form.Control
                         type={subField.type || "text"}
                         value={value ?? ""}
+                        readOnly={Boolean(subField.readOnly)}
                         onChange={(e) =>
                           handleChange(index, subField, e.target.value)
                         }

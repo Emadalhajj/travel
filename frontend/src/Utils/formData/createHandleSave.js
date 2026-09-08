@@ -35,6 +35,9 @@ const toErrorMessage = (value) => {
   return String(value);
 };
 
+const normalizeErrorPath = (path) =>
+  String(path || "").replace(/\[(\d+)\]/g, ".$1");
+
 const getGeneralErrorField = (message, formConfig) => {
   const fieldNames = getConfiguredFieldNames(formConfig);
 
@@ -70,7 +73,7 @@ const normalizeBackendErrors = (err, formConfig, fallbackMessage) => {
     err?.response?.data?.field;
 
   if (rawField && rawMessage) {
-    return { [rawField]: rawMessage };
+    return { [normalizeErrorPath(rawField)]: rawMessage };
   }
 
   if (Array.isArray(rawErrors)) {
@@ -83,7 +86,10 @@ const normalizeBackendErrors = (err, formConfig, fallbackMessage) => {
 
   if (rawErrors && typeof rawErrors === "object") {
     return Object.fromEntries(
-      Object.entries(rawErrors).map(([key, value]) => [key, toErrorMessage(value)]),
+      Object.entries(rawErrors).map(([key, value]) => [
+        normalizeErrorPath(key),
+        toErrorMessage(value),
+      ]),
     );
   }
 
@@ -102,7 +108,10 @@ const normalizeBackendErrors = (err, formConfig, fallbackMessage) => {
 
     if (entries.length > 0 && !("message" in err)) {
       return Object.fromEntries(
-        entries.map(([key, value]) => [key, toErrorMessage(value)]),
+        entries.map(([key, value]) => [
+          normalizeErrorPath(key),
+          toErrorMessage(value),
+        ]),
       );
     }
   }
@@ -213,8 +222,6 @@ export const createHandleSave = ({
         "حدث خطأ";
 
       const backendErrors = normalizeBackendErrors(err, formConfig, message);
-
-      console.log("BACKEND ERRORS:", backendErrors);
 
       setFormErrors?.(backendErrors);
       onError?.(err);

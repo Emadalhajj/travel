@@ -1,6 +1,28 @@
 import { serializeForApi } from "./serialize";
 
 describe("serializeForApi checkbox-group contract", () => {
+  it("serializes an empty optional array field as an array", () => {
+    const config = {
+      commonFields: [{ name: "segments", type: "array" }],
+    };
+
+    expect(serializeForApi({ segments: "" }, config)).toEqual({
+      segments: [],
+    });
+  });
+
+  it("preserves objects inside configured array fields", () => {
+    const config = {
+      commonFields: [{ name: "routeStops", type: "array" }],
+    };
+
+    expect(serializeForApi({
+      routeStops: [{ location: "جدة", notes: "المحطة الأولى" }],
+    }, config)).toEqual({
+      routeStops: [{ location: "جدة", notes: "المحطة الأولى" }],
+    });
+  });
+
   it("keeps object-mode features as the object expected by Transport", () => {
     const config = {
       commonFields: [{

@@ -59,6 +59,7 @@ export default function ProductTabs({
   onAddItem,
   onRemoveItem,
   mode = "admin", // admin | public | booking
+  travelersCount = 1,
 }) {
   const { i18n } = useTranslation();
   const lang = i18n.language || "ar";
@@ -128,6 +129,7 @@ export default function ProductTabs({
               onRemoveItem={onRemoveItem}
               lang={lang}
               mode={mode}
+              travelersCount={travelersCount}
             />
           </Tab>
         ))}

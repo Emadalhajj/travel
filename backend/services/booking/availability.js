@@ -1,9 +1,10 @@
 // services/booking/availability.js
 
 import AppError from "../../utils/AppError.js";
-import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 import Inventory from "../../models/inventory-model.js";
+import TripDeparture from "../../models/transportition/trip-departure-model.js";
 import { checkInventoryForWholePeriod } from "../availability/inventory-availability-service.js";
+import { normalizeInventoryDate } from "./inventory-service.js";
 
 /*
 =====================================================
@@ -39,10 +40,6 @@ export const datesOverlap = ({
   return startA < endB && endA > startB;
 };
 
-const getLanguage = (req) => {
-  return req ? isArabicRequest(req) : true;
-};
-
 /*
 =====================================================
 Room Availability
@@ -69,13 +66,11 @@ export const checkRoomAvailability = async ({
   RoomType,
   req = null,
 }) => {
-  const isArabic = getLanguage(req);
-
   const roomType = await RoomType.findById(roomTypeId);
 
   if (!roomType) {
     throw new AppError(
-      isArabic ? "نوع الغرفة غير موجود" : "Room type not found",
+      "ROOM_TYPE_NOT_FOUND",
       404,
       "roomType",
     );
@@ -86,7 +81,7 @@ export const checkRoomAvailability = async ({
 
   if (!checkInDate || !checkOutDate) {
     throw new AppError(
-      isArabic ? "تواريخ الحجز غير صحيحة" : "Invalid booking dates",
+      "BOOKING_DATES_INVALID",
       400,
       "checkIn",
     );
@@ -94,9 +89,7 @@ export const checkRoomAvailability = async ({
 
   if (checkOutDate <= checkInDate) {
     throw new AppError(
-      isArabic
-        ? "تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول"
-        : "Checkout date must be after check-in date",
+      "CHECKOUT_BEFORE_CHECKIN",
       400,
       "checkOut",
     );
@@ -115,11 +108,10 @@ export const checkRoomAvailability = async ({
 
   if (!canBook) {
     throw new AppError(
-      isArabic
-        ? `المتاح فقط ${available} ${available === 1 ? "غرفة" : "غرف"}`
-        : `Only ${available} room${available === 1 ? "" : "s"} available`,
+      "ROOM_CAPACITY_UNAVAILABLE",
       400,
       "requestedRooms",
+      { available },
     );
   }
 
@@ -156,7 +148,6 @@ export const checkVisaAvailability = async ({
   requestedQuantity = 1,
   req = null,
 }) => {
-  const isArabic = getLanguage(req);
 
   if (!visaId) {
     return {
@@ -169,17 +160,14 @@ export const checkVisaAvailability = async ({
 
   if (!visa) {
     throw new AppError(
-      isArabic ? "التأشيرة غير موجودة" : "Visa not found",
+      "VISA_NOT_FOUND",
       404,
       "visa",
     );
   }
 
   if (!visa.isActive) {
-    throw new AppError(
-      isArabic
-        ? "هذه التأشيرة غير متاحة حالياً"
-        : "This visa is currently unavailable",
+    throw new AppError("VISA_INACTIVE",
       400,
       "visa",
     );
@@ -196,7 +184,7 @@ export const checkVisaAvailability = async ({
     });
     if (!availability.isAvailable) {
       throw new AppError(
-        isArabic ? "هذه التأشيرة غير متاحة خلال الفترة المطلوبة" : "Visa is unavailable for the requested period",
+        "VISA_UNAVAILABLE",
         400,
         "visa",
       );
@@ -222,61 +210,74 @@ Trip Availability
 
 export const checkTripAvailability = async ({
   tripId,
+  departureId,
   pilgrimsCount = 1,
   Trip,
-  startDate,
-  endDate,
   req = null,
 }) => {
-  const isArabic = getLanguage(req);
 
-  if (!tripId) {
+  if (!tripId && !departureId) {
     return {
       canBook: true,
       trip: null,
     };
   }
 
+  if (!tripId || !departureId) {
+    throw new AppError(
+      "TRIP_DEPARTURE_DATA_INCOMPLETE",
+      400,
+      "tripDeparture",
+    );
+  }
+
   const trip = await Trip.findById(tripId);
 
   if (!trip) {
-    throw new AppError(
-      isArabic ? "الرحلة غير موجودة" : "Trip not found",
+    throw new AppError("TRIP_NOT_FOUND",
       404,
       "trip",
     );
   }
 
   if (!trip.isActive) {
-    throw new AppError(
-      isArabic
-        ? "هذه الرحلة غير متاحة حالياً"
-        : "This trip is currently unavailable",
+    throw new AppError("TRIP_INACTIVE",
       400,
       "trip",
     );
   }
 
-  const inventoryStart = normalizeDate(startDate || trip.startDate);
-  const inventoryEnd = normalizeDate(endDate) || (
-    inventoryStart
-      ? new Date(inventoryStart.getFullYear(), inventoryStart.getMonth(), inventoryStart.getDate() + 1)
-      : null
-  );
-  const availability = await checkInventoryForWholePeriod({
-    Inventory,
-    inventoryType: "trip",
-    itemId: trip._id,
-    startDate: inventoryStart,
-    endDate: inventoryEnd,
-    requestedQuantity: pilgrimsCount,
+  const departure = await TripDeparture.findOne({
+    _id: departureId,
+    tripId: trip._id,
+    status: "SCHEDULED",
+    isActive: true,
+    isDeleted: false,
+    departureAt: { $gt: new Date() },
+  }).lean();
+
+  if (!departure) {
+    throw new AppError(
+      "TRIP_DEPARTURE_NOT_AVAILABLE",
+      400,
+      "tripDeparture",
+      { id: departureId },
+    );
+  }
+
+  const requestedSeats = Math.max(Number(pilgrimsCount) || 1, 1);
+  const inventory = await Inventory.findOne({
+    inventoryType: "tripDeparture",
+    itemId: departure._id,
+    date: normalizeInventoryDate(departure.departureAt),
+    isActive: true,
+    isDeleted: false,
+    available: { $gte: requestedSeats },
   });
 
-  if (!availability.isAvailable) {
+  if (!inventory) {
     throw new AppError(
-      isArabic
-        ? "الرحلة غير متاحة خلال الفترة المطلوبة"
-        : "Trip is unavailable for the requested period",
+      "TRIP_UNAVAILABLE",
       400,
       "trip",
     );
@@ -285,9 +286,10 @@ export const checkTripAvailability = async ({
   return {
     canBook: true,
     trip,
-    availableSeats: availability.minAvailable,
-    requestedSeats: pilgrimsCount,
-    availabilityReason: availability.reason,
+    departure,
+    availableSeats: Number(inventory.available || 0),
+    requestedSeats,
+    availabilityReason: "available",
   };
 };
 
@@ -313,7 +315,6 @@ export const checkTransportAvailability = async ({
   endDate,
   req = null,
 }) => {
-  const isArabic = getLanguage(req);
 
   if (!transportId) {
     return {
@@ -326,17 +327,14 @@ export const checkTransportAvailability = async ({
 
   if (!transport) {
     throw new AppError(
-      isArabic ? "وسيلة النقل غير موجودة" : "Transport not found",
+      "TRANSPORT_NOT_FOUND",
       404,
       "transport",
     );
   }
 
   if (!transport.isActive) {
-    throw new AppError(
-      isArabic
-        ? "وسيلة النقل غير متاحة حالياً"
-        : "Transport is currently unavailable",
+    throw new AppError("TRANSPORT_INACTIVE",
       400,
       "transport",
     );
@@ -346,9 +344,7 @@ export const checkTransportAvailability = async ({
 
   if (capacity > 0 && capacity < pilgrimsCount) {
     throw new AppError(
-      isArabic
-        ? `سعة وسيلة النقل لا تكفي عدد المعتمرين`
-        : `Transport capacity is not enough`,
+      "TRANSPORT_CAPACITY_INSUFFICIENT",
       400,
       "transport",
     );
@@ -365,7 +361,7 @@ export const checkTransportAvailability = async ({
     });
     if (!availability.isAvailable) {
       throw new AppError(
-        isArabic ? "وسيلة النقل غير متاحة خلال الفترة المطلوبة" : "Transport is unavailable for the requested period",
+        "TRANSPORT_UNAVAILABLE",
         400,
         "transport",
       );
@@ -450,10 +446,9 @@ export const checkBookingAvailability = async ({
   if (data.trip) {
     result.trip = await checkTripAvailability({
       tripId: data.trip,
+      departureId: data.tripDeparture || data.bookingItems?.trip?.departureId,
       pilgrimsCount,
       Trip,
-      startDate: availabilityStart,
-      endDate: availabilityEnd,
       req,
     });
   }

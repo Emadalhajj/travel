@@ -24,6 +24,7 @@ DraftBooking يمكن أن يحتوي على programId قبل تحويله إل�
 */
 
 import mongoose from "mongoose";
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
 
 import {
   UMRAH_PROGRAM_STATUS,
@@ -212,8 +213,8 @@ const umrahProgramSchema = new mongoose.Schema(
 
       currency: {
         type: String,
-        enum: ["SAR", "USD", "EUR", "GBP", "AED", "EGP", "TRY"],
-        default: "SAR",
+        enum: SUPPORTED_CURRENCIES,
+        default: DEFAULT_CURRENCY,
       },
     },
 
@@ -312,8 +313,8 @@ const umrahProgramSchema = new mongoose.Schema(
 
         currency: {
         type: String,
-        enum: ["SAR", "USD", "EUR", "GBP", "AED", "EGP", "TRY"],
-        default: "SAR",
+        enum: SUPPORTED_CURRENCIES,
+        default: DEFAULT_CURRENCY,
       },
 
         productSnapshot: {

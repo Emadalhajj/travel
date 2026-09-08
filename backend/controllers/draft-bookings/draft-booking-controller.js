@@ -72,11 +72,11 @@ export const uploadDraftDocument = async (req, res, next) => {
       String(draft.user?._id || draft.user || "") !==
       String(req.user?._id || "")
     ) {
-      throw new AppError("غير مصرح برفع مرفقات لهذه المسودة", 403);
+      throw new AppError("DRAFT_ATTACHMENT_FORBIDDEN", 403);
     }
 
     if (!req.file) {
-      throw new AppError("لم يتم إرفاق ملف", 400);
+      throw new AppError("FILE_REQUIRED", 400);
     }
 
     res.status(201).json({

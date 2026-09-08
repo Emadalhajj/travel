@@ -10,6 +10,7 @@
 متوافق مع buildSearchQuery, buildPagination, populate, و Joi validation التي تستخدمها حالياً.
  */
 import mongoose from "mongoose";
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
 
 import {
   BOOKING_STATUS_LIST,
@@ -321,13 +322,30 @@ const bookingItemSchema = new mongoose.Schema(
       tripId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Trip",
+        default: null,
       },
 
-      tripNameAr: String,
-      tripNameEn: String,
+      departureId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "TripDeparture",
+        default: null,
+      },
 
-      travelDate: Date,
-      returnDate: Date,
+      tripNameAr: { type: String, default: "" },
+      tripNameEn: { type: String, default: "" },
+      tripType: { type: String, default: "" },
+      scope: { type: String, default: "" },
+      subtype: { type: String, default: "" },
+      source: { type: String, default: "" },
+      fromCity: { type: String, default: "" },
+      toCity: { type: String, default: "" },
+
+      departureAt: { type: Date, default: null },
+      arrivalAt: { type: Date, default: null },
+
+      // Legacy compatibility. Remove after old Booking migration.
+      travelDate: { type: Date, default: null },
+      returnDate: { type: Date, default: null },
 
       quantity: {
         type: Number,
@@ -485,6 +503,11 @@ Soft Delete Fields
       ref: "Trip",
     },
 
+    tripDeparture: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TripDeparture",
+    },
+
     transport: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Transport",
@@ -546,8 +569,8 @@ Soft Delete Fields
 
       currency: {
         type: String,
-        enum: ["SAR", "USD", "EUR", "GBP", "AED", "EGP", "TRY"],
-        default: "SAR",
+        enum: SUPPORTED_CURRENCIES,
+        default: DEFAULT_CURRENCY,
       },
     },
 

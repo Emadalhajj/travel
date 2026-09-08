@@ -21,6 +21,11 @@ import { useTranslation } from "react-i18next";
 import ActionButton from "../../common/buttons/ActionButton";
 import PublicButton from "../buttons/PublicButton";
 import { formatPrice } from "../../../Utils/roundPrice";
+import {
+  formatTravelRoute,
+  getProductSelectionId,
+  isTravelCategory,
+} from "../../../Utils/products/productSelection";
 
 export default function SelectedProductsSummary({
   selectedItems = [],
@@ -68,6 +73,9 @@ export default function SelectedProductsSummary({
     getLocalizedText(item.titleEn) ||
     "-";
 
+  const getItemQuantity = (item) =>
+    isTravelCategory(item.category) ? maxCapacity : item.quantity || maxCapacity;
+
   const actionLabel = () => {
     if (mode === "admin") {
       return loading
@@ -107,7 +115,7 @@ export default function SelectedProductsSummary({
           <div className="d-flex flex-column gap-3">
             {selectedItems.map((item) => (
               <div
-                key={`${item.category}-${item.productId}`}
+                key={`${item.category}-${getProductSelectionId(item)}`}
                 className="border rounded-3 p-3 bg-light"
               >
                 <div className="d-flex justify-content-between align-items-start gap-2">
@@ -118,9 +126,16 @@ export default function SelectedProductsSummary({
 
                     <h6 className="fw-bold mb-1">{getItemName(item)}</h6>
 
+                    {isTravelCategory(item.category) && (
+                      <div className="small text-muted mb-1 d-flex flex-column">
+                        <span>{item.tripType || item.subtype || "-"} — {formatTravelRoute(item)}</span>
+                        {item.departureAt && <span>{isArabic ? "المغادرة" : "Departure"}: {new Date(item.departureAt).toLocaleString(isArabic ? "ar-SA" : "en-GB")}</span>}
+                      </div>
+                    )}
+
                     <div className="small text-muted">
                       {isArabic ? "الكمية" : "Quantity"}:{" "}
-                      <strong>{item.quantity || maxCapacity}</strong>
+                      <strong>{getItemQuantity(item)}</strong>
                     </div>
 
                     <div className="small text-muted">
@@ -129,6 +144,19 @@ export default function SelectedProductsSummary({
                         {formatPrice(item.priceAtTime, item.currency)}
                       </strong>
                     </div>
+
+                    {isTravelCategory(item.category) && (
+                      <div className="small text-muted">
+                        {isArabic ? "الإجمالي" : "Total"}: {" "}
+                        <strong>
+                          {formatPrice(
+                            Number(item.priceAtTime || 0) *
+                              Number(getItemQuantity(item) || 1),
+                            item.currency,
+                          )}
+                        </strong>
+                      </div>
+                    )}
                   </div>
 
                   <ActionButton

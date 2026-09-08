@@ -9,7 +9,7 @@ const ADMIN_ROLES = new Set(["admin", "superAdmin"]);
 
 const safeFilename = (value) => {
   const filename = path.basename(String(value || ""));
-  if (!filename || filename !== value) throw new AppError("Invalid filename", 400);
+  if (!filename || filename !== value) throw new AppError("INVALID_FILENAME", 400);
   return filename;
 };
 
@@ -19,7 +19,7 @@ const sendPrivateFile = ({ res, folder, filename, downloadName }) => {
     path.resolve("uploads", folder, filename),
   ];
   const filePath = candidates.find((candidate) => fs.existsSync(candidate));
-  if (!filePath) throw new AppError("Document not found", 404);
+  if (!filePath) throw new AppError("DOCUMENT_NOT_FOUND", 404);
 
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Cache-Control", "private, no-store");
@@ -35,10 +35,10 @@ export const downloadDraftDocument = async (req, res, next) => {
       isDeleted: { $ne: true },
       ...accessFilter,
     }).lean();
-    if (!draft) throw new AppError("Document not found", 404);
+    if (!draft) throw new AppError("DOCUMENT_NOT_FOUND", 404);
 
     const associated = JSON.stringify(draft).includes(filename);
-    if (!associated) throw new AppError("Document not found", 404);
+    if (!associated) throw new AppError("DOCUMENT_NOT_FOUND", 404);
     return sendPrivateFile({ res, folder: "draft-bookings", filename });
   } catch (error) {
     return next(error);
@@ -58,7 +58,7 @@ export const downloadPaymentProof = async (req, res, next) => {
         { "proofAttachments.url": { $regex: `${filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$` } },
       ],
     }).select("proofAttachments").lean();
-    if (!transaction) throw new AppError("Document not found", 404);
+    if (!transaction) throw new AppError("DOCUMENT_NOT_FOUND", 404);
     const attachment = transaction.proofAttachments?.find((item) =>
       item.publicId === filename || String(item.url || "").endsWith(`/${filename}`),
     );
@@ -78,7 +78,7 @@ export const downloadLegacyPrivateFile = async (req, res, next) => {
     const filename = safeFilename(req.params.filename);
     const folder = String(req.params.folder || "");
     if (!new Set(["draft-bookings", "payment-proofs"]).has(folder)) {
-      throw new AppError("Document not found", 404);
+      throw new AppError("DOCUMENT_NOT_FOUND", 404);
     }
     const accessFilter = ADMIN_ROLES.has(req.user.role) ? {} : { user: req.user._id };
     const legacyUrl = `/uploads/${folder}/${filename}`;
@@ -92,14 +92,14 @@ export const downloadLegacyPrivateFile = async (req, res, next) => {
           { "proofAttachments.url": legacyUrl },
         ],
       }).select("proofAttachments").lean();
-      if (!transaction) throw new AppError("Document not found", 404);
+      if (!transaction) throw new AppError("DOCUMENT_NOT_FOUND", 404);
     } else {
       const drafts = await DraftBooking.find({
         isDeleted: { $ne: true },
         ...accessFilter,
       }).select("travelers hosts data").lean();
       if (!drafts.some((draft) => JSON.stringify(draft).includes(legacyUrl))) {
-        throw new AppError("Document not found", 404);
+        throw new AppError("DOCUMENT_NOT_FOUND", 404);
       }
     }
 

@@ -3,6 +3,7 @@
 Payment Configuration Constants
 =====================================================
 */
+import { CURRENCY_OPTIONS } from "../currencies";
 
 export const PAYMENT_SECTION_CODES = {
   PROGRAM_BOOKING: "PROGRAM_BOOKING",
@@ -264,20 +265,4 @@ Currency Options
 =====================================================
 */
 
-export const PAYMENT_CURRENCY_OPTIONS = [
-  {
-    value: "SAR",
-    labelAr: "ريال سعودي",
-    labelEn: "Saudi Riyal",
-  },
-  {
-    value: "USD",
-    labelAr: "دولار أمريكي",
-    labelEn: "US Dollar",
-  },
-  {
-    value: "EUR",
-    labelAr: "يورو",
-    labelEn: "Euro",
-  },
-];
+export const PAYMENT_CURRENCY_OPTIONS = CURRENCY_OPTIONS;

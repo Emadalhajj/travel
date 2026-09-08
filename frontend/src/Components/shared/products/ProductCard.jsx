@@ -1,5 +1,11 @@
 import { Card, Button, Badge } from "react-bootstrap";
 import { Check, Plus, Trash2 } from "lucide-react";
+import {
+  formatTravelRoute,
+  getProductSelectionId,
+  getTravelAvailableSeats,
+  isTravelCategory,
+} from "../../../Utils/products/productSelection";
 
 export default function ProductCard({
   product,
@@ -9,6 +15,7 @@ export default function ProductCard({
   onRemoveItem,
   lang = "ar",
   mode = "admin",
+  travelersCount = 1,
 }) {
   const isArabic = lang === "ar";
 
@@ -35,12 +42,7 @@ export default function ProductCard({
     return "";
   };
 
-  const productId =
-    product.productId ||
-    product._id ||
-    product.id ||
-    product.refId ||
-    product.itemId;
+  const productId = getProductSelectionId(product);
 
   const name =
     getLocalizedText(product.name) ||
@@ -93,6 +95,11 @@ export default function ProductCard({
     raw: product,
   };
 
+  const isTravel = isTravelCategory(category.key);
+  const availableSeats = isTravel ? getTravelAvailableSeats(product) : null;
+  const insufficientAvailability =
+    isTravel && availableSeats !== null && availableSeats < Number(travelersCount || 1);
+
   const handleAdd = () => {
     onAddItem?.(normalizedItem);
   };
@@ -127,6 +134,23 @@ export default function ProductCard({
           </p>
         )}
 
+        {isTravel && (
+          <div className="small text-muted mb-3 d-flex flex-column gap-1">
+            <span><strong>{formatTravelRoute(product)}</strong></span>
+            <span>{product.tripType || product.subtype || "-"}</span>
+            {product.departureAt && <span>{isArabic ? "المغادرة" : "Departure"}: {new Date(product.departureAt).toLocaleString(isArabic ? "ar-SA" : "en-GB")}</span>}
+            {product.arrivalAt && <span>{isArabic ? "الوصول" : "Arrival"}: {new Date(product.arrivalAt).toLocaleString(isArabic ? "ar-SA" : "en-GB")}</span>}
+            {product.airline && <span>{product.airline} {product.flightNumber || ""}</span>}
+            {product.cabinClass && <span>{isArabic ? "الدرجة" : "Cabin"}: {product.cabinClass}</span>}
+            {product.baggage && <span>{isArabic ? "الأمتعة" : "Baggage"}: {product.baggage}</span>}
+            {product.transport && <span>{isArabic ? "وسيلة النقل" : "Transport"}: {getLocalizedText(product.transport.name) || product.transport.vehicleType || product.transport.plateNumber || "-"}</span>}
+            {product.vesselName && <span>{product.vesselName}</span>}
+            {product.cabinTypes && <span>{isArabic ? "المقصورة" : "Cabin"}: {getLocalizedText(product.cabinTypes)}</span>}
+            {product.mealsIncluded !== undefined && <span>{isArabic ? "الوجبات" : "Meals"}: {product.mealsIncluded ? (isArabic ? "مشمولة" : "Included") : (isArabic ? "غير مشمولة" : "Not included")}</span>}
+            {availableSeats !== null && <span className={insufficientAvailability ? "text-danger" : "text-success"}>{isArabic ? "المقاعد المتاحة" : "Available seats"}: {availableSeats}</span>}
+          </div>
+        )}
+
         <div className="mt-auto">
           <div className="fw-bold text-success mb-3">
             {Number(price || 0).toLocaleString(
@@ -149,9 +173,12 @@ export default function ProductCard({
               variant="success"
               className="w-100 d-flex align-items-center justify-content-center gap-2"
               onClick={handleAdd}
+              disabled={insufficientAvailability}
             >
               <Plus size={16} />
-              {isArabic ? "إضافة" : "Add"}
+              {insufficientAvailability
+                ? (isArabic ? `المتاح ${availableSeats} فقط` : `Only ${availableSeats} available`)
+                : (isArabic ? "إضافة" : "Add")}
             </Button>
           )}
         </div>

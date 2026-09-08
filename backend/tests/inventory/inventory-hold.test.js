@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { INVENTORY_HOLD_STATUSES } from "../../constants/inventory/inventory-hold-statuses.js";
+import { INVENTORY_RESERVATION_MODES } from "../../constants/inventory/inventory-reservation-modes.js";
+import { INVENTORY_TYPES } from "../../constants/inventory/inventory-types.js";
+import InventoryHoldModel from "../../models/inventory-hold-model.js";
 import { createInventoryHoldServiceLayer } from "../../services/booking/inventory-hold-service.js";
 
 const clone = (value) => structuredClone(value);
@@ -87,6 +90,7 @@ const setup = ({
   dailyCapacity = 10,
   programCapacity = 10,
   failDailyAt = 0,
+  failSingleAt = 0,
   reserveDelayMs = 0,
 } = {}) => {
   const store = createHoldStore();
@@ -94,11 +98,15 @@ const setup = ({
   let dailyReserved = 0;
   let programReserved = 0;
   let dailyCalls = 0;
+  let singleReserved = 0;
+  let singleCalls = 0;
+  const operations = [];
   const services = createInventoryHoldServiceLayer({
     HoldModel: store.HoldModel,
     InventoryModel: {},
     reserveDailyInventory: async ({ requested }) => {
       dailyCalls += 1;
+      operations.push("reserve:PERIOD");
       if (reserveDelayMs) {
         await new Promise((resolve) => setTimeout(resolve, reserveDelayMs));
       }
@@ -108,7 +116,23 @@ const setup = ({
       dailyReserved += requested;
     },
     releaseDailyInventory: async ({ released }) => {
+      operations.push("release:PERIOD");
       dailyReserved = Math.max(dailyReserved - released, 0);
+    },
+    reserveSingleInventoryRecord: async ({ requested }) => {
+      singleCalls += 1;
+      operations.push("reserve:SINGLE");
+      if (
+        singleCalls === failSingleAt ||
+        singleReserved + requested > dailyCapacity
+      ) {
+        throw new Error("insufficient single inventory");
+      }
+      singleReserved += requested;
+    },
+    releaseSingleInventoryRecord: async ({ released }) => {
+      operations.push("release:SINGLE");
+      singleReserved = Math.max(singleReserved - released, 0);
     },
     reserveSeats: async ({ seats }) => {
       if (programReserved + seats > programCapacity) throw new Error("insufficient seats");
@@ -123,6 +147,8 @@ const setup = ({
     ...services,
     store,
     counts: () => ({ dailyReserved, programReserved }),
+    inventoryCounts: () => ({ dailyReserved, singleReserved }),
+    operations: () => [...operations],
     setNow: (value) => {
       currentNow = new Date(value);
     },
@@ -136,6 +162,123 @@ const inventoryResource = (quantity = 2, itemId = "000000000000000000000001") =>
   endDate: "2026-09-03",
   quantity,
   defaultTotal: 10,
+});
+
+const singleInventoryResource = (
+  quantity = 2,
+  itemId = "000000000000000000000009",
+) => ({
+  inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+  reservationMode: INVENTORY_RESERVATION_MODES.SINGLE,
+  itemId,
+  date: "2026-09-02T08:00:00.000Z",
+  quantity,
+  defaultTotal: 10,
+});
+
+test("InventoryHold validates fields required by each reservation mode", async () => {
+  const base = {
+    idempotencyKey: "mode-validation",
+    expiresAt: "2026-09-10T00:00:00.000Z",
+  };
+
+  await assert.rejects(
+    () => new InventoryHoldModel({
+      ...base,
+      inventoryReservations: [{
+        ...singleInventoryResource(),
+        date: null,
+      }],
+    }).validate(),
+    /date is required for SINGLE/,
+  );
+
+  await assert.rejects(
+    () => new InventoryHoldModel({
+      ...base,
+      inventoryReservations: [{
+        ...inventoryResource(),
+        endDate: null,
+      }],
+    }).validate(),
+    /startDate and endDate are required for PERIOD/,
+  );
+
+  const legacy = new InventoryHoldModel({
+    ...base,
+    inventoryReservations: [inventoryResource()],
+  });
+  await legacy.validate();
+  assert.equal(
+    legacy.inventoryReservations[0].reservationMode,
+    INVENTORY_RESERVATION_MODES.PERIOD,
+  );
+});
+
+test("mixed hold dispatches PERIOD and SINGLE resources to their operations", async () => {
+  const fixture = setup();
+  const hold = await fixture.createInventoryHoldService({
+    idempotencyKey: "mixed-modes",
+    inventoryReservations: [inventoryResource(2), singleInventoryResource(3)],
+  });
+
+  assert.equal(hold.status, INVENTORY_HOLD_STATUSES.HELD);
+  assert.deepEqual(fixture.inventoryCounts(), {
+    dailyReserved: 2,
+    singleReserved: 3,
+  });
+  assert.deepEqual(fixture.operations(), ["reserve:PERIOD", "reserve:SINGLE"]);
+
+  await fixture.releaseInventoryHoldService({ holdId: hold._id });
+  assert.deepEqual(fixture.inventoryCounts(), {
+    dailyReserved: 0,
+    singleReserved: 0,
+  });
+  assert.deepEqual(fixture.operations().slice(-2), ["release:SINGLE", "release:PERIOD"]);
+});
+
+test("failure after PERIOD and SINGLE reservations rolls both back in reverse order", async () => {
+  const fixture = setup({ failDailyAt: 2 });
+
+  await assert.rejects(() => fixture.createInventoryHoldService({
+    idempotencyKey: "mixed-rollback",
+    inventoryReservations: [
+      inventoryResource(2),
+      singleInventoryResource(3),
+      inventoryResource(1, "000000000000000000000002"),
+    ],
+  }));
+
+  assert.deepEqual(fixture.inventoryCounts(), {
+    dailyReserved: 0,
+    singleReserved: 0,
+  });
+  assert.deepEqual(fixture.operations(), [
+    "reserve:PERIOD",
+    "reserve:SINGLE",
+    "reserve:PERIOD",
+    "release:SINGLE",
+    "release:PERIOD",
+  ]);
+});
+
+test("a failed SINGLE reservation releases an earlier PERIOD reservation", async () => {
+  const fixture = setup({ failSingleAt: 1 });
+
+  await assert.rejects(() => fixture.createInventoryHoldService({
+    idempotencyKey: "single-failure",
+    inventoryReservations: [inventoryResource(2), singleInventoryResource(3)],
+  }));
+
+  assert.deepEqual(fixture.inventoryCounts(), {
+    dailyReserved: 0,
+    singleReserved: 0,
+  });
+  assert.deepEqual(fixture.operations(), [
+    "reserve:PERIOD",
+    "reserve:SINGLE",
+    "release:PERIOD",
+  ]);
 });
 
 test("creates a hold by reserving program seats and daily inventory", async () => {
@@ -160,6 +303,24 @@ test("concurrent holds cannot exceed the atomic inventory capacity", async () =>
   assert.equal(results.filter(({ status }) => status === "fulfilled").length, 1);
   assert.equal(results.filter(({ status }) => status === "rejected").length, 1);
   assert.equal(fixture.counts().dailyReserved, 3);
+});
+
+test("concurrent TripDeparture holds cannot oversell SINGLE inventory", async () => {
+  const fixture = setup({ dailyCapacity: 5, reserveDelayMs: 5 });
+  const results = await Promise.allSettled([
+    fixture.createInventoryHoldService({
+      idempotencyKey: "trip-race-1",
+      inventoryReservations: [singleInventoryResource(3)],
+    }),
+    fixture.createInventoryHoldService({
+      idempotencyKey: "trip-race-2",
+      inventoryReservations: [singleInventoryResource(3)],
+    }),
+  ]);
+
+  assert.equal(results.filter(({ status }) => status === "fulfilled").length, 1);
+  assert.equal(results.filter(({ status }) => status === "rejected").length, 1);
+  assert.equal(fixture.inventoryCounts().singleReserved, 3);
 });
 
 test("a partial create failure rolls back all resources already reserved", async () => {

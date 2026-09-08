@@ -33,12 +33,16 @@ Models
 import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import Booking from "../../models/booking/booking-model.js";
 import BookingLog from "../../models/bookingLog-model.js";
-import Inventory from "../../models/inventory-model.js";
 import PaymentTransaction from "../../models/payments/paymentTransaction-model.js";
+import TripDeparture from "../../models/transportition/trip-departure-model.js";
+import Trip from "../../models/transportition/trip-model.js";
+import Inventory from "../../models/inventory-model.js";
 import { Counter } from "../../models/counterModel.js";
 import AppError from "../../utils/AppError.js";
 import { deleteLocalUpload } from "../../utils/deleteLocalUpload.js";
 import { buildPagination } from "../../utils/Builders/buildPagination.js";
+import { INVENTORY_TYPES } from "../../constants/inventory/inventory-types.js";
+import { normalizeInventoryDate } from "../booking/inventory-service.js";
 
 import {
   attachBookingToPaymentTransactionService,
@@ -65,6 +69,7 @@ Constants
 import {
   DRAFT_BOOKING_STATUS,
 } from "../../constants/draft-bookings/draft-booking-status.js";
+import { TRIP_DEPARTURE_STATUS } from "../../constants/trips/trip-departure.constants.js";
 
 import {
   BOOKING_STATUS,
@@ -78,25 +83,10 @@ import {
   BOOKING_STEPS,
 } from "../../constants/booking/booking-steps.js";
 
-/*
-=====================================================
-Inventory Services
-=====================================================
-*/
-
-import {
-  reserveInventory,
-  releaseInventory,
-} from "../booking/inventory-service.js";
-
-import {
-  reserveProgramSeats,
-  releaseProgramSeats,
-} from "../umrah-programs/umrah-program-service.js";
-
 import {
   commitInventoryHoldService,
   getInventoryHoldForCommitService,
+  releaseInventoryHoldService,
 } from "../booking/inventory-hold-service.js";
 
 /*
@@ -148,6 +138,127 @@ const generateBookingNumber = async () => {
   return `BK-${String(counter.seq).padStart(6, "0")}`;
 };
 
+const getSelectedTripProduct = (data = {}) => {
+  const products = data?.selectedProducts || data?.selectedProductsList || [];
+  if (!Array.isArray(products)) return null;
+
+  return products.find((item) =>
+    ["trip", "ticket", "flight"].includes(
+      String(item?.type || "").toLowerCase(),
+    ),
+  ) || null;
+};
+
+const getRequestedDraftTrip = (data = {}) => {
+  if (Object.hasOwn(data, "trip")) return data.trip;
+  const product = getSelectedTripProduct(data.data);
+  if (!product) return null;
+
+  return {
+    tripId: product.tripId || product.refId || product.productId || null,
+    departureId: product.departureId || null,
+    quantity: product.quantity,
+    chargeType: product.chargeType,
+  };
+};
+
+const resolveDraftTripSnapshot = async (requestedTrip, requestedSeats = 1) => {
+  if (!requestedTrip) return null;
+
+  if (!requestedTrip.departureId || !requestedTrip.tripId) {
+    throw new AppError(
+      "TRIP_DEPARTURE_DATA_INCOMPLETE",
+      400,
+      "trip.departureId",
+    );
+  }
+
+  const departure = await TripDeparture.findOne({
+    _id: requestedTrip.departureId,
+    status: TRIP_DEPARTURE_STATUS.SCHEDULED,
+    isActive: true,
+    isDeleted: false,
+    departureAt: { $gt: new Date() },
+  })
+    .select("tripId departureAt arrivalAt source pricing")
+    .lean();
+
+  if (!departure) {
+    throw new AppError(
+      "TRIP_DEPARTURE_NOT_AVAILABLE",
+      400,
+      "trip.departureId",
+      { id: requestedTrip.departureId },
+    );
+  }
+
+  if (String(departure.tripId) !== String(requestedTrip.tripId)) {
+    throw new AppError("TRIP_DEPARTURE_TRIP_MISMATCH", 400, "trip.tripId");
+  }
+
+  const inventory = await Inventory.findOne({
+    inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+    itemId: departure._id,
+    date: normalizeInventoryDate(departure.departureAt),
+    isActive: true,
+    isDeleted: { $ne: true },
+    available: { $gte: getPositiveInteger(requestedSeats, 1) },
+  })
+    .select("_id")
+    .lean();
+
+  if (!inventory) {
+    throw new AppError(
+      "TRIP_DEPARTURE_NOT_AVAILABLE",
+      400,
+      "trip.departureId",
+      { id: requestedTrip.departureId },
+    );
+  }
+
+  const trip = await Trip.findOne({
+    _id: departure.tripId,
+    isActive: true,
+    isDeleted: false,
+  })
+    .select("nameAr nameEn type scope subtype source fromCity toCity")
+    .lean();
+
+  if (!trip) {
+    throw new AppError(
+      "TRIP_DEPARTURE_NOT_AVAILABLE",
+      400,
+      "trip.departureId",
+      { id: requestedTrip.departureId },
+    );
+  }
+
+  const unitPrice = Number(
+    departure.pricing?.discountPrice || departure.pricing?.basePrice || 0,
+  );
+
+  return {
+    tripId: departure.tripId,
+    departureId: departure._id,
+    nameAr: trip.nameAr || "",
+    nameEn: trip.nameEn || "",
+    tripType: trip.type || "",
+    scope: trip.scope || "",
+    subtype: trip.subtype || "",
+    source: departure.source || trip.source || "",
+    fromCity: trip.fromCity || "",
+    toCity: trip.toCity || "",
+    departureAt: departure.departureAt,
+    arrivalAt: departure.arrivalAt || null,
+    quantity: getPositiveInteger(requestedTrip.quantity, 1),
+    chargeType: String(
+      requestedTrip.chargeType || "PER_TRAVELER",
+    ).toUpperCase(),
+    unitPrice,
+    currency: departure.pricing?.currency || "SAR",
+  };
+};
+
 const normalizeDraftData = (data = {}) => {
   return {
     customer: data.customer || {},
@@ -155,6 +266,7 @@ const normalizeDraftData = (data = {}) => {
     hosts: Array.isArray(data.hosts) ? data.hosts : [],
     program: data.program || null,
     hotel: data.hotel || null,
+    trip: getRequestedDraftTrip(data),
     transport: data.transport || null,
     pricing: data.pricing || {},
     currentStep: data.currentStep || "customer_info",
@@ -182,7 +294,7 @@ const validateCustomerPhone = (phone) => {
   // يسمح بإنشاء مسودة أولية فارغة، لكن أي رقم مرسل يجب أن يكون صالحًا.
   if (normalizedPhone && !/^\+?\d{7,15}$/.test(normalizedPhone)) {
     throw new AppError(
-      "رقم الجوال يجب أن يتكون من 7 إلى 15 رقمًا دون حروف",
+      "PHONE_INVALID",
       400,
       "customer.phone",
     );
@@ -196,9 +308,9 @@ const validateHostAssignments = ({ hosts = [], travelers = [] }) => {
   for (const host of Array.isArray(hosts) ? hosts : []) {
     const hostId = String(host?.hostId || "").trim();
     const nationalId = String(host?.nationalId || "").trim();
-    if (!hostId) throw new AppError("معرف المستضيف مطلوب", 400, "hosts");
-    if (hostIds.has(hostId)) throw new AppError("يوجد مستضيف مكرر في الحجز", 400, "hosts");
-    if (nationalId && nationalIds.has(nationalId)) throw new AppError("لا يمكن إضافة نفس المستضيف أكثر من مرة", 400, "hosts");
+    if (!hostId) throw new AppError("HOST_ID_REQUIRED", 400, "hosts");
+    if (hostIds.has(hostId)) throw new AppError("DUPLICATE_HOST", 400, "hosts");
+    if (nationalId && nationalIds.has(nationalId)) throw new AppError("HOST_ALREADY_ADDED", 400, "hosts");
     hostIds.add(hostId);
     if (nationalId) nationalIds.add(nationalId);
   }
@@ -207,9 +319,9 @@ const validateHostAssignments = ({ hosts = [], travelers = [] }) => {
   for (const traveler of Array.isArray(travelers) ? travelers : []) {
     const hostId = String(traveler?.hostId || "").trim();
     if (!hostId) continue;
-    if (!hostIds.has(hostId)) throw new AppError("المستضيف المرتبط بالمعتمر غير موجود في الحجز", 400, "travelers");
+    if (!hostIds.has(hostId)) throw new AppError("TRAVELER_HOST_NOT_FOUND", 400, "travelers");
     const count = (assignments.get(hostId) || 0) + 1;
-    if (count > 5) throw new AppError("لا يمكن ربط أكثر من 5 معتمرين بالمستضيف الواحد", 400, "travelers");
+    if (count > 5) throw new AppError("HOST_TRAVELER_LIMIT_EXCEEDED", 400, "travelers");
     assignments.set(hostId, count);
   }
 };
@@ -218,9 +330,10 @@ const validateRequiredDraftDocuments = ({ travelers = [], hosts = [] }) => {
   for (const [index, traveler] of (Array.isArray(travelers) ? travelers : []).entries()) {
     if (!String(traveler?.passportImage || "").trim()) {
       throw new AppError(
-        `صورة جواز المعتمر رقم ${index + 1} مطلوبة`,
+        "TRAVELER_PASSPORT_REQUIRED",
         400,
         `travelers.${index}.passportImage`,
+        { index: index + 1 },
       );
     }
   }
@@ -228,17 +341,19 @@ const validateRequiredDraftDocuments = ({ travelers = [], hosts = [] }) => {
   for (const [index, host] of (Array.isArray(hosts) ? hosts : []).entries()) {
     if (!String(host?.idImage || "").trim()) {
       throw new AppError(
-        `صورة هوية أو إقامة المستضيف رقم ${index + 1} مطلوبة`,
+        "HOST_ID_DOCUMENT_REQUIRED",
         400,
         `hosts.${index}.idImage`,
+        { index: index + 1 },
       );
     }
 
     if (!String(host?.nationalAddressImage || "").trim()) {
       throw new AppError(
-        `صورة العنوان الوطني للمستضيف رقم ${index + 1} مطلوبة`,
+        "HOST_ADDRESS_DOCUMENT_REQUIRED",
         400,
         `hosts.${index}.nationalAddressImage`,
+        { index: index + 1 },
       );
     }
   }
@@ -603,6 +718,21 @@ export const buildBookingItemsFromDraft = (
       ),
     );
 
+  const draftTrip = draft.trip || null;
+  const departureId =
+    draftTrip?.departureId ||
+    tripProduct?.departureId ||
+    (tripProduct?.tripId
+      ? tripProduct?._id || tripProduct?.refId || tripProduct?.productId
+      : null);
+  const hasDepartureIdentity = Boolean(departureId);
+  const resolvedTripId =
+    draftTrip?.tripId ||
+    tripProduct?.tripId ||
+    (!hasDepartureIdentity
+      ? tripProduct?.refId || tripProduct?.productId || null
+      : null);
+
   const transportProduct =
     selectedProducts.find((item) =>
       [
@@ -727,44 +857,60 @@ export const buildBookingItemsFromDraft = (
     },
 
     trip: {
-      tripId:
-        tripProduct?.tripId ||
-        tripProduct?.refId ||
-        tripProduct?.productId ||
-        null,
+      tripId: resolvedTripId,
+      departureId,
       tripNameAr:
+        draftTrip?.nameAr ||
         tripProduct?.nameAr ||
         tripProduct?.name?.ar ||
         "",
       tripNameEn:
+        draftTrip?.nameEn ||
         tripProduct?.nameEn ||
         tripProduct?.name?.en ||
         "",
+      tripType: draftTrip?.tripType || tripProduct?.tripType || "",
+      scope: draftTrip?.scope || tripProduct?.scope || "",
+      subtype: draftTrip?.subtype || tripProduct?.subtype || "",
+      source: draftTrip?.source || tripProduct?.source || "",
+      fromCity: draftTrip?.fromCity || tripProduct?.fromCity || "",
+      toCity: draftTrip?.toCity || tripProduct?.toCity || "",
+      departureAt:
+        draftTrip?.departureAt || tripProduct?.departureAt || null,
+      arrivalAt:
+        draftTrip?.arrivalAt || tripProduct?.arrivalAt || null,
       travelDate:
+        draftTrip?.departureAt ||
+        tripProduct?.departureAt ||
         tripProduct?.travelDate ||
         draft.program?.startDate ||
         null,
       returnDate:
+        draftTrip?.arrivalAt ||
+        tripProduct?.arrivalAt ||
         tripProduct?.returnDate ||
         draft.program?.endDate ||
         null,
       quantity:
         getPositiveInteger(
-          tripProduct?.quantity || 1,
+          draftTrip?.quantity ?? tripProduct?.quantity ?? 1,
           1,
         ),
       chargeType:
         String(
-          tripProduct?.chargeType ||
+          draftTrip?.chargeType || tripProduct?.chargeType ||
           "PER_TRAVELER",
         ).toUpperCase(),
       unitPrice:
-        getProductUnitPrice(
-          tripProduct || {},
+        getFirstPositiveNumber(
+          draftTrip?.unitPrice,
+          tripProduct?.pricingSnapshot?.unitPrice,
+          getProductUnitPrice(tripProduct || {}),
         ),
       price:
-        getProductUnitPrice(
-          tripProduct || {},
+        getFirstPositiveNumber(
+          draftTrip?.unitPrice,
+          getProductUnitPrice(tripProduct || {}),
         ),
     },
 
@@ -815,6 +961,15 @@ export const buildBookingItemsFromDraft = (
     },
   };
 };
+
+export const buildBookingProductReferences = (bookingItems = {}) => ({
+  hotel: bookingItems.room?.hotelId || undefined,
+  roomType: bookingItems.room?.roomTypeId || undefined,
+  visa: bookingItems.visa?.visaId || undefined,
+  trip: bookingItems.trip?.tripId || undefined,
+  tripDeparture: bookingItems.trip?.departureId || undefined,
+  transport: bookingItems.transport?.transportId || undefined,
+});
 
 /*
 =====================================================
@@ -1137,6 +1292,10 @@ export const buildBookingPaymentFromDraft = (
 
 export const createDraftBooking = async ({ data = {}, userId }) => {
   const normalized = normalizeDraftData(data);
+  normalized.trip = await resolveDraftTripSnapshot(
+    normalized.trip,
+    normalized.travelers.length || normalized.data?.searchCriteria?.travelersCount || 1,
+  );
   validateCustomerPhone(normalized.customer?.phone);
   validateHostAssignments({ hosts: normalized.hosts, travelers: normalized.travelers });
 
@@ -1148,6 +1307,7 @@ export const createDraftBooking = async ({ data = {}, userId }) => {
     hosts: normalized.hosts,
     program: normalized.program,
     hotel: normalized.hotel,
+    trip: normalized.trip,
     transport: normalized.transport,
     pricing: normalized.pricing,
     data: normalized.data,
@@ -1160,7 +1320,6 @@ export const createDraftBooking = async ({ data = {}, userId }) => {
 
   return draft;
 };
-
 export const updateDraftBooking = async ({ draftId, data, userId }) => {
   const draft = await DraftBooking.findOne({
     _id: draftId,
@@ -1168,15 +1327,15 @@ export const updateDraftBooking = async ({ draftId, data, userId }) => {
   });
 
   if (!draft) {
-    throw new AppError("Draft booking not found", 404);
+    throw new AppError("DRAFT_BOOKING_NOT_FOUND", 404);
   }
 
   if (userId && String(draft.user || "") !== String(userId)) {
-    throw new AppError("غير مصرح بتعديل هذه المسودة", 403);
+    throw new AppError("DRAFT_UPDATE_FORBIDDEN", 403);
   }
 
   if (draft.status !== DRAFT_BOOKING_STATUS.DRAFT) {
-    throw new AppError("Only draft bookings can be updated", 400);
+    throw new AppError("DRAFT_STATUS_UPDATE_FORBIDDEN", 400);
   }
 
   const previousDocumentPaths = collectDraftDocumentPaths(draft);
@@ -1210,6 +1369,21 @@ export const updateDraftBooking = async ({ draftId, data, userId }) => {
 
   if (data.hotel !== undefined) {
     draft.hotel = data.hotel;
+  }
+
+  const hasSelectedTripUpdate = Boolean(
+    data.data &&
+    (Object.hasOwn(data.data, "selectedProducts") ||
+      Object.hasOwn(data.data, "selectedProductsList")),
+  );
+  if (data.trip !== undefined || hasSelectedTripUpdate) {
+    draft.trip = await resolveDraftTripSnapshot(
+      getRequestedDraftTrip(data),
+      data.travelers?.length ||
+        data.data?.searchCriteria?.travelersCount ||
+        draft.travelers?.length ||
+        1,
+    );
   }
 
   if (data.transport !== undefined) {
@@ -1605,195 +1779,6 @@ const createPaymentTransactionFromDraft = async ({
 };
 // =======================
 
-/*
-=====================================================
-reserveInventoryFromDraft
-=====================================================
-*/
-
-const reserveInventoryFromDraft = async ({
-  draft,
-  bookingItems,
-  travelersCount = 1,
-  req = null,
-}) => {
-  const results = [];
-  const safeTravelersCount =
-    getPositiveInteger(
-      travelersCount,
-      1,
-    );
-
-  const room = bookingItems?.room;
-  const trip = bookingItems?.trip;
-  const transport = bookingItems?.transport;
-  const visa = bookingItems?.visa;
-
-  try {
-    if (room?.roomTypeId && room?.checkIn && room?.checkOut) {
-      const requestedRooms =
-        getPositiveInteger(
-          room.quantity,
-          1,
-        );
-
-      const roomResult = await reserveInventory({
-        Inventory,
-        inventoryType: "roomType",
-        itemId: room.roomTypeId,
-        startDate: room.checkIn,
-        endDate: room.checkOut,
-        requested: requestedRooms,
-        defaultTotal: 0,
-        req,
-      });
-
-      results.push({
-        type: "roomType",
-        itemId: room.roomTypeId,
-        startDate: room.checkIn,
-        endDate: room.checkOut,
-        requested: requestedRooms,
-        result: roomResult,
-      });
-    }
-
-    if (trip?.tripId && trip?.travelDate && trip?.returnDate) {
-      const requestedTripSeats =
-        trip.chargeType === "PER_UNIT"
-          ? getPositiveInteger(
-              trip.quantity,
-              1,
-            )
-          : safeTravelersCount;
-
-      const tripResult = await reserveInventory({
-        Inventory,
-        inventoryType: "trip",
-        itemId: trip.tripId,
-        startDate: trip.travelDate,
-        endDate: trip.returnDate,
-        requested: requestedTripSeats,
-        defaultTotal: 0,
-        req,
-      });
-
-      results.push({
-        type: "trip",
-        itemId: trip.tripId,
-        startDate: trip.travelDate,
-        endDate: trip.returnDate,
-        requested: requestedTripSeats,
-        result: tripResult,
-      });
-    }
-
-    if (
-      transport?.transportId &&
-      transport?.startDate &&
-      transport?.endDate
-    ) {
-      let requestedTransport = 1;
-
-      if (
-        transport.chargeType ===
-        "PER_TRAVELER"
-      ) {
-        requestedTransport =
-          safeTravelersCount;
-      } else {
-        requestedTransport =
-          getPositiveInteger(
-            transport.quantity,
-            1,
-          );
-      }
-
-      const transportResult = await reserveInventory({
-        Inventory,
-        inventoryType: "transport",
-        itemId: transport.transportId,
-        startDate: transport.startDate,
-        endDate: transport.endDate,
-        requested: requestedTransport,
-        defaultTotal: 0,
-        req,
-      });
-
-      results.push({
-        type: "transport",
-        itemId: transport.transportId,
-        startDate: transport.startDate,
-        endDate: transport.endDate,
-        requested: requestedTransport,
-        result: transportResult,
-      });
-    }
-
-    if (visa?.visaId && draft.program?.startDate && draft.program?.endDate) {
-      const requestedVisas =
-        visa.chargeType === "PER_UNIT"
-          ? getPositiveInteger(
-              visa.quantity,
-              1,
-            )
-          : safeTravelersCount;
-
-      const visaResult = await reserveInventory({
-        Inventory,
-        inventoryType: "visa",
-        itemId: visa.visaId,
-        startDate: draft.program.startDate,
-        endDate: draft.program.endDate,
-        requested: requestedVisas,
-        defaultTotal: 0,
-        req,
-      });
-
-      results.push({
-        type: "visa",
-        itemId: visa.visaId,
-        startDate: draft.program.startDate,
-        endDate: draft.program.endDate,
-        requested: requestedVisas,
-        result: visaResult,
-      });
-    }
-
-    return results;
-  } catch (error) {
-    if (results.length) {
-      await rollbackInventoryReservations({
-        inventoryReservations: results,
-        req,
-      });
-    }
-
-    throw error;
-  }
-};
-//==================== هلبر لإرجاع المخزون تلقائيًا عند فشل تحويل المسودة إلى حجز
-const rollbackInventoryReservations = async ({
-  inventoryReservations = [],
-  req = null,
-}) => {
-  for (const reservation of inventoryReservations) {
-    try {
-      await releaseInventory({
-        Inventory,
-        inventoryType: reservation.type,
-        itemId: reservation.itemId,
-        startDate: reservation.startDate,
-        endDate: reservation.endDate,
-        released: reservation.requested || 1,
-        req,
-      });
-    } catch (error) {
-      console.error("Inventory rollback failed:", error);
-    }
-  }
-};
-
 export const convertDraftToBooking = async ({
   draftId,
   userId,
@@ -1835,7 +1820,7 @@ export const convertDraftToBooking = async ({
       if (inventoryHoldId) {
         if (!paymentData?.paymentTransactionId) {
           throw new AppError(
-            "Payment transaction is required when converting with an inventory hold",
+            "PAYMENT_REQUIRED_FOR_HOLD_CONVERSION",
             400,
             "paymentTransaction",
           );
@@ -1890,10 +1875,11 @@ export const convertDraftToBooking = async ({
   validateRequiredDraftDocuments({ hosts: draft.hosts, travelers: draft.travelers });
 
   let inventoryHold = null;
+  let ownsInventoryHold = false;
   if (inventoryHoldId) {
     if (!paymentData?.paymentTransactionId) {
       throw new AppError(
-        "Payment transaction is required when converting with an inventory hold",
+        "PAYMENT_REQUIRED_FOR_HOLD_CONVERSION",
         400,
         "paymentTransaction",
       );
@@ -1924,8 +1910,7 @@ export const convertDraftToBooking = async ({
   const payment = buildBookingPaymentFromDraft(draft, pricing, paymentData);
   const bookingItems = buildBookingItemsFromDraft(draft);
 
-  let inventoryReservations = [];
-  let programSeatsReserved = false;
+  let inventoryReservations = inventoryHold?.inventoryReservations || [];
   let booking = null;
   let paymentTransaction = null;
   let voucher = null;
@@ -1937,33 +1922,18 @@ export const convertDraftToBooking = async ({
   };
 
   try {
-    /*
-    =====================================================
-    3) حجز المخزون Inventory Reservation
-
-    مهم:
-    إذا فشل أي شيء بعد هذه الخطوة وقبل اكتمال الحجز،
-    سيتم تنفيذ rollbackInventoryReservations في catch.
-    =====================================================
-    */
-
-    if (!inventoryHold && draft.program?.programId) {
-      await reserveProgramSeats({
-        programId: draft.program.programId,
-        seats: pilgrims.length,
-        req,
-      });
-
-      programSeatsReserved = true;
-    }
-
     if (!inventoryHold) {
-      inventoryReservations = await reserveInventoryFromDraft({
+      const { ensureDraftInventoryHoldService } = await import(
+        "./draft-inventory-hold-service.js"
+      );
+      inventoryHold = await ensureDraftInventoryHoldService({
         draft,
-        bookingItems,
-        travelersCount: pilgrims.length,
+        idempotencyKey: `booking-conversion:${draft._id}`,
+        userId: userId || draft.user || null,
         req,
       });
+      ownsInventoryHold = Boolean(inventoryHold);
+      inventoryReservations = inventoryHold?.inventoryReservations || [];
     }
 
     /*
@@ -1999,11 +1969,7 @@ export const convertDraftToBooking = async ({
 
       hosts: Array.isArray(draft.hosts) ? draft.hosts : [],
 
-      hotel: bookingItems.room?.hotelId || undefined,
-      roomType: bookingItems.room?.roomTypeId || undefined,
-      visa: bookingItems.visa?.visaId || undefined,
-      trip: bookingItems.trip?.tripId || undefined,
-      transport: bookingItems.transport?.transportId || undefined,
+      ...buildBookingProductReferences(bookingItems),
 
       bookingItems,
 
@@ -2280,22 +2246,18 @@ export const convertDraftToBooking = async ({
     =====================================================
     */
 
-    if (!inventoryHold && inventoryReservations.length) {
-      await rollbackInventoryReservations({
-        inventoryReservations,
-        req,
-      });
-    }
-
-    if (!inventoryHold && programSeatsReserved && draft.program?.programId) {
+    if (ownsInventoryHold && inventoryHold?._id) {
       try {
-        await releaseProgramSeats({
-          programId: draft.program.programId,
-          seats: pilgrims.length,
+        await releaseInventoryHoldService({
+          holdId: inventoryHold._id,
+          reason: "Booking conversion failed",
           req,
         });
-      } catch (releaseError) {
-        console.error("Program seat rollback failed:", releaseError);
+      } catch (inventoryHoldRollbackError) {
+        console.error(
+          "Inventory hold rollback failed:",
+          inventoryHoldRollbackError,
+        );
       }
     }
 

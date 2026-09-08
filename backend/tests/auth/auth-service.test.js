@@ -94,7 +94,8 @@ test("unknown email and wrong password return the same 401 response", async () =
   ]) {
     await assert.rejects(
       () => service.loginUser(credentials),
-      ({ statusCode, message }) => statusCode === 401 && message === "Invalid credentials",
+      ({ statusCode, code }) =>
+        statusCode === 401 && code === "INVALID_CREDENTIALS",
     );
   }
 });

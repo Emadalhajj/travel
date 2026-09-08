@@ -8,17 +8,17 @@ export const getAvailablePackageProducts = asyncHandler(async (req, res) => {
   const { startDate, endDate, pilgrimsCount = 1 } = req.query;
 
   if (!startDate || !endDate) {
-    throw new AppError("startDate و endDate مطلوبة لجلب المنتجات المتاحة", 400);
+    throw new AppError("AVAILABILITY_DATES_REQUIRED", 400, "dates");
   }
 
   const normalizedStartDate = normalizeDate(startDate);
   const normalizedEndDate = normalizeDate(endDate);
 
   if (!normalizedStartDate || !normalizedEndDate) {
-    throw new AppError("صيغة التاريخ غير صحيحة", 400);
+    throw new AppError("INVALID_DATE_FORMAT", 400);
   }
   if (normalizedEndDate <= normalizedStartDate) {
-    throw new AppError("تاريخ نهاية البرنامج يجب أن يكون بعد تاريخ البداية", 400);
+    throw new AppError("PROGRAM_END_BEFORE_START", 400);
   }
 
   const data = await getAvailablePackageProductsService({

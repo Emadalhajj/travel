@@ -59,7 +59,7 @@ export const getOneVehicleRental = asyncHandler(async (req, res) => {
 
   if (!rental) {
     throw new AppError(
-      isArabic ? "عرض التأجير غير موجود" : "Vehicle rental not found",
+      "VEHICLE_RENTAL_NOT_FOUND",
       404,
       "vehicleRental",
     );
@@ -95,7 +95,7 @@ export const updateVehicleRental = asyncHandler(async (req, res) => {
 
   if (!rental) {
     throw new AppError(
-      isArabic ? "عرض التأجير غير موجود" : "Vehicle rental not found",
+      "VEHICLE_RENTAL_NOT_FOUND",
       404,
       "vehicleRental",
     );
@@ -122,7 +122,7 @@ export const deleteVehicleRental = asyncHandler(async (req, res) => {
 
   if (!rental) {
     throw new AppError(
-      isArabic ? "عرض التأجير غير موجود" : "Vehicle rental not found",
+      "VEHICLE_RENTAL_NOT_FOUND",
       404,
       "vehicleRental",
     );
@@ -147,7 +147,7 @@ export const toggleVehicleRentalActive = asyncHandler(async (req, res) => {
 
   if (!rental) {
     throw new AppError(
-      isArabic ? "عرض التأجير غير موجود" : "Vehicle rental not found",
+      "VEHICLE_RENTAL_NOT_FOUND",
       404,
       "vehicleRental",
     );

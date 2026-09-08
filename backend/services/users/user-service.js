@@ -14,7 +14,7 @@ import {
 
 const findTargetUser = async (targetUserId) => {
   const user = await User.findById(targetUserId);
-  if (!user) throw new AppError("User not found", 404, "user");
+  if (!user) throw new AppError("USER_NOT_FOUND", 404, "user");
   return user;
 };
 
@@ -42,7 +42,7 @@ export const getUsersService = async ({ query }) => {
 
 export const getUserByIdService = async ({ targetUserId }) => {
   const user = await User.findById(targetUserId).select("-password");
-  if (!user) throw new AppError("User not found", 404, "user");
+  if (!user) throw new AppError("USER_NOT_FOUND", 404, "user");
   return user;
 };
 

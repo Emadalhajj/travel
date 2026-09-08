@@ -26,6 +26,7 @@ import PackageSummaryPanel from "../../../Components/shared/products/PackageSumm
 import BookingProgressTimeline, {
   customPackageSteps,
 } from "../../../Components/shared/booking/BookingProgressTimeline";
+import { getProductSelectionId } from "../../../Utils/products/productSelection";
 
 export default function PublicCustomPackageBuilderPage() {
   const dispatch = useDispatch();
@@ -45,6 +46,7 @@ export default function PublicCustomPackageBuilderPage() {
     removeProduct,
     buildDraftCreatePayload,
     buildDraftUpdatePayload,
+    hasValidTravelSelection,
     resetBuilder,
   } = useCustomPackageBuilder();
 
@@ -89,8 +91,7 @@ export default function PublicCustomPackageBuilderPage() {
 
   const handleRemoveItem = (item) => {
     const category = item.category || item.type || "extraServices";
-    const itemId =
-      item._id || item.id || item.refId || item.itemId || item.productId;
+    const itemId = getProductSelectionId(item);
     if (itemId) removeProduct(category, itemId);
   };
 
@@ -146,6 +147,12 @@ export default function PublicCustomPackageBuilderPage() {
           "selectAtLeastOneService",
           "يجب اختيار خدمة واحدة على الأقل قبل المتابعة.",
         ),
+      );
+      return false;
+    }
+    if (!hasValidTravelSelection()) {
+      setValidationError(
+        t("invalidTravelSelection", "بيانات موعد الرحلة المختارة غير مكتملة، يرجى إعادة اختيارها."),
       );
       return false;
     }

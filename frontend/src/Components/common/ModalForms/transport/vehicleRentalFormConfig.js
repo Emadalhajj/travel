@@ -1,3 +1,5 @@
+import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "../../../../constants/currencies";
+
 export const vehicleRentalFormConfig = (transports = []) => ({
   commonFields: [
     {
@@ -64,12 +66,9 @@ export const vehicleRentalFormConfig = (transports = []) => ({
       labelEn: "Currency",
       type: "select",
       col: 6,
-      defaultValue: "SAR",
+      defaultValue: DEFAULT_CURRENCY,
       order: 5,
-      options: [
-        { value: "SAR", labelAr: "ريال سعودي", labelEn: "SAR" },
-        { value: "USD", labelAr: "دولار", labelEn: "USD" },
-      ],
+      options: CURRENCY_OPTIONS,
     },
     {
       name: "isAlwaysAvailable",

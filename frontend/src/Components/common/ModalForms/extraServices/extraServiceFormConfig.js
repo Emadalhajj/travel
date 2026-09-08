@@ -1,3 +1,5 @@
+import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "../../../../constants/currencies";
+
 export const extraServiceFormConfig = () => ({
   commonFields: [
     {
@@ -72,12 +74,9 @@ export const extraServiceFormConfig = () => ({
       labelEn: "Currency",
       type: "select",
       col: 4,
-      defaultValue: "SAR",
+      defaultValue: DEFAULT_CURRENCY,
       order: 4,
-      options: [
-        { value: "SAR", labelAr: "ريال سعودي", labelEn: "SAR" },
-        { value: "USD", labelAr: "دولار", labelEn: "USD" },
-      ],
+      options: CURRENCY_OPTIONS,
     },
     {
       name: "isAlwaysAvailable",

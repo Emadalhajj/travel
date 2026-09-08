@@ -1,4 +1,7 @@
 import { buildBookingItemsFromDraft } from "./draft-booking-service.js";
+import { INVENTORY_TYPES } from "../../constants/inventory/inventory-types.js";
+import { INVENTORY_RESERVATION_MODES } from "../../constants/inventory/inventory-reservation-modes.js";
+import AppError from "../../utils/AppError.js";
 
 const getPositiveInteger = (value, fallback = 1) => {
   const number = Number(value);
@@ -10,21 +13,43 @@ const getPositiveInteger = (value, fallback = 1) => {
   return Math.max(1, Math.floor(number));
 };
 
-const addReservation = (reservations, {
+const addPeriodReservation = (reservations, {
   inventoryType,
   itemId,
   startDate,
   endDate,
   quantity,
+  defaultTotal = 0,
 }) => {
   if (!itemId || !startDate || !endDate) return;
 
   reservations.push({
     inventoryType,
+    reservationMode: INVENTORY_RESERVATION_MODES.PERIOD,
     itemId,
     startDate,
     endDate,
     quantity: getPositiveInteger(quantity, 1),
+    defaultTotal: Math.max(Number(defaultTotal) || 0, 0),
+  });
+};
+
+const addSingleReservation = (reservations, {
+  inventoryType,
+  itemId,
+  date,
+  quantity,
+  defaultTotal = 0,
+}) => {
+  if (!itemId || !date) return;
+
+  reservations.push({
+    inventoryType,
+    reservationMode: INVENTORY_RESERVATION_MODES.SINGLE,
+    itemId,
+    date,
+    quantity: getPositiveInteger(quantity, 1),
+    defaultTotal: Math.max(Number(defaultTotal) || 0, 0),
   });
 };
 
@@ -44,8 +69,8 @@ export const buildInventoryRequirementsFromDraft = ({ draft }) => {
   const inventoryReservations = [];
 
   const room = bookingItems?.room;
-  addReservation(inventoryReservations, {
-    inventoryType: "roomType",
+  addPeriodReservation(inventoryReservations, {
+    inventoryType: INVENTORY_TYPES.ROOM_TYPE,
     itemId: room?.roomTypeId,
     startDate: room?.checkIn,
     endDate: room?.checkOut,
@@ -53,20 +78,30 @@ export const buildInventoryRequirementsFromDraft = ({ draft }) => {
   });
 
   const trip = bookingItems?.trip;
-  addReservation(inventoryReservations, {
-    inventoryType: "trip",
-    itemId: trip?.tripId,
-    startDate: trip?.travelDate,
-    endDate: trip?.returnDate,
-    quantity:
-      trip?.chargeType === "PER_UNIT"
-        ? trip?.quantity
-        : travelersCount,
-  });
+  const tripQuantity =
+    trip?.chargeType === "PER_UNIT" ? trip?.quantity : travelersCount;
+
+  if (trip?.tripId || trip?.departureId || trip?.departureAt) {
+    if (!trip?.tripId || !trip?.departureId || !trip?.departureAt) {
+      throw new AppError(
+        "TRIP_DEPARTURE_DATA_INCOMPLETE",
+        400,
+        "trip.departureId",
+      );
+    }
+
+    addSingleReservation(inventoryReservations, {
+      inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+      itemId: trip.departureId,
+      date: trip.departureAt,
+      quantity: tripQuantity,
+      defaultTotal: 0,
+    });
+  }
 
   const transport = bookingItems?.transport;
-  addReservation(inventoryReservations, {
-    inventoryType: "transport",
+  addPeriodReservation(inventoryReservations, {
+    inventoryType: INVENTORY_TYPES.TRANSPORT,
     itemId: transport?.transportId,
     startDate: transport?.startDate,
     endDate: transport?.endDate,
@@ -77,8 +112,8 @@ export const buildInventoryRequirementsFromDraft = ({ draft }) => {
   });
 
   const visa = bookingItems?.visa;
-  addReservation(inventoryReservations, {
-    inventoryType: "visa",
+  addPeriodReservation(inventoryReservations, {
+    inventoryType: INVENTORY_TYPES.VISA,
     itemId: visa?.visaId,
     startDate: safeDraft.program?.startDate,
     endDate: safeDraft.program?.endDate,

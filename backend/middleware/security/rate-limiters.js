@@ -49,3 +49,9 @@ export const paymentCallbackRateLimiter = createLimiter({
   limit: 120,
   message: "طلبات تحقق الدفع كثيرة، يرجى المحاولة لاحقًا",
 });
+
+export const flightSearchRateLimiter = createLimiter({
+  windowMs: 60 * 1000,
+  limit: 30,
+  message: "تم تجاوز حد البحث عن الرحلات مؤقتًا",
+});

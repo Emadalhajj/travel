@@ -50,33 +50,33 @@ export const createAuthServiceLayer = ({
 
   const completeGoogleAuthentication = ({ user }) => {
     if (!user)
-      throw new AppError("Google authentication failed", 401, "googleAuth");
+      throw new AppError("GOOGLE_AUTH_FAILED", 401, "googleAuth");
     if (!user.isActive)
-      throw new AppError("Account is inactive", 403, "account");
+      throw new AppError("ACCOUNT_INACTIVE", 403, "account");
     return createGoogleHandoffToken(user);
   };
 
   const exchangeGoogleAuth = async ({ handoffToken }) => {
     if (!handoffToken)
-      throw new AppError("Google authentication session is missing", 401, "googleAuth");
+      throw new AppError("GOOGLE_AUTH_SESSION_MISSING", 401, "googleAuth");
     let decoded;
     try {
       decoded = tokenVerifier(handoffToken, process.env.JWT_SECRET);
     } catch {
-      throw new AppError("Google authentication session is invalid or expired", 401, "googleAuth");
+      throw new AppError("GOOGLE_AUTH_SESSION_INVALID", 401, "googleAuth");
     }
     if (decoded?.purpose !== "google_auth_handoff")
-      throw new AppError("Invalid Google authentication session", 401, "googleAuth");
+      throw new AppError("GOOGLE_AUTH_SESSION_INVALID", 401, "googleAuth");
     const user = await UserModel.findById(decoded.userId);
     if (!user || !user.isActive)
-      throw new AppError("Account is not available", 401, "googleAuth");
+      throw new AppError("ACCOUNT_NOT_AVAILABLE", 401, "googleAuth");
     return { user: sanitizeUser(user), token: createAuthToken(user) };
   };
 
   const registerUser = async ({ data }) => {
     const email = normalizeEmail(data.email);
     if (await UserModel.findOne(emailLookup(email))) {
-      throw new AppError("Email already registered", 409, "email");
+      throw new AppError("EMAIL_ALREADY_REGISTERED", 409, "email");
     }
     const user = await UserModel.create({
       firstName: data.firstName,
@@ -96,21 +96,21 @@ export const createAuthServiceLayer = ({
       typeof query?.select === "function"
         ? await query.select("+password")
         : await query;
-    if (!user) throw new AppError("Invalid credentials", 401);
+    if (!user) throw new AppError("INVALID_CREDENTIALS", 401);
     if (!user.isActive)
       throw new AppError(
-        "هذا الحساب غير مفعل حاليًا. يرجى التواصل مع الإدارة لتفعيله.",
+        "ACCOUNT_INACTIVE",
         403,
       );
     if (!user.password || !(await passwordComparer(password, user.password))) {
-      throw new AppError("Invalid credentials", 401);
+      throw new AppError("INVALID_CREDENTIALS", 401);
     }
     return { user: sanitizeUser(user), token: createAuthToken(user) };
   };
 
   const updateMyProfile = async ({ userId, data, profileImage }) => {
     const user = await UserModel.findById(userId);
-    if (!user) throw new AppError("User not found", 404, "user");
+    if (!user) throw new AppError("USER_NOT_FOUND", 404, "user");
     if (data.email !== undefined) {
       const email = normalizeEmail(data.email);
       const duplicate = await UserModel.findOne({
@@ -118,7 +118,7 @@ export const createAuthServiceLayer = ({
         _id: { $ne: userId },
       });
       if (duplicate)
-        throw new AppError("Email already registered", 409, "email");
+        throw new AppError("EMAIL_ALREADY_REGISTERED", 409, "email");
       user.email = email;
     }
     for (const field of ["firstName", "lastName", "username"]) {
@@ -135,13 +135,13 @@ export const createAuthServiceLayer = ({
       typeof query?.select === "function"
         ? await query.select("+password")
         : await query;
-    if (!user) throw new AppError("User not found", 404, "user");
+    if (!user) throw new AppError("USER_NOT_FOUND", 404, "user");
     if (
       !user.password ||
       !(await passwordComparer(currentPassword, user.password))
     ) {
       throw new AppError(
-        "كلمة المرور الحالية غير صحيحة",
+        "CURRENT_PASSWORD_INVALID",
         401,
         "currentPassword",
       );
@@ -181,7 +181,7 @@ export const createAuthServiceLayer = ({
         console.error("Password reset email delivery failed:", error?.message);
       }
       throw new AppError(
-        "تعذر إرسال رسالة استعادة كلمة المرور. يرجى المحاولة لاحقًا.",
+        "PASSWORD_RESET_EMAIL_FAILED",
         503,
         "email",
       );
@@ -199,7 +199,7 @@ export const createAuthServiceLayer = ({
       isActive: true,
     });
     if (!user) {
-      throw new AppError("رابط إعادة تعيين كلمة المرور غير صالح أو منتهي", 400, "token");
+      throw new AppError("PASSWORD_RESET_TOKEN_INVALID", 400, "token");
     }
     user.password = await passwordHasher(password);
     user.resetPasswordToken = undefined;

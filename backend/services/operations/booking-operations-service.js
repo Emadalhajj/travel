@@ -85,7 +85,7 @@ const escapeRegExp = (value = "") =>
 const parseDate = (value, field, endOfDay = false) => {
   if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new AppError(`Invalid ${field}`, 400, field);
+  if (Number.isNaN(date.getTime())) throw new AppError("INVALID_FILTER_FIELD", 400, field);
   if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
     date.setUTCHours(23, 59, 59, 999);
   }
@@ -95,7 +95,7 @@ const parseDate = (value, field, endOfDay = false) => {
 const normalizePaymentMethod = (paymentMethod) => {
   const normalizedMethod = String(paymentMethod || "").trim().toUpperCase();
   if (normalizedMethod && !PAYMENT_METHOD_CODE_VALUES.includes(normalizedMethod)) {
-    throw new AppError("Invalid paymentMethod", 400, "paymentMethod");
+    throw new AppError("INVALID_PAYMENT_METHOD", 400, "paymentMethod");
   }
   return normalizedMethod;
 };
@@ -117,13 +117,13 @@ export const buildOperationsBookingFilter = ({
   const filter = { isDeleted: false };
   if (bookingStatus) {
     if (!BOOKING_STATUS_LIST.includes(bookingStatus)) {
-      throw new AppError("Invalid bookingStatus", 400, "bookingStatus");
+      throw new AppError("INVALID_BOOKING_STATUS", 400, "bookingStatus");
     }
     filter.bookingStatus = bookingStatus;
   }
   if (paymentStatus) {
     if (!PAYMENT_STATUS_LIST.includes(paymentStatus)) {
-      throw new AppError("Invalid paymentStatus", 400, "paymentStatus");
+      throw new AppError("INVALID_PAYMENT_STATUS", 400, "paymentStatus");
     }
     filter.paymentStatus = paymentStatus;
   }
@@ -139,7 +139,7 @@ export const buildOperationsBookingFilter = ({
   const from = parseDate(dateFrom, "dateFrom");
   const to = parseDate(dateTo, "dateTo", true);
   if (from && to && from > to) {
-    throw new AppError("dateFrom must be before dateTo", 400, "dateFrom");
+    throw new AppError("DATE_FROM_AFTER_DATE_TO", 400, "dateFrom");
   }
   if (from || to) {
     filter.createdAt = { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) };
@@ -364,10 +364,10 @@ export const createBookingOperationsServiceLayer = (repository = {}) => {
 
   const getBookingOperationsDetailsService = async ({ bookingId }) => {
     if (!mongoose.Types.ObjectId.isValid(bookingId)) {
-      throw new AppError("Invalid bookingId", 400, "bookingId");
+      throw new AppError("INVALID_BOOKING_ID", 400, "bookingId");
     }
     const booking = await repo.getBooking(bookingId);
-    if (!booking) throw new AppError("Booking not found", 404, "bookingId");
+    if (!booking) throw new AppError("BOOKING_NOT_FOUND", 404, "bookingId");
     const [rawPayments, rawTimeline] = await Promise.all([
       repo.getPayments(bookingId),
       repo.getTimeline(bookingId),

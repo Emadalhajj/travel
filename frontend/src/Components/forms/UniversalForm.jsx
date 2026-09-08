@@ -31,6 +31,7 @@ import React, {
   useState,
   useMemo,
   useEffect,
+  useRef,
   forwardRef,
   useImperativeHandle,
 } from "react";
@@ -199,6 +200,9 @@ const UniversalForm = forwardRef(
     */
 
     const [activeTab, setActiveTab] = useState("basic");
+    const conditionalFieldsReadyRef = useRef(false);
+    const initialDataRef = useRef(initialData);
+    initialDataRef.current = initialData;
 
     /*
     =========================================================================
@@ -309,12 +313,21 @@ const UniversalForm = forwardRef(
           .filter(Boolean)
 
           /*
+          إظهار الحقل وفق حالة النموذج عند الحاجة، دون ربط
+          UniversalForm بأي Domain محدد.
+          */
+          .filter((field) =>
+            typeof field.visibleWhen === "function"
+              ? field.visibleWhen(formState)
+              : true)
+
+          /*
           ترتيب الحقول
           */
 
           .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
       );
-    }, [config, conditionKey, conditionValue]);
+    }, [config, conditionKey, conditionValue, formState]);
 
     /*
     =========================================================================
@@ -326,6 +339,32 @@ const UniversalForm = forwardRef(
     */
 
     useEffect(() => {
+      if (!show) {
+        conditionalFieldsReadyRef.current = false;
+        return;
+      }
+
+      // During edit, wait until useFormInitializer has installed the condition
+      // from initialData. This remains safe under React StrictMode, where effects
+      // are intentionally invoked more than once in development.
+      if (!conditionalFieldsReadyRef.current) {
+        const initialConditionValue = get(
+          initialDataRef.current,
+          config?.conditionKey,
+        );
+        const waitingForEditInitialization =
+          initialConditionValue !== undefined &&
+          initialConditionValue !== null &&
+          initialConditionValue !== "" &&
+          conditionValue !== initialConditionValue;
+
+        if (waitingForEditInitialization) {
+          return;
+        }
+
+        conditionalFieldsReadyRef.current = true;
+      }
+
       if (!config?.conditionKey) {
         return;
       }
@@ -398,6 +437,7 @@ const UniversalForm = forwardRef(
     }, [
       config,
       conditionValue,
+      show,
     ]);
 
     /*

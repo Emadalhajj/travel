@@ -310,7 +310,7 @@ export const getBankAccountByIdService =
 
     if (!account) {
       throw new AppError(
-        "الحساب البنكي غير موجود",
+        "BANK_ACCOUNT_NOT_FOUND",
         404,
         "bankAccount",
       );
@@ -346,7 +346,7 @@ export const createBankAccountService =
 
     if (existingAccount) {
       throw new AppError(
-        "رقم الآيبان مستخدم مسبقًا",
+        "IBAN_ALREADY_USED",
         409,
         "iban",
       );
@@ -397,7 +397,7 @@ export const updateBankAccountService =
 
     if (!account) {
       throw new AppError(
-        "الحساب البنكي غير موجود",
+        "BANK_ACCOUNT_NOT_FOUND",
         404,
         "bankAccount",
       );
@@ -422,7 +422,7 @@ export const updateBankAccountService =
 
       if (duplicate) {
         throw new AppError(
-          "رقم الآيبان مستخدم مسبقًا",
+          "IBAN_ALREADY_USED",
           409,
           "iban",
         );
@@ -538,7 +538,7 @@ export const deleteBankAccountService =
 
     if (!account) {
       throw new AppError(
-        "الحساب البنكي غير موجود",
+        "BANK_ACCOUNT_NOT_FOUND",
         404,
         "bankAccount",
       );

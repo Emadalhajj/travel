@@ -46,7 +46,7 @@ const id = (value) => {
 const parseDate = (value, field, endOfDay = false) => {
   if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new AppError(`Invalid ${field}`, 400, field);
+  if (Number.isNaN(date.getTime())) throw new AppError("INVALID_FILTER_FIELD", 400, field);
   if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
     date.setUTCHours(23, 59, 59, 999);
   }
@@ -62,22 +62,22 @@ export const normalizeReportFilters = ({
   programId,
 } = {}) => {
   if (bookingStatus && !BOOKING_STATUS_LIST.includes(bookingStatus)) {
-    throw new AppError("Invalid bookingStatus", 400, "bookingStatus");
+    throw new AppError("INVALID_BOOKING_STATUS", 400, "bookingStatus");
   }
   if (paymentStatus && !PAYMENT_STATUS_LIST.includes(paymentStatus)) {
-    throw new AppError("Invalid paymentStatus", 400, "paymentStatus");
+    throw new AppError("INVALID_PAYMENT_STATUS", 400, "paymentStatus");
   }
   const normalizedMethod = String(paymentMethod || "").trim().toUpperCase();
   if (normalizedMethod && !PAYMENT_METHOD_CODE_VALUES.includes(normalizedMethod)) {
-    throw new AppError("Invalid paymentMethod", 400, "paymentMethod");
+    throw new AppError("INVALID_PAYMENT_METHOD", 400, "paymentMethod");
   }
   if (programId && !mongoose.Types.ObjectId.isValid(programId)) {
-    throw new AppError("Invalid programId", 400, "programId");
+    throw new AppError("INVALID_PROGRAM_ID", 400, "programId");
   }
   const from = parseDate(dateFrom, "dateFrom");
   const to = parseDate(dateTo, "dateTo", true);
   if (from && to && from > to) {
-    throw new AppError("dateFrom must be before dateTo", 400, "dateFrom");
+    throw new AppError("DATE_FROM_AFTER_DATE_TO", 400, "dateFrom");
   }
   return {
     dateFrom: from,
