@@ -6,6 +6,7 @@ import {
   formatters,
   getNestedValue,
 } from "../../../../Utils/formHelpers";
+import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "../../../../constants/currencies";
 
 export const roomTypeFormConfig = (hotels = [] ) => ({
 
@@ -213,16 +214,8 @@ export const roomTypeFormConfig = (hotels = [] ) => ({
       type: "select",
       col: 4,
       order: 6,
-      defaultValue: "SAR",
-      options: [
-        { value: "SAR", labelAr: "ريال سعودي", labelEn: "SAR" },
-        { value: "USD", labelAr: "دولار", labelEn: "USD" },
-        { value: "EUR", labelAr: "يورو", labelEn: "EUR" },
-        { value: "GBP", labelAr: "جنيه إسترليني", labelEn: "GBP" },
-        { value: "AED", labelAr: "درهم إماراتي", labelEn: "AED" },
-        { value: "EGP", labelAr: "جنيه مصري", labelEn: "EGP" },
-        { value: "TRY", labelAr: "ليرة تركية", labelEn: "TRY" },
-      ],
+      defaultValue: DEFAULT_CURRENCY,
+      options: CURRENCY_OPTIONS,
     },
     {
       name: "pricing.discountPercent",

@@ -30,6 +30,7 @@ DraftBooking يمكن أن يتحول لاحقًا إلى Booking حقيقي.
 */
 
 import mongoose from "mongoose";
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
 
 import {
   DRAFT_BOOKING_STATUS,
@@ -65,6 +66,44 @@ const draftTransportSchema = new mongoose.Schema(
     pickupLocation: String,
 
     dropoffLocation: String,
+  },
+  { _id: false },
+);
+
+const draftTripSchema = new mongoose.Schema(
+  {
+    tripId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Trip",
+      default: null,
+    },
+    departureId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TripDeparture",
+      default: null,
+    },
+    nameAr: { type: String, default: "" },
+    nameEn: { type: String, default: "" },
+    tripType: { type: String, default: "" },
+    scope: { type: String, default: "" },
+    subtype: { type: String, default: "" },
+    source: { type: String, default: "" },
+    fromCity: { type: String, default: "" },
+    toCity: { type: String, default: "" },
+    departureAt: { type: Date, default: null },
+    arrivalAt: { type: Date, default: null },
+    quantity: { type: Number, default: 1, min: 0 },
+    chargeType: {
+      type: String,
+      enum: ["PER_TRAVELER", "PER_UNIT", "PER_BOOKING"],
+      default: "PER_TRAVELER",
+    },
+    unitPrice: { type: Number, default: 0, min: 0 },
+    currency: {
+      type: String,
+      enum: SUPPORTED_CURRENCIES,
+      default: DEFAULT_CURRENCY,
+    },
   },
   { _id: false },
 );
@@ -215,6 +254,11 @@ const draftBookingSchema = new mongoose.Schema(
       },
     },
 
+    trip: {
+      type: draftTripSchema,
+      default: null,
+    },
+
     /*
     بيانات النقل.
     */
@@ -255,8 +299,8 @@ const draftBookingSchema = new mongoose.Schema(
 
       currency: {
         type: String,
-        enum: ["SAR", "USD", "EUR", "GBP", "AED", "EGP", "TRY"],
-        default: "SAR",
+        enum: SUPPORTED_CURRENCIES,
+        default: DEFAULT_CURRENCY,
       },
     },
 

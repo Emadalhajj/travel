@@ -216,7 +216,11 @@ test("Stripe refund rejects an uncaptured PaymentIntent", async () => {
       currency: "SAR",
       providerConfig: { stripeClient },
     }),
-    /requires_capture/,
+    (error) => {
+      assert.equal(error.code, "STRIPE_REFUND_STATUS_INVALID");
+      assert.equal(error.params.status, "requires_capture");
+      return true;
+    },
   );
 
   assert.equal(refundCalled, false);

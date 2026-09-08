@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
 
 const RoomTypeSchema = new mongoose.Schema(
   {
@@ -82,8 +83,8 @@ const RoomTypeSchema = new mongoose.Schema(
       },
       currency: {
         type: String,
-        enum: ["SAR", "USD", "EUR", "GBP", "AED", "EGP", "TRY"],
-        default: "SAR",
+        enum: SUPPORTED_CURRENCIES,
+        default: DEFAULT_CURRENCY,
       },
 
       // ✅ فترات تسعير متعددة (أسعار موسمية، نهاية أسبوع، عطل...)

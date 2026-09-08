@@ -10,12 +10,14 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import passport from "./config/passport.js";
 import authRouter from "./routes/auth-routes.js";
-import visaRouter from "./routes/visa-routes.js";
-import visaTypeRouter from "./routes/visaType-routes.js";
+import visaRouter from "./routes/visa/visa-routes.js";
+import visaTypeRouter from "./routes/visa/visaType-routes.js";
 import RoomTypeRoute from "./routes/hotel/roomtype-route.js";
 import HotelsRoute from "./routes/hotel/hotel-route.js";
 import TransportRoutes from "./routes/transport-routes.js";
-import tripRoutes from "./routes/trip-routers.js";
+import tripRoutes from "./routes/trips/trip-routers.js";
+import tripDepartureRoutes from "./routes/trips/trip-departure-routes.js";
+import duffelProviderRoutes from "./routes/trips/duffel-provider-route.js";
 import userRoutes from "./routes/users-routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import BookingRoute from "./routes/booking/booking-route.js";
@@ -137,6 +139,8 @@ app.use("/api/", HotelsRoute);
 app.use("/api/transport", TransportRoutes);
 
 app.use("/api/trip", tripRoutes);
+app.use("/api/trip-departures", tripDepartureRoutes);
+app.use("/api/admin/trips/providers", duffelProviderRoutes);
 
 app.use("/api/users", userRoutes);
 

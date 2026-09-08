@@ -109,7 +109,12 @@ test("provider failure rejects the operation", async () => {
         currency: "SAR",
         providerConfig,
       }),
-      /declined/,
+      (error) => {
+        assert.equal(error.code, "HYPERPAY_OPERATION_FAILED");
+        assert.equal(error.statusCode, 409);
+        assert.equal(error.field, "providerOperation");
+        return true;
+      },
     );
   } finally {
     global.fetch = originalFetch;

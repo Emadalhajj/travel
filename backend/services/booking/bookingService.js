@@ -47,7 +47,7 @@ export const softDeleteBooking = async ({ bookingId, userId, req }) => {
 
   if (!booking) {
     throw new AppError(
-      "Booking not found",
+      "BOOKING_NOT_FOUND",
       404,
       "booking",
     );
@@ -55,7 +55,7 @@ export const softDeleteBooking = async ({ bookingId, userId, req }) => {
 
   if (booking.isDeleted) {
     throw new AppError(
-      "Booking already deleted",
+      "BOOKING_ALREADY_DELETED",
       400,
       "booking",
     );

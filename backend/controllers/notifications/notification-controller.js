@@ -58,7 +58,7 @@ export const markAsRead = asyncHandler(async (req, res) => {
     isDeleted: false,
   });
   if (!notification) {
-    throw new AppError(isArabic ? "الإشعار غير موجود" : "Notification not found", 404, "notification");
+    throw new AppError("NOTIFICATION_NOT_FOUND", 404, "notification");
   }
   await markNotificationAsRead({ notification });
   res.status(200).json({ success: true, message: isArabic ? "تم تعليم الإشعار كمقروء" : "Notification marked as read", data: notification });
@@ -68,26 +68,26 @@ export const getAllNotifications = asyncHandler(async (req, res) => {
   const filter = { isDeleted: false };
   if (req.query.user) {
     if (typeof req.query.user !== "string" || !mongoose.Types.ObjectId.isValid(req.query.user)) {
-      throw new AppError("Invalid notification user", 400, "user");
+      throw new AppError("INVALID_NOTIFICATION_USER", 400, "user");
     }
     filter.user = req.query.user;
   }
   if (req.query.booking) {
     if (typeof req.query.booking !== "string" || !mongoose.Types.ObjectId.isValid(req.query.booking)) {
-      throw new AppError("Invalid notification booking", 400, "booking");
+      throw new AppError("INVALID_NOTIFICATION_BOOKING", 400, "booking");
     }
     filter.booking = req.query.booking;
   }
   if (req.query.type) {
-    if (!NOTIFICATION_TYPE_VALUES.includes(req.query.type)) throw new AppError("Invalid notification type", 400, "type");
+    if (!NOTIFICATION_TYPE_VALUES.includes(req.query.type)) throw new AppError("INVALID_NOTIFICATION_TYPE", 400, "type");
     filter.type = req.query.type;
   }
   if (req.query.channel) {
-    if (!NOTIFICATION_CHANNEL_VALUES.includes(req.query.channel)) throw new AppError("Invalid notification channel", 400, "channel");
+    if (!NOTIFICATION_CHANNEL_VALUES.includes(req.query.channel)) throw new AppError("INVALID_NOTIFICATION_CHANNEL", 400, "channel");
     filter.channel = req.query.channel;
   }
   if (req.query.status) {
-    if (!NOTIFICATION_STATUS_VALUES.includes(req.query.status)) throw new AppError("Invalid notification status", 400, "status");
+    if (!NOTIFICATION_STATUS_VALUES.includes(req.query.status)) throw new AppError("INVALID_NOTIFICATION_STATUS", 400, "status");
     filter.status = req.query.status;
   }
   const { page, skip, limit } = buildPagination(req.query);
@@ -111,7 +111,9 @@ export const retryNotification = asyncHandler(async (req, res) => {
     const notification = await retryNotificationService({ notificationId: req.params.id, requestedBy: req.user._id });
     res.status(200).json({ success: true, data: notification });
   } catch (error) {
-    if (error?.code === "NOTIFICATION_NOT_RETRYABLE") throw new AppError(error.message, 409, "notification");
+    if (error?.code === "NOTIFICATION_NOT_RETRYABLE") {
+      throw new AppError("NOTIFICATION_NOT_RETRYABLE", 409, "notification");
+    }
     throw error;
   }
 });

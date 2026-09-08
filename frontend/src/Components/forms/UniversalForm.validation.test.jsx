@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import UniversalForm from "./UniversalForm";
 
@@ -24,6 +25,43 @@ const config = {
 };
 
 describe("UniversalForm field errors", () => {
+  it("preserves conditional array values during edit in StrictMode", async () => {
+    const editConfig = {
+      conditionKey: "type",
+      commonFields: [{
+        name: "type",
+        labelAr: "النوع",
+        labelEn: "Type",
+        type: "select",
+        options: [{ value: "LAND", labelAr: "بري", labelEn: "Land" }],
+      }],
+      conditionalFields: {
+        LAND: [{
+          name: "routeStops",
+          labelAr: "محطات المسار",
+          labelEn: "Route stops",
+          type: "array",
+          fields: [{ name: "location", labelAr: "الموقع", labelEn: "Location" }],
+        }],
+      },
+    };
+
+    render(
+      <StrictMode>
+        <UniversalForm
+          config={editConfig}
+          initialData={{
+            type: "LAND",
+            routeStops: [{ location: "تعز" }, { location: "عدن" }],
+          }}
+        />
+      </StrictMode>,
+    );
+
+    expect(await screen.findByDisplayValue("تعز")).toBeTruthy();
+    expect(await screen.findByDisplayValue("عدن")).toBeTruthy();
+  });
+
   it("shows immediate and backend errors below a nested conditional field", async () => {
     const { rerender } = render(
       <UniversalForm

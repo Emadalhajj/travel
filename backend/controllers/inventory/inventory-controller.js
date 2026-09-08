@@ -118,7 +118,7 @@ export const createInventory = asyncHandler(async (req, res) => {
 
   if (!inventoryDates.length) {
     throw new AppError(
-      isArabic ? "التاريخ أو الفترة غير صحيحة" : "Invalid date or period",
+      "INVALID_DATE_RANGE",
       400,
       "dates",
     );
@@ -133,9 +133,7 @@ export const createInventory = asyncHandler(async (req, res) => {
 
   if (existingItems.length) {
     throw new AppError(
-      isArabic
-        ? "يوجد مخزون مسبقًا لبعض تواريخ هذه الفترة"
-        : "Inventory already exists for one or more dates in this period",
+      "INVENTORY_ALREADY_EXISTS",
       400,
       "dates",
     );
@@ -193,7 +191,7 @@ export const upsertInventoryPeriod = asyncHandler(async (req, res) => {
 
   if (!inventoryType || !itemId || !startDate || !endDate) {
     throw new AppError(
-      isArabic ? "بيانات المخزون غير مكتملة" : "Inventory data is incomplete",
+      "INVENTORY_DATA_INCOMPLETE",
       400,
       "inventory",
     );
@@ -203,7 +201,7 @@ export const upsertInventoryPeriod = asyncHandler(async (req, res) => {
 
   if (!inventoryDates.length) {
     throw new AppError(
-      isArabic ? "فترة المخزون غير صحيحة" : "Invalid inventory period",
+      "INVENTORY_PERIOD_INVALID",
       400,
       "dates",
     );
@@ -270,7 +268,7 @@ export const updateInventory = asyncHandler(async (req, res) => {
 
   if (!inventory) {
     throw new AppError(
-      isArabic ? "المخزون غير موجود" : "Inventory not found",
+      "INVENTORY_NOT_FOUND",
       404,
       "inventory",
     );
@@ -308,7 +306,7 @@ export const deleteInventory = asyncHandler(async (req, res) => {
 
   if (!inventory) {
     throw new AppError(
-      isArabic ? "المخزون غير موجود" : "Inventory not found",
+      "INVENTORY_NOT_FOUND",
       404,
       "inventory",
     );

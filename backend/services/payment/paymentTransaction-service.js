@@ -77,7 +77,7 @@ export const findBlockingPublicPaymentForDraftService = async ({
   draftBookingId,
 }) => {
   if (!mongoose.Types.ObjectId.isValid(draftBookingId)) {
-    throw new AppError("المعرف المرسل غير صالح", 400, "draftId");
+    throw new AppError("INVALID_LOOKUP_ID", 400, "draftId");
   }
 
   return PaymentTransaction.findOne({
@@ -140,7 +140,7 @@ Validation
 
 const validateObjectId = (value, field) => {
   if (!mongoose.Types.ObjectId.isValid(value)) {
-    throw new AppError("المعرف المرسل غير صالح", 400, field);
+    throw new AppError("INVALID_LOOKUP_ID", 400, field);
   }
 };
 
@@ -151,7 +151,7 @@ const validateAmount = (value) => {
   const amount = Number(value);
 
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new AppError("مبلغ الدفع غير صحيح", 400, "amount");
+    throw new AppError("PAYMENT_AMOUNT_INVALID", 400, "amount");
   }
 
   return roundPrice(amount);
@@ -160,7 +160,7 @@ const validateAmount = (value) => {
 const ensurePaymentTarget = ({ draftBooking, booking }) => {
   if (!draftBooking && !booking) {
     throw new AppError(
-      "يجب ربط معاملة الدفع بمسودة أو حجز",
+      "PAYMENT_RELATION_REQUIRED",
       400,
       "paymentTransaction",
     );
@@ -257,7 +257,7 @@ export const recordPaymentTransactionEventService = async ({
     }).select("+events"));
 
   if (!target) {
-    throw new AppError("معاملة الدفع غير موجودة", 404, "transactionId");
+    throw new AppError("PAYMENT_TRANSACTION_NOT_FOUND", 404, "transactionId");
   }
 
   target.events.push({
@@ -313,7 +313,7 @@ export const createPaymentTransactionService = async ({
   const normalizedCurrency = normalizeCurrency(currency);
 
   if (!normalizedMethodCode) {
-    throw new AppError("طريقة الدفع غير محددة", 400, "paymentMethodCode");
+    throw new AppError("PAYMENT_METHOD_REQUIRED", 400, "paymentMethodCode");
   }
 
   const paymentMethod = paymentMethodId
@@ -330,7 +330,7 @@ export const createPaymentTransactionService = async ({
 
   if (!paymentMethod) {
     throw new AppError(
-      "طريقة الدفع غير موجودة أو غير مفعلة",
+      "PAYMENT_METHOD_UNAVAILABLE",
       400,
       "paymentMethodCode",
     );
@@ -480,7 +480,7 @@ export const findPaymentTransactionService = async ({
 
   if (identifiers.length !== 1) {
     throw new AppError(
-      "يجب إرسال معرف بحث واحد فقط",
+      "PAYMENT_LOOKUP_AMBIGUOUS",
       400,
       "paymentTransaction",
     );
@@ -506,7 +506,7 @@ export const findPaymentTransactionService = async ({
   const transaction = await query;
 
   if (!transaction) {
-    throw new AppError("معاملة الدفع غير موجودة", 404, "transactionId");
+    throw new AppError("PAYMENT_TRANSACTION_NOT_FOUND", 404, "transactionId");
   }
 
   return transaction;
@@ -546,9 +546,10 @@ const validateStatusTransition = ({ fromStatus, toStatus }) => {
 
   if (!allowedStatuses.includes(toStatus)) {
     throw new AppError(
-      `لا يمكن تغيير حالة المعاملة من ${fromStatus} إلى ${toStatus}`,
+      "PAYMENT_STATUS_TRANSITION_INVALID",
       409,
       "status",
+      { from: fromStatus, to: toStatus },
     );
   }
 
@@ -578,7 +579,7 @@ export const updatePaymentTransactionStatusService = async ({
   }).select("+events +metadata");
 
   if (!transaction) {
-    throw new AppError("معاملة الدفع غير موجودة", 404, "transactionId");
+    throw new AppError("PAYMENT_TRANSACTION_NOT_FOUND", 404, "transactionId");
   }
 
   const fromStatus = transaction.status;
@@ -682,7 +683,7 @@ export const updatePaymentTransactionStatusService = async ({
     }
 
     throw new AppError(
-      "تغيرت حالة معاملة الدفع أثناء تنفيذ العملية؛ يرجى إعادة المحاولة",
+      "PAYMENT_CONCURRENT_CHANGE",
       409,
       "status",
     );
@@ -783,7 +784,7 @@ export const attachProviderCheckoutService = async ({
   }).select("+events +metadata +redirectUrl");
 
   if (!transaction) {
-    throw new AppError("معاملة الدفع غير موجودة", 404, "transactionId");
+    throw new AppError("PAYMENT_TRANSACTION_NOT_FOUND", 404, "transactionId");
   }
 
   if (checkoutId) transaction.checkoutId = String(checkoutId).trim();
@@ -882,7 +883,7 @@ export const applyPaymentSummaryToBooking = async ({ bookingId, booking }) => {
   const targetBooking = booking || (await Booking.findById(bookingId));
 
   if (!targetBooking) {
-    throw new AppError("الحجز غير موجود", 404, "booking");
+    throw new AppError("BOOKING_NOT_FOUND", 404, "booking");
   }
 
   const summary = await calculateBookingPaymentSummary({
@@ -949,7 +950,7 @@ export const getPublicPaymentTransactionStatusService = async ({
 
   if (!transaction) {
     throw new AppError(
-      "معاملة الدفع غير موجودة",
+      "PAYMENT_TRANSACTION_NOT_FOUND",
       404,
       "transactionId",
     );
@@ -999,7 +1000,7 @@ export const attachBookingToPaymentTransactionService = async ({
 
   if (!transaction) {
     throw new AppError(
-      "معاملة الدفع غير موجودة",
+      "PAYMENT_TRANSACTION_NOT_FOUND",
       404,
       "transactionId",
     );
@@ -1010,7 +1011,7 @@ export const attachBookingToPaymentTransactionService = async ({
     String(transaction.booking) !== String(bookingId)
   ) {
     throw new AppError(
-      "معاملة الدفع مرتبطة بحجز آخر",
+      "PAYMENT_BOOKING_CONFLICT",
       409,
       "bookingId",
     );
@@ -1066,7 +1067,7 @@ export const detachBookingFromPaymentTransactionService = async ({
 
   if (!transaction) {
     throw new AppError(
-      "معاملة الدفع غير موجودة",
+      "PAYMENT_TRANSACTION_NOT_FOUND",
       404,
       "transactionId",
     );
@@ -1192,7 +1193,7 @@ export const attachBankTransferProofService = async ({
 
   if (!transaction) {
     throw new AppError(
-      "عملية الدفع غير موجودة أو لا تقبل إرسال إثبات",
+      "PAYMENT_PROOF_NOT_ALLOWED",
       404,
       "transactionId",
     );
@@ -1205,7 +1206,7 @@ export const attachBankTransferProofService = async ({
     configuration.configurationType !== "BANK_ACCOUNT"
   ) {
     throw new AppError(
-      "عملية الدفع ليست تحويلًا بنكيًا",
+      "PAYMENT_PROOF_NOT_BANK_TRANSFER",
       400,
       "transactionId",
     );
@@ -1220,7 +1221,7 @@ export const attachBankTransferProofService = async ({
     !normalizedReference
   ) {
     const error = new AppError(
-      "الرقم المرجعي للحوالة مطلوب",
+      "PAYMENT_REFERENCE_REQUIRED",
       400,
       "transferReference",
     );
@@ -1244,7 +1245,7 @@ export const attachBankTransferProofService = async ({
     attachments.length === 0
   ) {
     const error = new AppError(
-      "إيصال التحويل مطلوب",
+      "PAYMENT_PROOF_REQUIRED",
       400,
       "proofAttachments",
     );

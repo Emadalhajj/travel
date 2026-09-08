@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
+import { CURRENCY_OPTIONS } from "../../../constants/currencies";
 
 import {
   createBankAccount,
@@ -179,13 +180,7 @@ export default function AdminBankAccountsPage() {
       <PageHeader titleAr="إدارة الحسابات البنكية" titleEn="Bank Accounts Management" subtitleAr="إدارة الحسابات البنكية الخاصة بطرق الدفع" subtitleEn="Manage payment bank accounts" actions={<AdminPageActions><ActionButton action="add" size="md" label={isArabic ? "إضافة حساب بنكي" : "Add Bank Account"} onClick={openCreate} /><ExportTableButtons data={bankAccountsList} columns={columns} fileName="bank-accounts" lang={lang} title={isArabic ? "الحسابات البنكية" : "Bank Accounts"} /></AdminPageActions>} />
       <EntityFilter filters={filters} setFilters={setFilters} config={{
         search: { type: "text", col: 3, placeholder: isArabic ? "بحث بالبنك أو الآيبان" : "Search bank or IBAN" },
-        currency: { type: "select", col: 3, options: [
-          { value: "SAR", labelAr: "ريال سعودي", labelEn: "SAR" },
-          { value: "USD", labelAr: "دولار أمريكي", labelEn: "USD" },
-          { value: "EUR", labelAr: "يورو", labelEn: "EUR" },
-          { value: "GBP", labelAr: "جنيه إسترليني", labelEn: "GBP" },
-          { value: "AED", labelAr: "درهم إماراتي", labelEn: "AED" },
-        ] },
+        currency: { type: "select", col: 3, options: CURRENCY_OPTIONS },
         isActive: { type: "select", col: 3, options: [
           { value: "true", labelAr: "مفعل", labelEn: "Active" },
           { value: "false", labelAr: "غير مفعل", labelEn: "Inactive" },

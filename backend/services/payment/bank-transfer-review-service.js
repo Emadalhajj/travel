@@ -55,7 +55,7 @@ const getReviewableBankTransfer = async (
     transaction.paymentProvider
   ) {
     throw new AppError(
-      "المعاملة ليست تحويلًا بنكيًا",
+      "PAYMENT_NOT_BANK_TRANSFER",
       400,
       "transactionId",
     );
@@ -94,7 +94,7 @@ export const approveBankTransferService =
       )
     ) {
       throw new AppError(
-        "المعاملة لا تقبل الاعتماد في حالتها الحالية",
+        "PAYMENT_APPROVAL_NOT_ALLOWED",
         409,
         "status",
       );
@@ -102,7 +102,7 @@ export const approveBankTransferService =
 
     if (!transaction.draftBooking) {
       throw new AppError(
-        "المعاملة غير مرتبطة بمسودة حجز",
+        "PAYMENT_DRAFT_LINK_MISSING",
         400,
         "draftBooking",
       );
@@ -181,7 +181,7 @@ export const approveBankTransferService =
 
     if (!booking?._id) {
       throw new AppError(
-        "لم ينتج عن التحويل حجز صالح",
+        "CONVERSION_BOOKING_INVALID",
         500,
         "booking",
       );
@@ -239,7 +239,7 @@ export const rejectBankTransferService =
 
     if (!normalizedReason) {
       throw new AppError(
-        "سبب الرفض مطلوب",
+        "PAYMENT_REJECTION_REASON_REQUIRED",
         400,
         "reason",
       );
@@ -256,7 +256,7 @@ export const rejectBankTransferService =
       )
     ) {
       throw new AppError(
-        "المعاملة لا تقبل الرفض في حالتها الحالية",
+        "PAYMENT_REJECTION_NOT_ALLOWED",
         409,
         "status",
       );

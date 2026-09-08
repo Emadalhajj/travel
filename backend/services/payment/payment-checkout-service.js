@@ -23,9 +23,8 @@ import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import PaymentProvider from "../../models/payments/payment-provider-model.js";
 
 import { buildBookingPricingFromDraft } from "../draft-bookings/draft-booking-service.js";
-import { buildInventoryRequirementsFromDraft } from "../draft-bookings/draft-inventory-builder.js";
+import { ensureDraftInventoryHoldService } from "../draft-bookings/draft-inventory-hold-service.js";
 import {
-  createInventoryHoldService,
   releaseInventoryHoldService,
   updateInventoryHoldExpiryService,
 } from "../booking/inventory-hold-service.js";
@@ -105,27 +104,6 @@ const getExistingCheckoutResult = async (transaction) => {
   };
 };
 
-const ensureCheckoutInventoryHold = async ({ draft, transaction, req }) => {
-  const requirements = buildInventoryRequirementsFromDraft({ draft });
-  if (
-    !requirements.programReservation &&
-    requirements.inventoryReservations.length === 0
-  ) {
-    return null;
-  }
-
-  return createInventoryHoldService({
-    idempotencyKey: `payment:${transaction._id}`,
-    draftBooking: draft._id,
-    paymentTransaction: transaction._id,
-    user: transaction.user || draft.user || req?.user?._id || null,
-    programReservation: requirements.programReservation,
-    inventoryReservations: requirements.inventoryReservations,
-    expiresAt: transaction.expiresAt || undefined,
-    req,
-  });
-};
-
 const releaseCheckoutHoldBestEffort = async ({ hold, reason, req }) => {
   if (!hold?._id) return;
   try {
@@ -150,7 +128,7 @@ const buildCheckoutResponse = ({
 
     if (!publishableKey) {
       throw new AppError(
-        "المفتاح العام لـStripe غير معد",
+        "STRIPE_PUBLISHABLE_KEY_MISSING",
         500,
         "credentials.publishableKey",
       );
@@ -158,7 +136,7 @@ const buildCheckoutResponse = ({
 
     if (!checkoutResult.clientSecret) {
       throw new AppError(
-        "لم يتم استلام مفتاح جلسة Stripe المضمنة",
+        "STRIPE_CLIENT_SECRET_MISSING",
         502,
         "stripe.clientSecret",
       );
@@ -202,7 +180,7 @@ export const createPaymentCheckoutSessionService = async ({
 }) => {
   if (!paymentConfiguration) {
     throw new AppError(
-      "إعداد الدفع غير موجود",
+      "PAYMENT_CONFIGURATION_NOT_FOUND",
       400,
       "paymentConfiguration",
     );
@@ -210,7 +188,7 @@ export const createPaymentCheckoutSessionService = async ({
 
   if (paymentConfiguration.configurationType !== "PROVIDER") {
     throw new AppError(
-      "إعداد الدفع المحدد ليس دفعًا إلكترونيًا",
+      "PAYMENT_CONFIGURATION_NOT_ONLINE",
       400,
       "paymentConfiguration",
     );
@@ -223,7 +201,7 @@ export const createPaymentCheckoutSessionService = async ({
 
   if (!draft) {
     throw new AppError(
-      "مسودة الحجز غير موجودة",
+      "DRAFT_BOOKING_NOT_FOUND",
       404,
       "draftBooking",
     );
@@ -231,7 +209,7 @@ export const createPaymentCheckoutSessionService = async ({
 
   if (draft.status !== "draft") {
     throw new AppError(
-      "لا يمكن الدفع لمسودة غير نشطة",
+      "DRAFT_NOT_ACTIVE_FOR_PAYMENT",
       400,
       "draftBooking",
     );
@@ -244,7 +222,7 @@ export const createPaymentCheckoutSessionService = async ({
   const currency = pricing.currency || draft.currency || "SAR";
 
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new AppError("مبلغ الدفع غير صحيح", 400, "payment");
+    throw new AppError("PAYMENT_AMOUNT_INVALID", 400, "payment");
   }
 
   const paymentMethodCode = String(
@@ -255,7 +233,7 @@ export const createPaymentCheckoutSessionService = async ({
 
   if (!paymentMethodCode) {
     throw new AppError(
-      "طريقة الدفع غير محددة",
+      "PAYMENT_METHOD_REQUIRED",
       400,
       "paymentMethodCode",
     );
@@ -265,7 +243,7 @@ export const createPaymentCheckoutSessionService = async ({
   const providerId = providerReference?._id || providerReference;
 
   if (!providerId) {
-    throw new AppError("مزود الدفع غير محدد", 400, "providerId");
+    throw new AppError("PAYMENT_PROVIDER_REQUIRED", 400, "providerId");
   }
 
   const provider = await PaymentProvider.findOne({
@@ -275,7 +253,7 @@ export const createPaymentCheckoutSessionService = async ({
   }).select(PAYMENT_PROVIDER_CREDENTIAL_SELECT);
 
   if (!provider) {
-    throw new AppError("مزود الدفع غير متاح", 400, "providerId");
+    throw new AppError("PAYMENT_PROVIDER_UNAVAILABLE", 400, "providerId");
   }
 
   const supportedMethods = Array.isArray(provider.supportedPaymentMethods)
@@ -284,7 +262,7 @@ export const createPaymentCheckoutSessionService = async ({
 
   if (!supportedMethods.includes(paymentMethodCode)) {
     throw new AppError(
-      "مزود الدفع لا يدعم طريقة الدفع المحددة",
+      "PAYMENT_PROVIDER_METHOD_UNSUPPORTED",
       400,
       "paymentMethodCode",
     );
@@ -329,7 +307,14 @@ export const createPaymentCheckoutSessionService = async ({
   let hold = null;
 
   try {
-    hold = await ensureCheckoutInventoryHold({ draft, transaction, req });
+    hold = await ensureDraftInventoryHoldService({
+      draft,
+      idempotencyKey: `payment:${transaction._id}`,
+      paymentTransaction: transaction._id,
+      expiresAt: transaction.expiresAt || null,
+      userId: transaction.user || draft.user || req?.user?._id || null,
+      req,
+    });
 
     if (existingCheckout) {
       const presentation =
@@ -371,7 +356,7 @@ export const createPaymentCheckoutSessionService = async ({
 
     if (!checkoutResult.checkoutId) {
       throw new AppError(
-        "لم يُرجع مزود الدفع معرف Checkout صالحًا",
+        "CHECKOUT_ID_INVALID",
         502,
         "checkoutId",
       );
@@ -467,7 +452,7 @@ export const createProviderCheckoutService = async ({
 }) => {
   if (!draft?._id) {
     throw new AppError(
-      "مسودة الحجز غير موجودة",
+      "DRAFT_BOOKING_NOT_FOUND",
       404,
       "draftBooking",
     );

@@ -215,7 +215,7 @@ export const getBookingById = asyncHandler(async (req, res) => {
 
   if (!booking) {
     throw new AppError(
-      isArabic ? "الحجز غير موجود" : "Booking not found",
+      "BOOKING_NOT_FOUND",
       404,
       "booking",
     );
@@ -295,7 +295,7 @@ export const cancelBooking = asyncHandler(async (req, res) => {
 
   if (!booking) {
     throw new AppError(
-      isArabic ? "الحجز غير موجود" : "Booking not found",
+      "BOOKING_NOT_FOUND",
       404,
       "booking",
     );
@@ -347,7 +347,7 @@ export const changeBookingStatus = asyncHandler(async (req, res) => {
 
   if (!booking) {
     throw new AppError(
-      isArabic ? "الحجز غير موجود" : "Booking not found",
+      "BOOKING_NOT_FOUND",
       404,
       "booking",
     );
@@ -401,7 +401,7 @@ export const confirmBooking = asyncHandler(async (req, res) => {
 
   if (!booking) {
     throw new AppError(
-      isArabic ? "الحجز غير موجود" : "Booking not found",
+      "BOOKING_NOT_FOUND",
       404,
       "booking",
     );
@@ -445,7 +445,7 @@ export const completeBooking = asyncHandler(async (req, res) => {
 
   if (!booking) {
     throw new AppError(
-      isArabic ? "الحجز غير موجود" : "Booking not found",
+      "BOOKING_NOT_FOUND",
       404,
       "booking",
     );
@@ -485,7 +485,7 @@ const booking = await Booking.findById(req.params.id);
 
   if (!booking) {
     throw new AppError(
-      isArabic ? "الحجز غير موجود" : "Booking not found",
+      "BOOKING_NOT_FOUND",
       404,
       "booking",
     );
@@ -496,7 +496,7 @@ const booking = await Booking.findById(req.params.id);
 
   if (!booking) {
     throw new AppError(
-      isArabic ? "الحجز غير موجود" : "Booking not found",
+      "BOOKING_NOT_FOUND",
       404,
       "booking",
     );

@@ -28,12 +28,13 @@ Inventory Model
 */
 
 import mongoose from "mongoose";
+import { INVENTORY_TYPE_VALUES } from "../constants/inventory/inventory-types.js";
 
 const inventorySchema = new mongoose.Schema(
   {
     inventoryType: {
       type: String,
-      enum: ["roomType", "trip", "transport", "visa" , "extraService", "vehicleRental"],
+      enum: INVENTORY_TYPE_VALUES,
       required: true,
     },
 

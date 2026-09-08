@@ -7,8 +7,11 @@ import {
 } from "../../constants/inventory/inventory-hold-statuses.js";
 import {
   releaseInventory,
+  releaseSingleInventory,
   reserveInventory,
+  reserveSingleInventory,
 } from "./inventory-service.js";
+import { INVENTORY_RESERVATION_MODES } from "../../constants/inventory/inventory-reservation-modes.js";
 import {
   releaseProgramSeats,
   reserveProgramSeats,
@@ -22,7 +25,7 @@ const terminalStatuses = new Set(TERMINAL_INVENTORY_HOLD_STATUSES);
 const positiveInteger = (value, field) => {
   const number = Number(value);
   if (!Number.isInteger(number) || number <= 0) {
-    throw new AppError(`${field} must be a positive integer`, 400, field);
+    throw new AppError("INVALID_POSITIVE_INTEGER", 400, field);
   }
   return number;
 };
@@ -34,17 +37,29 @@ const normalizeResources = ({ programReservation, inventoryReservations = [] }) 
         seats: positiveInteger(programReservation.seats, "seats"),
       }
     : null,
-  inventoryReservations: inventoryReservations.map((resource) => ({
-    inventoryType: resource.inventoryType,
-    itemId: resource.itemId,
-    startDate: resource.startDate,
-    endDate: resource.endDate,
-    quantity: positiveInteger(
-      resource.quantity ?? resource.requested,
-      "quantity",
-    ),
-    defaultTotal: Math.max(Number(resource.defaultTotal) || 0, 0),
-  })),
+  inventoryReservations: inventoryReservations.map((resource) => {
+    const reservationMode =
+      resource.reservationMode || INVENTORY_RESERVATION_MODES.PERIOD;
+    const normalized = {
+      inventoryType: resource.inventoryType,
+      reservationMode,
+      itemId: resource.itemId,
+      quantity: positiveInteger(
+        resource.quantity ?? resource.requested,
+        "quantity",
+      ),
+      defaultTotal: Math.max(Number(resource.defaultTotal) || 0, 0),
+    };
+
+    if (reservationMode === INVENTORY_RESERVATION_MODES.SINGLE) {
+      normalized.date = resource.date;
+      return normalized;
+    }
+
+    normalized.startDate = resource.startDate;
+    normalized.endDate = resource.endDate;
+    return normalized;
+  }),
 });
 
 const asPlain = (document) =>
@@ -55,10 +70,60 @@ export const createInventoryHoldServiceLayer = ({
   InventoryModel = Inventory,
   reserveDailyInventory = reserveInventory,
   releaseDailyInventory = releaseInventory,
+  reserveSingleInventoryRecord = reserveSingleInventory,
+  releaseSingleInventoryRecord = releaseSingleInventory,
   reserveSeats = reserveProgramSeats,
   releaseSeats = releaseProgramSeats,
   now = () => new Date(),
 } = {}) => {
+  const reserveResource = async ({ resource, req }) => {
+    if (resource.reservationMode === INVENTORY_RESERVATION_MODES.SINGLE) {
+      return reserveSingleInventoryRecord({
+        Inventory: InventoryModel,
+        inventoryType: resource.inventoryType,
+        itemId: resource.itemId,
+        date: resource.date,
+        requested: resource.quantity,
+        defaultTotal: resource.defaultTotal,
+        req,
+      });
+    }
+
+    return reserveDailyInventory({
+      Inventory: InventoryModel,
+      inventoryType: resource.inventoryType,
+      itemId: resource.itemId,
+      startDate: resource.startDate,
+      endDate: resource.endDate,
+      requested: resource.quantity,
+      defaultTotal: resource.defaultTotal,
+      req,
+    });
+  };
+
+  const releaseResource = async ({ resource, req }) => {
+    if (resource.reservationMode === INVENTORY_RESERVATION_MODES.SINGLE) {
+      return releaseSingleInventoryRecord({
+        Inventory: InventoryModel,
+        inventoryType: resource.inventoryType,
+        itemId: resource.itemId,
+        date: resource.date,
+        released: resource.quantity,
+        req,
+      });
+    }
+
+    return releaseDailyInventory({
+      Inventory: InventoryModel,
+      inventoryType: resource.inventoryType,
+      itemId: resource.itemId,
+      startDate: resource.startDate,
+      endDate: resource.endDate,
+      released: resource.quantity,
+      req,
+    });
+  };
+
   const waitForConcurrentHold = async (key) => {
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const existing = await HoldModel.findOne({
@@ -78,15 +143,7 @@ export const createInventoryHoldServiceLayer = ({
 
     for (const resource of resources) {
       if (resource.releasedAt) continue;
-      await releaseDailyInventory({
-        Inventory: InventoryModel,
-        inventoryType: resource.inventoryType,
-        itemId: resource.itemId,
-        startDate: resource.startDate,
-        endDate: resource.endDate,
-        released: resource.quantity,
-        req,
-      });
+      await releaseResource({ resource, req });
       await HoldModel.updateOne(
         { _id: hold._id, "inventoryReservations._id": resource._id },
         { $set: { "inventoryReservations.$.releasedAt": now() } },
@@ -145,9 +202,9 @@ export const createInventoryHoldServiceLayer = ({
 
     if (!hold) {
       hold = await HoldModel.findById(holdId);
-      if (!hold) throw new AppError("Inventory hold not found", 404, "holdId");
+      if (!hold) throw new AppError("INVENTORY_HOLD_NOT_FOUND", 404, "holdId");
       if (terminalStatuses.has(hold.status)) return hold;
-      throw new AppError("Inventory hold is being processed", 409, "status");
+      throw new AppError("INVENTORY_HOLD_PROCESSING", 409, "status");
     }
 
     try {
@@ -177,16 +234,16 @@ export const createInventoryHoldServiceLayer = ({
     req = null,
   }) => {
     const key = String(idempotencyKey || "").trim();
-    if (!key) throw new AppError("idempotencyKey is required", 400, "idempotencyKey");
+    if (!key) throw new AppError("IDEMPOTENCY_KEY_REQUIRED", 400, "idempotencyKey");
 
     const resources = normalizeResources({ programReservation, inventoryReservations });
     if (!resources.programReservation && resources.inventoryReservations.length === 0) {
-      throw new AppError("Inventory hold requires at least one resource", 400, "resources");
+      throw new AppError("INVENTORY_HOLD_EMPTY", 400, "resources");
     }
 
     const expiry = expiresAt ? new Date(expiresAt) : new Date(now().getTime() + DEFAULT_HOLD_DURATION_MS);
     if (Number.isNaN(expiry.getTime()) || expiry <= now()) {
-      throw new AppError("Inventory hold expiry must be in the future", 400, "expiresAt");
+      throw new AppError("INVENTORY_HOLD_EXPIRY_INVALID", 400, "expiresAt");
     }
 
     let hold;
@@ -228,7 +285,7 @@ export const createInventoryHoldServiceLayer = ({
       if (existing?.status === INVENTORY_HOLD_STATUSES.HELD) {
         return existing;
       }
-      throw new AppError("Inventory hold creation is already in progress", 409, "idempotencyKey");
+      throw new AppError("INVENTORY_HOLD_IN_PROGRESS", 409, "idempotencyKey");
     }
 
     const reservedInventory = [];
@@ -244,16 +301,7 @@ export const createInventoryHoldServiceLayer = ({
       }
 
       for (const resource of resources.inventoryReservations) {
-        await reserveDailyInventory({
-          Inventory: InventoryModel,
-          inventoryType: resource.inventoryType,
-          itemId: resource.itemId,
-          startDate: resource.startDate,
-          endDate: resource.endDate,
-          requested: resource.quantity,
-          defaultTotal: resource.defaultTotal,
-          req,
-        });
+        await reserveResource({ resource, req });
         reservedInventory.push(resource);
       }
 
@@ -264,15 +312,7 @@ export const createInventoryHoldServiceLayer = ({
       );
     } catch (error) {
       for (const resource of reservedInventory.reverse()) {
-        await releaseDailyInventory({
-          Inventory: InventoryModel,
-          inventoryType: resource.inventoryType,
-          itemId: resource.itemId,
-          startDate: resource.startDate,
-          endDate: resource.endDate,
-          released: resource.quantity,
-          req,
-        });
+        await releaseResource({ resource, req });
       }
       if (programReserved) {
         await releaseSeats({
@@ -318,9 +358,9 @@ export const createInventoryHoldServiceLayer = ({
     if (committed) return committed;
 
     const hold = await HoldModel.findById(holdId);
-    if (!hold) throw new AppError("Inventory hold not found", 404, "holdId");
+    if (!hold) throw new AppError("INVENTORY_HOLD_NOT_FOUND", 404, "holdId");
     if (hold.status === INVENTORY_HOLD_STATUSES.COMMITTED) return hold;
-    throw new AppError("Only an active hold can be committed", 409, "status");
+    throw new AppError("INVENTORY_HOLD_NOT_ACTIVE", 409, "status");
   };
 
   const expireHolds = async ({ limit = 100, req = null } = {}) => {
@@ -385,7 +425,7 @@ export const createInventoryHoldServiceLayer = ({
 
     if (!isCommitted && !isValidActiveHold) {
       throw new AppError(
-        "No valid inventory hold matches this payment and draft",
+        "PAYMENT_HOLD_MISMATCH",
         409,
         "inventoryHold",
       );
@@ -428,7 +468,7 @@ export const createInventoryHoldServiceLayer = ({
   const updateHoldExpiry = async ({ holdId, expiresAt }) => {
     const requestedExpiry = new Date(expiresAt);
     if (Number.isNaN(requestedExpiry.getTime()) || requestedExpiry <= now()) {
-      throw new AppError("Inventory hold expiry must be in the future", 400, "expiresAt");
+      throw new AppError("INVENTORY_HOLD_EXPIRY_INVALID", 400, "expiresAt");
     }
 
     const updated = await HoldModel.findOneAndUpdate(

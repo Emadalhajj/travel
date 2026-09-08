@@ -1,11 +1,11 @@
 import express from 'express'
-import { protect, authorize } from "../middleware/authMiddleware.js";
-import { validate } from "../middleware/validate.js";
+import { protect, authorize } from "../../middleware/authMiddleware.js";
+import { validate } from "../../middleware/validate.js";
 
 import {
     createTripSchema , 
     updateTripSchema
-} from '../services/validators/trip-validation.js'
+} from '../../services/validators/trips/trip-validation.js'
 
 import {
     getAllTrips ,
@@ -13,11 +13,12 @@ import {
     createTrip ,
     updateTrip ,
     deleteTrip ,
+    restoreTrip,
     toggleTripStatus
-} from '../controllers/trip-controller.js'
+} from '../../controllers/trip-controller.js'
 
-import parseFormData from "../middleware/parseFormData.js";
-import { uploadTransport } from "../middleware/upload.js";
+import parseFormData from "../../middleware/parseFormData.js";
+import { uploadTransport } from "../../middleware/upload.js";
 
 const uploadAndParse = [
   uploadTransport.fields([
@@ -58,6 +59,13 @@ tripRoutes.delete(
     protect,
     authorize("admin", "superAdmin"),
     deleteTrip
+)
+
+tripRoutes.patch(
+    "/:id/restore",
+    protect,
+    authorize("admin", "superAdmin"),
+    restoreTrip
 )
 
 tripRoutes.patch(

@@ -18,22 +18,13 @@ Bank Account Validation
 */
 
 import Joi from "joi";
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../../constants/currencies.js";
 
 /*
 =====================================================
 Constants
 =====================================================
 */
-
-const SUPPORTED_CURRENCIES = [
-  "SAR",
-  "USD",
-  "EUR",
-  "GBP",
-  "AED",
-  "EGP",
-  "TRY",
-];
 
 /*
 =====================================================
@@ -118,7 +109,7 @@ export const createBankAccountSchema =
     currency: Joi.string()
       .uppercase()
       .valid(...SUPPORTED_CURRENCIES)
-      .default("SAR"),
+      .default(DEFAULT_CURRENCY),
 
     notesAr: Joi.string()
       .trim()

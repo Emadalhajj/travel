@@ -55,13 +55,17 @@ export default function useFormInitializer({
       // regardless of whether the API field is named images or profileImage.
       if (field.type === "file") return;
 
-      const value =
+      const configuredValue =
         get(
           currentInitialData,
           field.name,
         ) ??
         field.defaultValue ??
         "";
+
+      const value = field.type === "array"
+        ? (Array.isArray(configuredValue) ? configuredValue : [])
+        : configuredValue;
 
       initial = set(
         initial,

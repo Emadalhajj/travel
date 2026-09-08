@@ -37,7 +37,7 @@ const getStripeClient = (providerConfig = {}) => {
 
   if (!secretKey) {
     throw new AppError(
-      "مفتاح Stripe السري غير معد",
+      "STRIPE_SECRET_KEY_MISSING",
       500,
       "credentials.secretKey",
     );
@@ -61,7 +61,7 @@ const toMinorAmount = (amount, currency) => {
   const normalizedCurrency = String(currency || "SAR").toUpperCase();
 
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-    throw new AppError("مبلغ الدفع غير صحيح", 400, "amount");
+    throw new AppError("PAYMENT_AMOUNT_INVALID", 400, "amount");
   }
 
   return Math.round(
@@ -77,11 +77,11 @@ const fromMinorAmount = (amount, currency) => {
   return Number(amount || 0) / divisor;
 };
 
-const normalizeStripeError = (error, fallback) => {
+const normalizeStripeError = (error) => {
   if (error instanceof AppError) return error;
 
   return new AppError(
-    error?.raw?.message || error?.message || fallback,
+    "PAYMENT_PROVIDER_REQUEST_FAILED",
     Number(error?.statusCode) >= 500 ? 502 : 400,
     "stripe",
   );
@@ -127,9 +127,10 @@ export const createStripeCheckoutSession = async ({
 
   if (!STRIPE_CARD_METHOD_CODES.has(normalizedMethod)) {
     throw new AppError(
-      `طريقة الدفع ${normalizedMethod} غير مدعومة حاليًا عبر Stripe`,
+      "STRIPE_METHOD_UNSUPPORTED",
       400,
       "paymentMethodCode",
+      { method: normalizedMethod },
     );
   }
 
@@ -180,7 +181,7 @@ export const createStripeCheckoutSession = async ({
 
     if (!session.client_secret) {
       throw new AppError(
-        "لم تُرجع Stripe مفتاح الجلسة المضمنة",
+        "STRIPE_SESSION_SECRET_MISSING",
         502,
         "stripe.clientSecret",
       );
@@ -194,7 +195,7 @@ export const createStripeCheckoutSession = async ({
 
     if (!session.client_secret || !publishableKey) {
       throw new AppError(
-        "بيانات جلسة Stripe المضمنة غير مكتملة",
+        "STRIPE_SESSION_DATA_INCOMPLETE",
         502,
         "stripe",
       );
@@ -238,7 +239,7 @@ export const getStripeEmbeddedCheckoutPresentation = async ({
 }) => {
   if (!checkoutId) {
     throw new AppError(
-      "معرف جلسة Stripe مطلوب",
+      "STRIPE_SESSION_ID_REQUIRED",
       400,
       "checkoutId",
     );
@@ -271,7 +272,7 @@ export const getStripeEmbeddedCheckoutPresentation = async ({
 
     if (!session?.client_secret || !publishableKey) {
       throw new AppError(
-        "بيانات جلسة Stripe المضمنة غير مكتملة",
+        "STRIPE_SESSION_DATA_INCOMPLETE",
         502,
         "stripe",
       );
@@ -295,7 +296,7 @@ export const verifyStripePayment = async ({
   providerConfig = {},
 }) => {
   if (!checkoutId) {
-    throw new AppError("معرف جلسة Stripe مطلوب", 400, "checkoutId");
+    throw new AppError("STRIPE_SESSION_ID_REQUIRED", 400, "checkoutId");
   }
 
   const stripe = getStripeClient(providerConfig);
@@ -377,7 +378,7 @@ export const captureStripePayment = async ({
 
       if (!paymentIntentId) {
         throw new AppError(
-          "جلسة Stripe لا تحتوي PaymentIntent قابلًا للتحصيل",
+          "STRIPE_PAYMENT_INTENT_MISSING",
           409,
           "providerReference",
         );
@@ -393,9 +394,10 @@ export const captureStripePayment = async ({
 
     if (paymentIntent.status !== "succeeded") {
       throw new AppError(
-        `لا يمكن تحصيل PaymentIntent في الحالة ${paymentIntent.status}`,
+        "STRIPE_CAPTURE_STATUS_INVALID",
         409,
         "providerOperation",
+        { status: paymentIntent.status },
       );
     }
 
@@ -425,9 +427,10 @@ export const refundStripePayment = async ({
 
     if (paymentIntent.status !== "succeeded") {
       throw new AppError(
-        `لا يمكن استرجاع PaymentIntent في الحالة ${paymentIntent.status}`,
+        "STRIPE_REFUND_STATUS_INVALID",
         409,
         "providerOperation",
+        { status: paymentIntent.status },
       );
     }
 
@@ -438,9 +441,10 @@ export const refundStripePayment = async ({
 
     if (!["succeeded", "pending"].includes(refund.status)) {
       throw new AppError(
-        `فشل استرجاع Stripe بالحالة ${refund.status}`,
+        "STRIPE_REFUND_FAILED",
         409,
         "providerOperation",
+        { status: refund.status },
       );
     }
 
@@ -494,7 +498,7 @@ export const cancelStripePayment = async ({
 
     if (paymentIntent.status === "succeeded") {
       throw new AppError(
-        "تم تحصيل دفعة Stripe؛ استخدم الاسترجاع بدل الإلغاء",
+        "STRIPE_CAPTURED_CANCEL_FORBIDDEN",
         409,
         "providerOperation",
       );
@@ -534,14 +538,14 @@ export const constructStripeWebhookEvent = ({
 
   if (!secret) {
     throw new AppError(
-      "Webhook Secret الخاص بـStripe غير معد",
+      "STRIPE_WEBHOOK_SECRET_MISSING",
       500,
       "webhookSecret",
     );
   }
 
   if (!signature) {
-    throw new AppError("توقيع Stripe مفقود", 400, "stripe-signature");
+    throw new AppError("STRIPE_SIGNATURE_MISSING", 400, "stripe-signature");
   }
 
   try {
@@ -551,6 +555,6 @@ export const constructStripeWebhookEvent = ({
       secret,
     );
   } catch {
-    throw new AppError("توقيع Stripe غير صالح", 400, "stripe-signature");
+    throw new AppError("STRIPE_SIGNATURE_INVALID", 400, "stripe-signature");
   }
 };

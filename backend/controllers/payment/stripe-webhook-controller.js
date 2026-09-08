@@ -44,7 +44,7 @@ export const handleStripeWebhook = async (req, res, next) => {
     );
 
     if (!provider) {
-      throw new AppError("مزود Stripe غير متاح", 503, "providerId");
+      throw new AppError("STRIPE_PROVIDER_UNAVAILABLE", 503, "providerId");
     }
 
     const event = constructStripeWebhookEvent({
@@ -65,7 +65,7 @@ export const handleStripeWebhook = async (req, res, next) => {
 
     if (!paymentReference) {
       throw new AppError(
-        "Stripe Webhook لا يحتوي مرجع المعاملة",
+        "STRIPE_WEBHOOK_REFERENCE_MISSING",
         400,
         "paymentReference",
       );
@@ -79,7 +79,7 @@ export const handleStripeWebhook = async (req, res, next) => {
       String(transaction.providerCode || "").toUpperCase() !== "STRIPE" ||
       String(transaction.paymentProvider || "") !== String(provider._id)
     ) {
-      throw new AppError("المعاملة لا تخص مزود Stripe المحدد", 400, "providerCode");
+      throw new AppError("STRIPE_PROVIDER_MISMATCH", 400, "providerCode");
     }
 
     await completeProviderPaymentService({

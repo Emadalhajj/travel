@@ -236,7 +236,7 @@ export const getPaymentMethodByIdService =
 
     if (!method) {
       throw new AppError(
-        "طريقة الدفع غير موجودة",
+        "PAYMENT_METHOD_NOT_FOUND",
         404,
         "paymentMethod",
       );
@@ -268,7 +268,7 @@ export const createPaymentMethodService =
 
     if (existing) {
       throw new AppError(
-        "كود طريقة الدفع مستخدم مسبقًا",
+        "PAYMENT_METHOD_CODE_DUPLICATE",
         409,
         "code",
       );
@@ -314,7 +314,7 @@ export const updatePaymentMethodService =
 
     if (!method) {
       throw new AppError(
-        "طريقة الدفع غير موجودة",
+        "PAYMENT_METHOD_NOT_FOUND",
         404,
         "paymentMethod",
       );
@@ -344,7 +344,7 @@ export const updatePaymentMethodService =
 
       if (duplicate) {
         throw new AppError(
-          "كود طريقة الدفع مستخدم مسبقًا",
+          "PAYMENT_METHOD_CODE_DUPLICATE",
           409,
           "code",
         );
@@ -441,7 +441,7 @@ export const deletePaymentMethodService =
 
     if (!method) {
       throw new AppError(
-        "طريقة الدفع غير موجودة",
+        "PAYMENT_METHOD_NOT_FOUND",
         404,
         "paymentMethod",
       );

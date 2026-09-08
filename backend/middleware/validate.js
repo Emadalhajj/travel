@@ -1,6 +1,7 @@
 // backend/middleware/validate.js
 import asyncHandler from "./asyncHandler.js"; // تأكد من وجود هذا الملف
 import { isArabicRequest } from "../utils/getRequestLanguage.js";
+import { translateJoiError } from "../utils/validation/translateJoiError.js";
 
 export const validate = (schemaFactory) =>
   asyncHandler(async (req, res, next) => {
@@ -27,11 +28,15 @@ export const validate = (schemaFactory) =>
     });
 
     if (error) {
+      const translatedErrors = error.details.map((detail) =>
+        translateJoiError(detail, isArabic ? "ar" : "en"),
+      );
+
       return res.status(400).json({
         success: false,
-        message: error.details[0].message,
-        errors: error.details.reduce((acc, item) => {
-          acc[item.path.join(".")] = item.message;
+        message: translatedErrors[0].message,
+        errors: translatedErrors.reduce((acc, item) => {
+          acc[item.field] = item.message;
           return acc;
         }, {}),
       });

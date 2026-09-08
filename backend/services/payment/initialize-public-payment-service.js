@@ -37,7 +37,7 @@ import { PAYMENT_TRANSACTION_EVENT_SOURCES } from "../../constants/payments/paym
 
 const validateObjectId = (value, field) => {
   if (!mongoose.Types.ObjectId.isValid(value)) {
-    throw new AppError("المعرف المرسل غير صالح", 400, field);
+    throw new AppError("INVALID_LOOKUP_ID", 400, field);
   }
 };
 
@@ -54,7 +54,7 @@ const getDraftBooking = async ({ draftId, userId }) => {
 
   if (!draft) {
     throw new AppError(
-      "مسودة الحجز غير موجودة أو لم تعد متاحة",
+      "DRAFT_BOOKING_UNAVAILABLE",
       404,
       "draftId",
     );
@@ -110,7 +110,7 @@ const getActivePaymentConfiguration = async ({
 
   if (!configuration) {
     throw new AppError(
-      "طريقة الدفع المحددة غير متاحة لهذا الحجز",
+      "PAYMENT_METHOD_NOT_AVAILABLE_FOR_BOOKING",
       404,
       "configurationId",
     );
@@ -123,7 +123,7 @@ const validateAmountRules = ({ configuration, amount }) => {
   const numericAmount = Number(amount);
 
   if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-    throw new AppError("مبلغ الدفع غير صالح", 400, "amount");
+    throw new AppError("PAYMENT_AMOUNT_INVALID", 400, "amount");
   }
 
   if (
@@ -132,9 +132,10 @@ const validateAmountRules = ({ configuration, amount }) => {
     numericAmount < configuration.minimumAmount
   ) {
     throw new AppError(
-      `الحد الأدنى لهذه الطريقة هو ${configuration.minimumAmount}`,
+      "PAYMENT_MINIMUM_NOT_MET",
       400,
       "paymentMethodCode",
+      { amount: configuration.minimumAmount },
     );
   }
 
@@ -144,9 +145,10 @@ const validateAmountRules = ({ configuration, amount }) => {
     numericAmount > configuration.maximumAmount
   ) {
     throw new AppError(
-      `الحد الأعلى لهذه الطريقة هو ${configuration.maximumAmount}`,
+      "PAYMENT_MAXIMUM_EXCEEDED",
       400,
       "paymentMethodCode",
+      { amount: configuration.maximumAmount },
     );
   }
 };
@@ -164,7 +166,7 @@ const resolveSelectedBankAccount = ({
 
   if (activeAccounts.length === 0) {
     throw new AppError(
-      "لا توجد حسابات بنكية متاحة حاليًا",
+      "BANK_ACCOUNTS_UNAVAILABLE",
       400,
       "selectedBankAccountId",
     );
@@ -177,7 +179,7 @@ const resolveSelectedBankAccount = ({
 
     if (!selectedAccount) {
       throw new AppError(
-        "الحساب البنكي المحدد غير متاح",
+        "BANK_ACCOUNT_UNAVAILABLE",
         400,
         "selectedBankAccountId",
       );
@@ -189,7 +191,7 @@ const resolveSelectedBankAccount = ({
   if (activeAccounts.length === 1) return activeAccounts[0];
 
   throw new AppError(
-    "يرجى اختيار الحساب البنكي",
+    "BANK_ACCOUNT_SELECTION_REQUIRED",
     400,
     "selectedBankAccountId",
   );
@@ -393,7 +395,7 @@ export const initializePublicPaymentService = async ({
   }
 
   throw new AppError(
-    "نوع إعداد الدفع غير مدعوم",
+    "PAYMENT_CONFIGURATION_TYPE_UNSUPPORTED",
     400,
     "configurationType",
   );

@@ -21,8 +21,9 @@ export default function useAdminEntityCrudState({
     setLoadingSave(false);
   }, []);
 
-  const openCreate = useCallback(() => {
+  const openCreate = useCallback((initialValues = null) => {
     resetForm();
+    setCurrentItem(initialValues);
     setShowModal(true);
   }, [resetForm]);
 

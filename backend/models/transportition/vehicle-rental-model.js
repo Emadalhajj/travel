@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
 
 const pricingPeriodSchema = new mongoose.Schema(
   {
@@ -72,7 +73,8 @@ const vehicleRentalSchema = new mongoose.Schema(
 
       currency: {
         type: String,
-        default: "SAR",
+        enum: SUPPORTED_CURRENCIES,
+        default: DEFAULT_CURRENCY,
       },
 
       pricingPeriods: [pricingPeriodSchema],

@@ -36,7 +36,7 @@ export const getBookingLogs = asyncHandler(async (req, res) => {
 
   if (!booking) {
     throw new AppError(
-      isArabic ? "الحجز غير موجود" : "Booking not found",
+      "BOOKING_NOT_FOUND",
       404,
       "booking",
     );

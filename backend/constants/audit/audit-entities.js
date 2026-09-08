@@ -25,11 +25,13 @@ export const AUDIT_ENTITIES = {
   NOTIFICATION: "notification",
   USER: "user",
   UMRAH_PROGRAM: "umrah_program",
+  TRIP: "trip",
   BANK_ACCOUNT: "bank_account",
   PAYMENT_METHOD: "payment_method",
   PAYMENT_PROVIDER: "payment_provider",
   PAYMENT_CONFIGURATION:
     "payment_configuration",
+    TRIP_DEPARTURE: "trip_departure",
 };
 
 export const AUDIT_ENTITIES_LIST = Object.values(AUDIT_ENTITIES);

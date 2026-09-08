@@ -85,6 +85,8 @@ export default function UniversalFormModal({
   errors,
   loading,
   onFormStateChange,
+  afterFormContent,
+  hideSaveAction = false,
 
   /*
   =========================================================
@@ -173,6 +175,8 @@ export default function UniversalFormModal({
           onFormStateChange={onFormStateChange}
         />
 
+        {afterFormContent}
+
       </Modal.Body>
       {/* footer */}
       <Modal.Footer className="bg-light border-top py-3 px-4">
@@ -183,7 +187,7 @@ export default function UniversalFormModal({
             {" "}
             {isArabic ? "إلغاء" : "Cancel"}{" "}
           </Button>{" "}
-          <Button
+          {!hideSaveAction && <Button
             variant="primary"
             disabled={loading}
             onClick={() => formRef.current?.submit()}
@@ -196,7 +200,7 @@ export default function UniversalFormModal({
               : isArabic
                 ? "حفظ"
                 : "Save"}{" "}
-          </Button>{" "}
+          </Button>}{" "}
         </div>{" "}
       </Modal.Footer>
     </Modal>

@@ -2,10 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import InventoryModel from "../../models/inventory-model.js";
+import InventoryHoldModel from "../../models/inventory-hold-model.js";
 import {
+  INVENTORY_TYPES,
+  INVENTORY_TYPE_VALUES,
+} from "../../constants/inventory/inventory-types.js";
+import {
+  checkSingleInventoryAvailability,
   createRoomTypeInventoryForPeriod,
   releaseInventory,
+  releaseSingleInventory,
   reserveInventory,
+  reserveSingleInventory,
 } from "../../services/booking/inventory-service.js";
 
 const dateKey = (value) => {
@@ -145,6 +153,102 @@ test("release respects blocked inventory", async () => {
 
   assert.equal(store.row("2026-09-01").reserved, 0);
   assert.equal(store.row("2026-09-01").available, 3);
+});
+
+test("Inventory and InventoryHold share the inventory type contract", () => {
+  assert.ok(INVENTORY_TYPE_VALUES.includes(INVENTORY_TYPES.TRIP_DEPARTURE));
+  assert.equal(INVENTORY_TYPE_VALUES.includes("trip"), false);
+  assert.deepEqual(
+    InventoryModel.schema.path("inventoryType").enumValues,
+    [...INVENTORY_TYPE_VALUES],
+  );
+  assert.deepEqual(
+    InventoryHoldModel.schema
+      .path("inventoryReservations")
+      .schema
+      .path("inventoryType")
+      .enumValues,
+    [...INVENTORY_TYPE_VALUES],
+  );
+});
+
+test("single-record availability checks one TripDeparture inventory record", async () => {
+  const store = createInventoryStore([
+    { date: "2026-09-10", total: 5, reserved: 1, blocked: 0, available: 4 },
+  ]);
+
+  const result = await checkSingleInventoryAvailability({
+    Inventory: store.Inventory,
+    inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+    itemId: "departure-1",
+    date: "2026-09-10T08:00:00.000Z",
+    requested: 4,
+  });
+
+  assert.equal(result.canBook, true);
+  assert.equal(result.requested, 4);
+  assert.equal(result.inventory.available, 4);
+});
+
+test("concurrent single-record reservations cannot oversell a TripDeparture", async () => {
+  const store = createInventoryStore([
+    { date: "2026-09-10", total: 5, reserved: 0, blocked: 0, available: 5 },
+  ]);
+  const request = {
+    Inventory: store.Inventory,
+    inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+    itemId: "departure-1",
+    date: "2026-09-10T08:00:00.000Z",
+    requested: 3,
+  };
+
+  const results = await Promise.allSettled([
+    reserveSingleInventory(request),
+    reserveSingleInventory(request),
+  ]);
+
+  assert.equal(results.filter(({ status }) => status === "fulfilled").length, 1);
+  assert.equal(results.filter(({ status }) => status === "rejected").length, 1);
+  assert.equal(store.row("2026-09-10").reserved, 3);
+  assert.equal(store.row("2026-09-10").available, 2);
+});
+
+test("single-record release restores capacity while respecting blocked seats", async () => {
+  const store = createInventoryStore([
+    { date: "2026-09-10", total: 5, reserved: 2, blocked: 1, available: 2 },
+  ]);
+
+  const result = await releaseSingleInventory({
+    Inventory: store.Inventory,
+    inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+    itemId: "departure-1",
+    date: "2026-09-10T08:00:00.000Z",
+    released: 2,
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.released, 2);
+  assert.equal(store.row("2026-09-10").reserved, 0);
+  assert.equal(store.row("2026-09-10").available, 4);
+});
+
+test("single-record operations reject invalid quantities", async () => {
+  const store = createInventoryStore([]);
+  const baseRequest = {
+    Inventory: store.Inventory,
+    inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+    itemId: "departure-1",
+    date: "2026-09-10",
+  };
+
+  await assert.rejects(
+    () => reserveSingleInventory({ ...baseRequest, requested: 0 }),
+    ({ code, field }) => code === "INVALID_REQUESTED_QUANTITY" && field === "requested",
+  );
+  await assert.rejects(
+    () => releaseSingleInventory({ ...baseRequest, released: -1 }),
+    ({ code, field }) => code === "INVALID_RELEASED_QUANTITY" && field === "released",
+  );
 });
 
 test("room inventory capacity update preserves reserved and blocked counts", async () => {

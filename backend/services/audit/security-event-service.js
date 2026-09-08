@@ -27,7 +27,7 @@ const USER_POPULATE_FIELDS = "firstName lastName username email role";
 const parseDate = (value, field, endOfDay = false) => {
   if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new AppError(`Invalid ${field}`, 400, field);
+  if (Number.isNaN(date.getTime())) throw new AppError("INVALID_FILTER_FIELD", 400, field);
   if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(String(value))) date.setUTCHours(23, 59, 59, 999);
   return date;
 };
@@ -40,16 +40,16 @@ export const normalizeSecurityEventPagination = ({ page = 1, limit = 20 } = {}) 
 export const buildSecurityEventFilter = ({ type, user, dateFrom, dateTo } = {}) => {
   const filter = {};
   if (type) {
-    if (!SECURITY_EVENT_TYPES_LIST.includes(type)) throw new AppError("Invalid security event type", 400, "type");
+    if (!SECURITY_EVENT_TYPES_LIST.includes(type)) throw new AppError("INVALID_SECURITY_EVENT_TYPE", 400, "type");
     filter.type = type;
   }
   if (user) {
-    if (!mongoose.Types.ObjectId.isValid(user)) throw new AppError("Invalid user", 400, "user");
+    if (!mongoose.Types.ObjectId.isValid(user)) throw new AppError("INVALID_USER_ID", 400, "user");
     filter.user = user;
   }
   const from = parseDate(dateFrom, "dateFrom");
   const to = parseDate(dateTo, "dateTo", true);
-  if (from && to && from > to) throw new AppError("dateFrom must be before dateTo", 400, "dateFrom");
+  if (from && to && from > to) throw new AppError("DATE_FROM_AFTER_DATE_TO", 400, "dateFrom");
   if (from || to) filter.createdAt = { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) };
   return filter;
 };

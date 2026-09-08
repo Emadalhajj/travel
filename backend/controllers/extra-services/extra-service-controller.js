@@ -76,7 +76,7 @@ export const getOneExtraService = asyncHandler(async(req , res)=>{
      })
      if(!service){
          throw new AppError(
-      isArabic ? "الخدمة غير موجودة" : "Service not found",
+      "SERVICE_NOT_FOUND",
       404,
       "extraService",
     )
@@ -112,7 +112,7 @@ export const updateExtraService = asyncHandler(async(req , res)=>{
 
       if (!service) {
     throw new AppError(
-      isArabic ? "الخدمة غير موجودة" : "Service not found",
+      "SERVICE_NOT_FOUND",
       404,
       "extraService",
     );
@@ -156,7 +156,7 @@ export const deleteExtraService = asyncHandler(async(req , res)=>{
 
       if (!service) {
     throw new AppError(
-      isArabic ? "الخدمة غير موجودة" : "Service not found",
+      "SERVICE_NOT_FOUND",
       404,
       "extraService",
     );
@@ -182,7 +182,7 @@ export const toggleExtraServiceStatus = asyncHandler(async(req , res)=>{
     const service = ExtraService.findById(req.params.id)
       if (!service) {
     throw new AppError(
-      isArabic ? "الخدمة غير موجودة" : "Service not found",
+      "SERVICE_NOT_FOUND",
       404,
       "extraService",
     );

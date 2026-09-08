@@ -101,7 +101,7 @@ const resolveTransactionIdentifier = ({
   }
 
   throw new AppError(
-    "يجب إرسال مرجع لمعاملة الدفع",
+    "PAYMENT_TRANSACTION_REQUIRED",
     400,
     "paymentTransaction",
   );
@@ -125,7 +125,7 @@ const validateVerifiedPayment = ({
     !Number.isFinite(verifiedAmount)
   ) {
     throw new AppError(
-      "مزود الدفع لم يُرجع مبلغًا صالحًا للتحقق",
+      "PROVIDER_AMOUNT_MISSING",
       502,
       "amount",
     );
@@ -136,7 +136,7 @@ const validateVerifiedPayment = ({
       roundPrice(transaction.amount)
   ) {
     throw new AppError(
-      "مبلغ الدفع المؤكد لا يطابق مبلغ المعاملة",
+      "PAYMENT_AMOUNT_MISMATCH",
       409,
       "amount",
     );
@@ -144,7 +144,7 @@ const validateVerifiedPayment = ({
 
   if (!verification.currency) {
     throw new AppError(
-      "مزود الدفع لم يُرجع عملة للتحقق",
+      "PROVIDER_CURRENCY_MISSING",
       502,
       "currency",
     );
@@ -155,7 +155,7 @@ const validateVerifiedPayment = ({
       String(transaction.currency).toUpperCase()
   ) {
     throw new AppError(
-      "عملة الدفع المؤكدة لا تطابق عملة المعاملة",
+      "PAYMENT_CURRENCY_MISMATCH",
       409,
       "currency",
     );
@@ -163,7 +163,7 @@ const validateVerifiedPayment = ({
 
   if (!verification.merchantTransactionId) {
     throw new AppError(
-      "مزود الدفع لم يُرجع مرجع المعاملة للتحقق",
+      "PROVIDER_REFERENCE_MISSING",
       502,
       "paymentReference",
     );
@@ -175,7 +175,7 @@ const validateVerifiedPayment = ({
       transaction.paymentReference
   ) {
     throw new AppError(
-      "مرجع مزود الدفع لا يطابق مرجع المعاملة",
+      "PAYMENT_REFERENCE_MISMATCH",
       409,
       "paymentReference",
     );
@@ -260,7 +260,7 @@ export const completeProviderPaymentService = async ({
 
   if (!transaction.paymentProvider) {
     throw new AppError(
-      "المعاملة غير مرتبطة بمزود دفع",
+      "PAYMENT_PROVIDER_LINK_MISSING",
       400,
       "providerId",
     );
@@ -514,7 +514,7 @@ export const completeProviderPaymentService = async ({
     await sendPaidPendingBookingNotification({ transaction, req });
 
     throw new AppError(
-      "لم يتم إنشاء الحجز بعد تأكيد الدفع",
+      "BOOKING_NOT_CREATED_AFTER_PAYMENT",
       500,
       "booking",
     );

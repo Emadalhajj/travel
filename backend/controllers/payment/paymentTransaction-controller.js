@@ -122,7 +122,7 @@ export const getBookingPayments = asyncHandler(async (req, res) => {
 
   if (!booking) {
     throw new AppError(
-      isArabic ? "الحجز غير موجود" : "Booking not found",
+      "BOOKING_NOT_FOUND",
       404,
       "booking",
     );
@@ -211,30 +211,21 @@ export const refundPaymentTransaction = asyncHandler(
       });
 
     if (!transaction) {
-      throw new AppError(
-        isArabic
-          ? "عملية الدفع غير موجودة"
-          : "Payment transaction not found",
+      throw new AppError("PAYMENT_TRANSACTION_NOT_FOUND",
         404,
         "payment",
       );
     }
 
     if (transaction.status === "refunded") {
-      throw new AppError(
-        isArabic
-          ? "تم استرجاع هذه العملية مسبقاً"
-          : "Transaction already refunded",
+      throw new AppError("PAYMENT_ALREADY_REFUNDED",
         400,
         "status",
       );
     }
 
     if (transaction.status !== "paid") {
-      throw new AppError(
-        isArabic
-          ? "لا يمكن استرجاع عملية غير مدفوعة"
-          : "Only paid transactions can be refunded",
+      throw new AppError("PAYMENT_REFUND_NOT_PAID",
         400,
         "status",
       );

@@ -6,7 +6,7 @@ import {
   updateTripApi,
   deleteTripApi,
   toggleTripStatus,
-} from "../../services/api/admin/transports";
+} from "../../services/api/admin/trips";
 import { handleApiError } from "../../Utils/handleApiError";
 
 //fetch
@@ -130,7 +130,7 @@ const tripSlice = createSlice({
 
       .addCase(createNewTrip.fulfilled, (state, action) => {
         state.mutationLoading = false;
-        state.tripList.unshift(action.payload?.newTrip || action.payload);
+        state.tripList.unshift(action.payload?.trip || action.payload?.data || action.payload);
       })
       .addCase(createNewTrip.rejected, (state, action) => {
         state.mutationLoading = false;
@@ -143,7 +143,7 @@ const tripSlice = createSlice({
       //update
       .addCase(updateExistingTrip.fulfilled, (state, action) => {
         state.mutationLoading = false;
-        const updateTrip = action.payload?.updateTrip || action.payload;
+        const updateTrip = action.payload?.trip || action.payload?.data || action.payload;
         state.tripList = state.tripList.map((trip) =>
           trip._id === updateTrip._id ? updateTrip : trip,
         );
@@ -175,7 +175,7 @@ const tripSlice = createSlice({
 
       .addCase(toggleTripActiveStatus.fulfilled, (state, action) => {
         state.mutationLoading = false;
-        const toggle = action.payload?.updateStatusTrip;
+        const toggle = action.payload?.trip || action.payload?.data || action.payload;
         state.tripList = state.tripList.map((to) =>
           to._id === toggle._id ? toggle : to,
         );

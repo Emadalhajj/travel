@@ -359,7 +359,7 @@ const normalizeRequestedSeats = (value) => {
 
   if (!Number.isFinite(seats) || seats <= 0 || !Number.isInteger(seats)) {
     throw new AppError(
-      "عدد المقاعد يجب أن يكون رقمًا صحيحًا أكبر من صفر",
+      "INVALID_SEAT_COUNT",
       400,
       "seats",
     );
@@ -383,11 +383,11 @@ export const reserveProgramSeats = async ({
     }).lean();
 
     if (!before) {
-      throw new AppError("برنامج العمرة غير موجود", 404, "program");
+      throw new AppError("PROGRAM_NOT_FOUND", 404, "program");
     }
 
     if (before.status !== UMRAH_PROGRAM_STATUS.ACTIVE) {
-      throw new AppError("برنامج العمرة غير متاح للحجز", 400, "program");
+      throw new AppError("PROGRAM_NOT_BOOKABLE", 400, "program");
     }
 
     const totalSeats = Number(before.capacity?.totalSeats || 0);
@@ -396,9 +396,10 @@ export const reserveProgramSeats = async ({
 
     if (availableSeats < requestedSeats) {
       throw new AppError(
-        `المقاعد المتاحة في هذا البرنامج ${availableSeats} فقط، ولا يمكن حجز ${requestedSeats} معتمر`,
+        "PROGRAM_CAPACITY_INSUFFICIENT",
         400,
         "seats",
+        { available: availableSeats, requested: requestedSeats },
       );
     }
 
@@ -445,7 +446,7 @@ export const reserveProgramSeats = async ({
   }
 
   throw new AppError(
-    "تعذر حجز المقاعد بسبب تغير السعة أثناء العملية، يرجى المحاولة مرة أخرى",
+    "PROGRAM_RESERVATION_CONFLICT",
     409,
     "seats",
   );
@@ -487,7 +488,7 @@ export const releaseProgramSeats = async ({
     }).lean();
 
     if (!before) {
-      throw new AppError("برنامج العمرة غير موجود", 404, "program");
+      throw new AppError("PROGRAM_NOT_FOUND", 404, "program");
     }
 
     const totalSeats = Number(before.capacity?.totalSeats || 0);
@@ -547,7 +548,7 @@ export const releaseProgramSeats = async ({
   }
 
   throw new AppError(
-    "تعذر إرجاع المقاعد بسبب تغير السعة أثناء العملية، يرجى المحاولة مرة أخرى",
+    "PROGRAM_RELEASE_CONFLICT",
     409,
     "seats",
   );

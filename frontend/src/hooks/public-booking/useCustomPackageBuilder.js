@@ -1,4 +1,9 @@
 import { useMemo, useState, useCallback } from "react";
+import {
+  compactTravelProduct,
+  getProductSelectionId,
+  isTravelCategory,
+} from "../../Utils/products/productSelection";
 
 /*
 =========================================================
@@ -79,6 +84,10 @@ export default function useCustomPackageBuilder() {
 
       return next;
     });
+
+    if (["startDate", "endDate", "travelersCount"].includes(name)) {
+      setSelectedProducts((prev) => ({ ...prev, flights: [], trips: [] }));
+    }
   };
 
   /*
@@ -99,13 +108,20 @@ export default function useCustomPackageBuilder() {
     if (!category || !product) return;
 
     setSelectedProducts((prev) => {
-      const currentCategoryProducts = prev[category] || [];
+      if (isTravelCategory(category)) {
+        const travelProduct = compactTravelProduct({ ...product, category });
+        return {
+          ...prev,
+          flights: category === "flights" ? [travelProduct] : [],
+          trips: category === "trips" ? [travelProduct] : [],
+        };
+      }
 
-      const productId =
-        product._id || product.id || product.refId || product.itemId;
+      const currentCategoryProducts = prev[category] || [];
+      const productId = getProductSelectionId(product);
 
       const alreadyExists = currentCategoryProducts.some((item) => {
-        const itemId = item._id || item.id || item.refId || item.itemId;
+        const itemId = getProductSelectionId(item);
 
         return String(itemId) === String(productId);
       });
@@ -136,7 +152,7 @@ export default function useCustomPackageBuilder() {
       return {
         ...prev,
         [category]: currentCategoryProducts.filter((item) => {
-          const itemId = item._id || item.id || item.refId || item.itemId;
+          const itemId = getProductSelectionId(item);
 
           return String(itemId) !== String(productId);
         }),
@@ -209,6 +225,7 @@ export default function useCustomPackageBuilder() {
 
       const quantityBased =
         item.category === "visas" ||
+        item.category === "flights" ||
         item.category === "trips" ||
         item.category === "visits" ||
         item.category === "extras";
@@ -368,6 +385,48 @@ export default function useCustomPackageBuilder() {
     };
   };
 
+  const buildTripSnapshot = () => {
+    const selectedTrip =
+      selectedProducts.flights?.[0] ||
+      selectedProducts.trips?.[0] ||
+      selectedProducts.trip?.[0] ||
+      null;
+
+    if (!selectedTrip) return null;
+
+    const raw = selectedTrip.raw || selectedTrip;
+    const departureId =
+      raw.departureId || selectedTrip.departureId || raw._id || selectedTrip._id;
+    const tripId = raw.tripId || selectedTrip.tripId || null;
+
+    if (!departureId || !tripId) return null;
+
+    return {
+      tripId,
+      departureId,
+      nameAr: raw.nameAr || selectedTrip.nameAr || "",
+      nameEn: raw.nameEn || selectedTrip.nameEn || "",
+      tripType: raw.tripType || selectedTrip.tripType || "",
+      scope: raw.scope || selectedTrip.scope || "",
+      subtype: raw.subtype || selectedTrip.subtype || "",
+      source: raw.source || selectedTrip.source || "",
+      fromCity: raw.fromCity || selectedTrip.fromCity || "",
+      toCity: raw.toCity || selectedTrip.toCity || "",
+      departureAt: raw.departureAt || selectedTrip.departureAt || null,
+      arrivalAt: raw.arrivalAt || selectedTrip.arrivalAt || null,
+      quantity: selectedTrip.quantity || raw.quantity || 1,
+      chargeType: selectedTrip.chargeType || raw.chargeType || "PER_TRAVELER",
+      unitPrice: Number(
+        raw.pricing?.finalPrice ??
+        raw.pricing?.unitPrice ??
+        selectedTrip.priceAtTime ??
+        raw.price ??
+        0,
+      ),
+      currency: raw.pricing?.currency || raw.currency || selectedTrip.currency || "SAR",
+    };
+  };
+
   /*
   =====================================================
   buildDraftCreatePayload
@@ -390,6 +449,7 @@ export default function useCustomPackageBuilder() {
   const buildDraftUpdatePayload = () => ({
     program: buildProgramSnapshot(),
     hotel: buildHotelSnapshot(),
+    trip: buildTripSnapshot(),
     transport: buildTransportSnapshot(),
     pricing,
     currentStep: "customer_info",
@@ -401,6 +461,12 @@ export default function useCustomPackageBuilder() {
       searchCriteria: formData,
     },
   });
+
+  const hasValidTravelSelection = () => {
+    const selected = selectedProducts.flights?.[0] || selectedProducts.trips?.[0];
+    if (!selected) return true;
+    return Boolean(selected.tripId && selected.departureId && selected.departureAt);
+  };
 
   /*
   =====================================================
@@ -428,6 +494,7 @@ export default function useCustomPackageBuilder() {
 
     buildDraftCreatePayload,
     buildDraftUpdatePayload,
+    hasValidTravelSelection,
 
     resetBuilder,
   };

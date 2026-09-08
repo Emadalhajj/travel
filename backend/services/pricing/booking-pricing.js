@@ -134,7 +134,7 @@ export const calculateRoomBookingPricing = async ({
 
   if (!roomType) {
     throw new AppError(
-      isArabic ? "نوع الغرفة غير موجود" : "Room type not found",
+      "ROOM_TYPE_NOT_FOUND",
       404,
       "roomType",
     );
@@ -142,9 +142,7 @@ export const calculateRoomBookingPricing = async ({
 
   if (!checkIn || !checkOut) {
     throw new AppError(
-      isArabic
-        ? "يجب إدخال تاريخ الوصول والمغادرة لحساب سعر الغرفة"
-        : "Check-in and check-out are required to calculate room price",
+      "ROOM_DATES_REQUIRED",
       400,
       "checkIn",
     );
@@ -209,7 +207,7 @@ export const calculateVisaPricing = async ({
 
   if (!visa) {
     throw new AppError(
-      isArabic ? "التأشيرة غير موجودة" : "Visa not found",
+      "VISA_NOT_FOUND",
       404,
       "visa",
     );
@@ -267,8 +265,7 @@ export const calculateTripPricing = async ({
   const trip = await Trip.findById(tripId);
 
   if (!trip) {
-    throw new AppError(
-      isArabic ? "الرحلة غير موجودة" : "Trip not found",
+    throw new AppError("TRIP_NOT_FOUND",
       404,
       "trip",
     );
@@ -335,7 +332,7 @@ export const calculateTransportPricing = async ({
 
   if (!transport) {
     throw new AppError(
-      isArabic ? "وسيلة النقل غير موجودة" : "Transport not found",
+      "TRANSPORT_NOT_FOUND",
       404,
       "transport",
     );

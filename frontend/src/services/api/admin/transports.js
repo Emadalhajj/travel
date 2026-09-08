@@ -10,17 +10,3 @@ export const deleteTransport = (id) => api.delete(`/transport/${id}`);
 
 export const toggleTransportStatus = (id) =>
   api.patch(`/transport/toggle/${id}`);
-
-//trips
-
-export const getAllTrips = (params) => api.get("/trip", { params });
-
-export const getTripById = (id) => api.get(`/trip/${id}`);
-
-export const createTripApi = (data) => api.post("/trip", data);
-
-export const updateTripApi = (id, data) => api.patch(`/trip/${id}`, data);
-
-export const deleteTripApi = (id) => api.delete(`/trip/${id}`);
-
-export const toggleTripStatus = (id) => api.patch(`/trip/toggle/${id}`);

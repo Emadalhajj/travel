@@ -57,9 +57,20 @@ export const serializeForApi = (formState, config) => {
         .map(([key]) => key);
     }
 
+    // Optional array fields must remain arrays even when legacy initial data
+    // contains an empty string.
+    if (fieldType === "array" && !Array.isArray(value)) {
+      return [];
+    }
+
     // ====================== Arrays ======================
     if (Array.isArray(value)) {
-      return value.map((item) => serialize(item, fullPath)).filter(Boolean); // إزالة القيم الفارغة
+      return value
+        .map((item, index) => serialize(
+          item,
+          fullPath ? `${fullPath}.${index}` : String(index),
+        ))
+        .filter(Boolean); // إزالة القيم الفارغة
     }
 
     // ====================== Nested Objects ======================

@@ -1,3 +1,5 @@
+import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "../../../../constants/currencies";
+
 export const bankAccountFormConfig = () => {
   return {
     commonFields: [
@@ -76,45 +78,9 @@ export const bankAccountFormConfig = () => {
         type: "select",
         col: 6,
         required: true,
-        defaultValue: "SAR",
+        defaultValue: DEFAULT_CURRENCY,
         order: 5,
-        options: [
-          {
-            value: "SAR",
-            labelAr: "ريال سعودي",
-            labelEn: "SAR",
-          },
-          {
-            value: "USD",
-            labelAr: "دولار أمريكي",
-            labelEn: "USD",
-          },
-          {
-            value: "EUR",
-            labelAr: "يورو",
-            labelEn: "EUR",
-          },
-          {
-            value: "GBP",
-            labelAr: "جنيه إسترليني",
-            labelEn: "GBP",
-          },
-          {
-            value: "AED",
-            labelAr: "درهم إماراتي",
-            labelEn: "AED",
-          },
-          {
-            value: "EGP",
-            labelAr: "جنيه مصري",
-            labelEn: "EGP",
-          },
-          {
-            value: "TRY",
-            labelAr: "ليرة تركية",
-            labelEn: "TRY",
-          },
-        ],
+        options: CURRENCY_OPTIONS,
       },
       {
         name: "sortOrder",

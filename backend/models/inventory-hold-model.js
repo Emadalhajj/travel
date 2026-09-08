@@ -4,30 +4,59 @@ import {
   INVENTORY_HOLD_STATUSES,
   INVENTORY_HOLD_STATUS_VALUES,
 } from "../constants/inventory/inventory-hold-statuses.js";
+import { INVENTORY_TYPE_VALUES } from "../constants/inventory/inventory-types.js";
+import {
+  INVENTORY_RESERVATION_MODES,
+  INVENTORY_RESERVATION_MODE_VALUES,
+} from "../constants/inventory/inventory-reservation-modes.js";
 
 const inventoryReservationSchema = new mongoose.Schema(
   {
     inventoryType: {
       type: String,
-      enum: [
-        "roomType",
-        "trip",
-        "transport",
-        "visa",
-        "extraService",
-        "vehicleRental",
-      ],
+      enum: INVENTORY_TYPE_VALUES,
+      required: true,
+    },
+    reservationMode: {
+      type: String,
+      enum: INVENTORY_RESERVATION_MODE_VALUES,
+      default: INVENTORY_RESERVATION_MODES.PERIOD,
       required: true,
     },
     itemId: { type: mongoose.Schema.Types.ObjectId, required: true },
-    startDate: { type: Date, required: true },
-    endDate: { type: Date, required: true },
+    date: { type: Date, default: null },
+    startDate: { type: Date, default: null },
+    endDate: { type: Date, default: null },
     quantity: { type: Number, required: true, min: 1 },
     defaultTotal: { type: Number, default: 0, min: 0 },
     releasedAt: { type: Date, default: null },
   },
   { _id: true },
 );
+
+inventoryReservationSchema.pre("validate", function (next) {
+  if (
+    this.reservationMode === INVENTORY_RESERVATION_MODES.SINGLE &&
+    !this.date
+  ) {
+    return next(
+      new Error("date is required for SINGLE inventory reservation"),
+    );
+  }
+
+  if (
+    this.reservationMode === INVENTORY_RESERVATION_MODES.PERIOD &&
+    (!this.startDate || !this.endDate)
+  ) {
+    return next(
+      new Error(
+        "startDate and endDate are required for PERIOD inventory reservation",
+      ),
+    );
+  }
+
+  return next();
+});
 
 const programReservationSchema = new mongoose.Schema(
   {

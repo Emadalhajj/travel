@@ -33,14 +33,25 @@ export default function StatusBadge({
     expired: "bg-slate-200 text-slate-800",
   };
 
+  const departureClasses = {
+    draft: "bg-slate-100 text-slate-700",
+    scheduled: "bg-emerald-100 text-emerald-700",
+    cancelled: "bg-red-100 text-red-700",
+    completed: "bg-blue-100 text-blue-700",
+  };
+
+  const normalizedValue = String(value || "").toLowerCase();
+
   const classes =
     type === "payment"
-      ? paymentClasses[value]
+      ? paymentClasses[normalizedValue]
+      : type === "departure"
+        ? departureClasses[normalizedValue]
       : type === "program"
-        ? programClasses[value]
+        ? programClasses[normalizedValue]
       : type === "user"
-        ? userClasses[value]
-        : bookingClasses[value];
+        ? userClasses[normalizedValue]
+        : bookingClasses[normalizedValue];
 
   const bookingLabels = {
     draft: isArabic ? "مسودة" : "Draft",
@@ -63,13 +74,22 @@ export default function StatusBadge({
     expired: isArabic ? "منتهي" : "Expired",
   };
 
+  const departureLabels = {
+    draft: isArabic ? "مسودة" : "Draft",
+    scheduled: isArabic ? "مجدولة" : "Scheduled",
+    cancelled: isArabic ? "ملغاة" : "Cancelled",
+    completed: isArabic ? "مكتملة" : "Completed",
+  };
+
   const label =
     type === "booking"
-      ? bookingLabels[value] || value
+      ? bookingLabels[normalizedValue] || value
+      : type === "departure"
+        ? departureLabels[normalizedValue] || value
       : type === "program"
-        ? programLabels[value] || value
+        ? programLabels[normalizedValue] || value
       : type === "user"
-        ? userLabels[value] || value
+        ? userLabels[normalizedValue] || value
         : value;
 
   return (
