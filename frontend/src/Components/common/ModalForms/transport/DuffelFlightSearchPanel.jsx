@@ -3,7 +3,7 @@ import { Alert, Badge, Button, Card, Col, Form, Row, Spinner } from "react-boots
 import { useTranslation } from "react-i18next";
 
 import CalendarField from "../../../common/CalendarField";
-import { searchExternalFlightsApi } from "../../../../services/api/admin/trips";
+import { importExternalFlightApi, searchExternalFlightsApi } from "../../../../services/api/admin/trips";
 import { formatPrice } from "../../../../Utils/roundPrice";
 
 const CABIN_OPTIONS = [
@@ -74,14 +74,18 @@ function OfferJourney({ offer, language }) {
 
 export default function DuffelFlightSearchPanel({
   searchFlights = searchExternalFlightsApi,
+  importOffer = importExternalFlightApi,
+  onImported,
 }) {
   const { i18n } = useTranslation();
   const language = i18n.language?.startsWith("ar") ? "ar" : "en";
   const [criteria, setCriteria] = useState(initialCriteria);
   const [offers, setOffers] = useState([]);
   const [selectedOffer, setSelectedOffer] = useState(null);
-  const [confirmed, setConfirmed] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [imported, setImported] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
   const [error, setError] = useState("");
 
   const minDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -98,16 +102,36 @@ export default function DuffelFlightSearchPanel({
     setLoading(true);
     setError("");
     setSelectedOffer(null);
-    setConfirmed(false);
+    setImported(null);
     try {
       const response = await searchFlights({ provider: "DUFFEL", ...criteria });
       setOffers(response?.data?.data || []);
+      setHasSearched(true);
     } catch (requestError) {
       setOffers([]);
       setError(requestError?.response?.data?.message ||
         (language === "ar" ? "تعذر البحث عن الرحلات" : "Unable to search for flights"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const confirmImport = async () => {
+    setImportLoading(true);
+    setError("");
+    try {
+      const response = await importOffer({
+        provider: selectedOffer.provider || "DUFFEL",
+        offerId: selectedOffer.offerId,
+      });
+      const result = response?.data?.data;
+      setImported(result);
+      onImported?.(result);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message ||
+        (language === "ar" ? "تعذر استيراد العرض" : "Unable to import the offer"));
+    } finally {
+      setImportLoading(false);
     }
   };
 
@@ -131,15 +155,20 @@ export default function DuffelFlightSearchPanel({
           {isExpired && <Alert variant="warning" className="mt-3 mb-0">
             {language === "ar" ? "انتهت صلاحية العرض؛ أعد البحث قبل الاستيراد" : "This offer has expired; search again before importing"}
           </Alert>}
-          {confirmed && <Alert variant="success" className="mt-3 mb-0">
-            {language === "ar" ? "العرض جاهز للاستيراد في المرحلة التالية" : "The offer is ready for the import stage"}
+          {imported && <Alert variant="success" className="mt-3 mb-0">
+            {language === "ar"
+              ? `تم استيراد ${imported.items?.length || 0} مغادرة بنجاح`
+              : `${imported.items?.length || 0} departure(s) imported successfully`}
           </Alert>}
+          {error && <Alert variant="danger" className="mt-3 mb-0">{error}</Alert>}
           <div className="d-flex gap-2 mt-3">
-            <Button variant="outline-secondary" onClick={() => { setSelectedOffer(null); setConfirmed(false); }}>
+            <Button variant="outline-secondary" onClick={() => { setSelectedOffer(null); setImported(null); }} disabled={importLoading}>
               {language === "ar" ? "تغيير العرض" : "Change offer"}
             </Button>
-            <Button onClick={() => setConfirmed(true)} disabled={confirmed || isExpired}>
-              {language === "ar" ? "تأكيد الاختيار" : "Confirm selection"}
+            <Button onClick={confirmImport} disabled={Boolean(imported) || isExpired || importLoading}>
+              {importLoading
+                ? (language === "ar" ? "جارٍ الاستيراد..." : "Importing...")
+                : (language === "ar" ? "تأكيد الاستيراد" : "Confirm import")}
             </Button>
           </div>
         </Card.Body>
@@ -184,7 +213,11 @@ export default function DuffelFlightSearchPanel({
         </Col>
       </Row>
       {error && <Alert variant="danger" className="mt-3">{error}</Alert>}
-      {!loading && !error && offers.length === 0 && <div className="text-muted mt-3">{language === "ar" ? "ابدأ البحث لعرض الرحلات المتاحة" : "Search to view available flights"}</div>}
+      {!loading && !error && offers.length === 0 && <div className="text-muted mt-3">
+        {hasSearched
+          ? (language === "ar" ? "لا توجد رحلات مطابقة" : "No matching flights were found")
+          : (language === "ar" ? "ابدأ البحث لعرض الرحلات المتاحة" : "Search to view available flights")}
+      </div>}
       <div className="mt-3 d-grid gap-3">
         {offers.map((offer) => <Card key={offer.offerId}>
           <Card.Body>

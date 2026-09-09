@@ -275,6 +275,10 @@ export const ERROR_MESSAGES = Object.freeze({
   FLIGHT_PROVIDER_UNAVAILABLE: createMessages("مزود الرحلات غير متاح حاليًا", "The flight provider is currently unavailable"),
   FLIGHT_PROVIDER_TIMEOUT: createMessages("انتهت مهلة الاتصال بمزود الرحلات", "The flight provider request timed out"),
   FLIGHT_PROVIDER_UNSUPPORTED: createMessages("مزود الرحلات المحدد غير مدعوم", "The selected flight provider is not supported"),
+  EXTERNAL_FLIGHT_OFFER_INVALID: createMessages("عرض الرحلة الخارجي غير صالح", "The external flight offer is invalid"),
+  EXTERNAL_FLIGHT_OFFER_EXPIRED: createMessages("انتهت صلاحية عرض الرحلة؛ يرجى إعادة البحث", "The flight offer has expired; please search again"),
+  EXTERNAL_FLIGHT_SEGMENTS_MISSING: createMessages("عرض الرحلة لا يحتوي مقاطع تشغيلية صالحة", "The flight offer has no valid operational segments"),
+  EXTERNAL_FLIGHT_IMPORT_CONFLICT: createMessages("تم استيراد العرض بالتزامن؛ يرجى تحديث القائمة", "The offer was imported concurrently; please refresh the list"),
 });
 
 export const translateError = (code, language = "ar", params = {}) => {

@@ -36,6 +36,7 @@ const normalizePlace = (place = {}) => ({
   code: place.iata_code || place.iata_city_code || "",
   name: place.name || "",
   cityName: place.city_name || "",
+  countryCode: place.iata_country_code || "",
 });
 
 const normalizeCarrier = (carrier = {}) => ({
@@ -53,6 +54,8 @@ const normalizeSegment = (segment = {}) => ({
   flightNumber: segment.marketing_carrier_flight_number || "",
   aircraft: segment.aircraft?.name || "",
   duration: segment.duration || "",
+  departureTerminal: segment.origin_terminal || "",
+  arrivalTerminal: segment.destination_terminal || "",
   marketingCarrier: normalizeCarrier(segment.marketing_carrier),
   operatingCarrier: normalizeCarrier(segment.operating_carrier),
   passengers: segment.passengers || [],
@@ -115,4 +118,14 @@ export const searchDuffelOffers = async (
   const offerRequest = response?.data || {};
   return (offerRequest.offers || []).map((offer) =>
     normalizeDuffelOffer(offer, offerRequest));
+};
+
+export const getDuffelOffer = async (
+  offerId,
+  { client = duffelClient } = {},
+) => {
+  const response = await client.request(
+    `/air/offers/${encodeURIComponent(offerId)}`,
+  );
+  return normalizeDuffelOffer(response?.data || {});
 };

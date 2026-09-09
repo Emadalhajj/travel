@@ -12,6 +12,7 @@
     "migrate:trips:dry-run": "node scripts/migrations/trips/migrate-legacy-trips.js --dry-run",
     "migrate:trips:execute": "node scripts/migrations/trips/migrate-legacy-trips.js --execute",
     "migrate:trips:verify": "node scripts/migrations/trips/verify-trip-migration.js",
+    "migrate:trips:external-identity-index": "node scripts/migrations/trips/ensure-external-trip-departure-identity-index.js",
     "test": "node --test tests/payment/*.test.js",
     "test:program-seats": "node --test tests/umrah-programs/atomic-program-seats.test.js",
     "test:inventory": "node --test tests/inventory/atomic-daily-inventory.test.js",
@@ -21,7 +22,7 @@
     "test:payment-recovery": "node --test tests/payment/payment-recovery.test.js",
     "test:notifications": "node --test tests/notifications/*.test.js",
     "test:availability": "node --test tests/inventory/availability-source.test.js",
-    "test:duffel": "node --test tests/trips/duffel-provider.test.js",
+    "test:duffel": "node --test tests/trips/duffel-provider.test.js tests/trips/external-flight-import.test.js",
     "seed:payment-methods": "node seeders/run-payment-method-seeder.js"
   },
   "keywords": [],

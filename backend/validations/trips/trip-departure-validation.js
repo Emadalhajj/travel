@@ -59,6 +59,14 @@ const capacitySchema = Joi.object({
   totalSeats: Joi.number().integer().min(0).default(0),
 });
 
+const providerSnapshotSchema = Joi.object({
+  offerId: Joi.string().trim().allow("").default(""),
+  offerRequestId: Joi.string().trim().allow("").default(""),
+  total: Joi.number().min(0).default(0),
+  currency: Joi.string().trim().allow("").default(""),
+  expiresAt: Joi.date().allow(null).optional(),
+});
+
 export const createTripDepartureSchema = Joi.object({
   tripId: objectIdSchema.required(),
   departureAt: Joi.date().required(),
@@ -74,6 +82,7 @@ export const createTripDepartureSchema = Joi.object({
     .optional(),
   providerId: Joi.string().trim().allow("").default(""),
   externalId: Joi.string().trim().allow("").default(""),
+  providerSnapshot: providerSnapshotSchema.optional(),
   serviceNumber: Joi.string().trim().allow("").default(""),
   pricing: pricingSchema.optional(),
   capacity: capacitySchema.optional(),
