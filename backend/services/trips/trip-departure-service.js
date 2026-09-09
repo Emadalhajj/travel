@@ -77,11 +77,13 @@ validateTrip
 =====================================================
 */
 
-const validateTrip = async (tripId) => {
-  const trip = await Trip.findOne({
+const validateTrip = async (tripId, session = null) => {
+  const query = Trip.findOne({
     _id: tripId,
     isDeleted: { $ne: true },
   });
+  if (session) query.session(session);
+  const trip = await query;
 
   if (!trip) {
     throw new AppError("TRIP_NOT_FOUND", 404, "tripId", { id: tripId });
@@ -175,9 +177,16 @@ const getTripRoutePoints = (trip) => {
 
 const alignSegmentsWithTripRoute = (trip, segments = []) => {
   const points = getTripRoutePoints(trip);
+  const submitted = Array.isArray(segments) ? segments : [];
+
+  // مسار الرحلة الجوية المتصلة يأتي من المزود كمقاطع تشغيلية
+  // فعلية، ولا يجوز اختصاره إلى origin/destination فقط.
+  if (trip?.type === "AIR" && submitted.length > 1) {
+    return normalizeSegments(submitted);
+  }
+
   if (points.length < 2) return normalizeSegments(segments);
 
-  const submitted = Array.isArray(segments) ? segments : [];
   return points.slice(0, -1).map((from, index) => ({
     ...(submitted[index] || {}),
     from,
@@ -393,7 +402,7 @@ createTripDepartureService
 =====================================================
 */
 
-export const createTripDepartureService = async ({ data, userId, req }) => {
+export const createTripDepartureService = async ({ data, userId, req, session = null }) => {
   if (
     data.status !== undefined &&
     data.status !== TRIP_DEPARTURE_STATUS.DRAFT
@@ -405,7 +414,7 @@ export const createTripDepartureService = async ({ data, userId, req }) => {
     );
   }
 
-  const trip = await validateTrip(data.tripId);
+  const trip = await validateTrip(data.tripId, session);
 
   const preparedData = prepareDepartureData({
     data: {
@@ -414,13 +423,18 @@ export const createTripDepartureService = async ({ data, userId, req }) => {
     },
   });
 
-  const departure = await TripDeparture.create({
+  const departureData = {
     ...preparedData,
 
     status: TRIP_DEPARTURE_STATUS.DRAFT,
 
     createdBy: userId || null,
-  });
+  };
+
+  const created = session
+    ? await TripDeparture.create([departureData], { session })
+    : await TripDeparture.create(departureData);
+  const departure = Array.isArray(created) ? created[0] : created;
 
   await createAuditLog({
     req,
@@ -440,6 +454,7 @@ export const createTripDepartureService = async ({ data, userId, req }) => {
 
       tripId: departure.tripId,
     },
+    session,
   });
 
   return departure;

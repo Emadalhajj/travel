@@ -8,6 +8,7 @@ jest.mock("react-i18next", () => ({
 
 jest.mock("../../../../services/api/admin/trips", () => ({
   searchExternalFlightsApi: jest.fn(),
+  importExternalFlightApi: jest.fn(),
 }));
 
 jest.mock("../../../common/CalendarField", () => function CalendarField({ value, onChange }) {
@@ -38,9 +39,12 @@ const offer = {
   }],
 };
 
-test("searches, previews and confirms without creating a Trip", async () => {
+test("searches, previews and confirms through one atomic import request", async () => {
   const searchFlights = jest.fn().mockResolvedValue({ data: { data: [offer] } });
-  render(<DuffelFlightSearchPanel searchFlights={searchFlights} />);
+  const importOffer = jest.fn().mockResolvedValue({
+    data: { data: { items: [{ departure: { _id: "dep_1" } }] } },
+  });
+  render(<DuffelFlightSearchPanel searchFlights={searchFlights} importOffer={importOffer} />);
 
   const airports = screen.getAllByPlaceholderText("IATA");
   fireEvent.change(airports[0], { target: { value: "jed" } });
@@ -59,6 +63,24 @@ test("searches, previews and confirms without creating a Trip", async () => {
 
   fireEvent.click(await screen.findByRole("button", { name: "اختيار" }));
   expect(screen.getByTestId("duffel-offer-preview")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "تأكيد الاختيار" }));
-  expect(screen.getByText("العرض جاهز للاستيراد في المرحلة التالية")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "تأكيد الاستيراد" }));
+  await waitFor(() => expect(importOffer).toHaveBeenCalledWith({
+    provider: "DUFFEL",
+    offerId: "off_1",
+  }));
+  expect(await screen.findByText("تم استيراد 1 مغادرة بنجاح")).toBeTruthy();
+});
+
+test("distinguishes initial and searched-empty states", async () => {
+  const searchFlights = jest.fn().mockResolvedValue({ data: { data: [] } });
+  render(<DuffelFlightSearchPanel searchFlights={searchFlights} />);
+  expect(screen.getByText("ابدأ البحث لعرض الرحلات المتاحة")).toBeTruthy();
+
+  const airports = screen.getAllByPlaceholderText("IATA");
+  fireEvent.change(airports[0], { target: { value: "JED" } });
+  fireEvent.change(airports[1], { target: { value: "ADE" } });
+  fireEvent.change(screen.getAllByTestId("calendar-field")[0], { target: { value: "2099-09-10" } });
+  fireEvent.click(screen.getByRole("button", { name: "بحث" }));
+
+  expect(await screen.findByText("لا توجد رحلات مطابقة")).toBeTruthy();
 });

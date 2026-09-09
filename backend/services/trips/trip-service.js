@@ -454,19 +454,25 @@ export const createTripService = async ({
   userId,
   images = [],
   req,
+  session = null,
 }) => {
   const prepared = prepareTripData({
     data,
     isUpdate: false,
   });
 
-  const trip = await Trip.create({
+  const tripData = {
     ...prepared,
 
     images,
 
     createdBy: userId,
-  });
+  };
+
+  const created = session
+    ? await Trip.create([tripData], { session })
+    : await Trip.create(tripData);
+  const trip = Array.isArray(created) ? created[0] : created;
 
   await createAuditLog({
     req,
@@ -478,6 +484,7 @@ export const createTripService = async ({
     metadata: {
       module: "trips",
     },
+    session,
   });
 
   return trip;

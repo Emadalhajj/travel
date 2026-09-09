@@ -6,6 +6,7 @@ import { getDuffelConfig } from "../../config/duffel.js";
 import { createDuffelClient } from "../../services/trips/providers/duffel-client.js";
 import {
   buildDuffelOfferRequest,
+  getDuffelOffer,
   normalizeDuffelOffer,
   searchDuffelOffers,
 } from "../../services/trips/providers/duffel-offer-service.js";
@@ -153,6 +154,20 @@ test("offer normalizer preserves multi-segment operational and pricing data", ()
   assert.equal(normalized.expiresAt, "2099-09-01T00:00:00Z");
 });
 
+test("gets a fresh offer with the shared Duffel client and normalizer", async () => {
+  let requestedPath;
+  const freshOffer = await getDuffelOffer("off_1", {
+    client: {
+      request: async (path) => {
+        requestedPath = path;
+        return { data: { id: "off_1", expires_at: "2099-09-01T00:00:00Z", slices: [] } };
+      },
+    },
+  });
+  assert.equal(requestedPath, "/air/offers/off_1");
+  assert.equal(freshOffer.offerId, "off_1");
+});
+
 test("search service returns an empty list and factory rejects unsupported providers", async () => {
   const offers = await searchDuffelOffers(validSearch, {
     configFactory: () => config,
@@ -179,4 +194,7 @@ test("admin provider route remains protected and validated", async () => {
   ].map((token) => source.indexOf(token));
   assert.ok(order.every((position) => position >= 0));
   assert.deepEqual(order, [...order].sort((a, b) => a - b));
+  assert.match(source, /"\/import"/);
+  assert.match(source, /validate\(externalFlightImportSchema\)/);
+  assert.match(source, /importExternalFlight/);
 });

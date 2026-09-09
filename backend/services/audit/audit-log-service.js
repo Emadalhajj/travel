@@ -127,6 +127,7 @@ export const createAuditLog = async ({
   before = null,
   after = null,
   metadata = {},
+  session = null,
 }) => {
   const requestInfo = req ? getRequestInfo(req) : {};
   buildAuditLogFilter({ action, entity, entityId });
@@ -136,7 +137,7 @@ export const createAuditLog = async ({
   لا تُحفظ بيانات اعتماد مزود الدفع الخام حتى لو نسي
   أحد المستدعين تنظيف before أو after مسبقًا.
   */
-  const auditLog = await AuditLog.create({
+  const auditData = {
     action,
     entity,
     entityId,
@@ -145,7 +146,12 @@ export const createAuditLog = async ({
     after: sanitizeAuditValue({ entity, value: after }),
     metadata: sanitizeSensitiveAuditData(metadata),
     ...requestInfo,
-  });
+  };
+
+  const created = session
+    ? await AuditLog.create([auditData], { session })
+    : await AuditLog.create(auditData);
+  const auditLog = Array.isArray(created) ? created[0] : created;
 
   return auditLog;
 };

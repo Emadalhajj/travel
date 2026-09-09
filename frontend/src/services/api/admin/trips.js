@@ -8,3 +8,5 @@ export const deleteTripApi = (id) => api.delete(`/trip/${id}`);
 export const toggleTripStatus = (id) => api.patch(`/trip/toggle/${id}`);
 export const searchExternalFlightsApi = (criteria) =>
   api.post("/admin/trips/providers/search", criteria);
+export const importExternalFlightApi = ({ provider = "DUFFEL", offerId }) =>
+  api.post("/admin/trips/providers/import", { provider, offerId });

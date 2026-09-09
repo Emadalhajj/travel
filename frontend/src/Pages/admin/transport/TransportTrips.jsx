@@ -101,6 +101,10 @@ export default function TransportTrips() {
     if (state.type === "LAND") ensureTransportLookup();
   }, [ensureTransportLookup]);
 
+  const handleExternalFlightImported = useCallback(() => {
+    dispatch(fetchTrips(listQuery));
+  }, [dispatch, listQuery]);
+
   const isExternalFlightSearch =
     tripFormState.type === "AIR" && tripFormState.source === "API";
 
@@ -155,7 +159,7 @@ export default function TransportTrips() {
 
     <UniversalFormModal show={crud.showModal} onHide={crud.closeForm} onSave={(data) => handleSave(data, { formMode: crud.formMode, currentItem: crud.currentItem })} config={formConfig} initialData={crud.currentItem} errors={crud.formErrors} loading={crud.loadingSave}
       onFormStateChange={handleTripFormStateChange}
-      afterFormContent={isExternalFlightSearch ? <DuffelFlightSearchPanel /> : null}
+      afterFormContent={isExternalFlightSearch ? <DuffelFlightSearchPanel onImported={handleExternalFlightImported} /> : null}
       hideSaveAction={isExternalFlightSearch}
       titleAr={crud.formMode === "edit" ? "تعديل الرحلة" : "إضافة رحلة"} titleEn={crud.formMode === "edit" ? "Edit Trip" : "Add Trip"} />
     <EntityDetailsModal show={crud.showDetails} onHide={crud.closeDetails} title={lang === "ar" ? "تفاصيل الرحلة" : "Trip Details"} images={details?.images || []} entity={details} fields={[

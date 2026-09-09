@@ -126,6 +126,13 @@ const tripDepartureSchema = new mongoose.Schema(
       default: "",
       index: true,
     },
+    providerSnapshot: {
+      offerId: { type: String, trim: true, default: "" },
+      offerRequestId: { type: String, trim: true, default: "" },
+      total: { type: Number, min: 0, default: 0 },
+      currency: { type: String, trim: true, default: "" },
+      expiresAt: { type: Date, default: null },
+    },
     serviceNumber: {
       type: String,
       trim: true,
@@ -240,10 +247,19 @@ tripDepartureSchema.index({
   departureAt: 1,
 });
 
-tripDepartureSchema.index({
-  providerId: 1,
-  externalId: 1,
-});
+tripDepartureSchema.index(
+  { providerId: 1, externalId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      source: TRIP_SOURCES.API,
+      isDeleted: false,
+      providerId: { $type: "string", $gt: "" },
+      externalId: { $type: "string", $gt: "" },
+    },
+    name: "unique_external_trip_departure_identity",
+  },
+);
 
 const TripDeparture =
   mongoose.models.TripDeparture ||
