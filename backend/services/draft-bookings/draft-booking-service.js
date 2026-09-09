@@ -70,6 +70,11 @@ import {
   DRAFT_BOOKING_STATUS,
 } from "../../constants/draft-bookings/draft-booking-status.js";
 import { TRIP_DEPARTURE_STATUS } from "../../constants/trips/trip-departure.constants.js";
+import { TRIP_SOURCES } from "../../constants/trips/trip.constants.js";
+import {
+  buildExternalFlightSnapshot,
+  revalidateExternalFlightOffer,
+} from "../trips/external-flight-revalidation-service.js";
 
 import {
   BOOKING_STATUS,
@@ -180,7 +185,7 @@ const resolveDraftTripSnapshot = async (requestedTrip, requestedSeats = 1) => {
     isDeleted: false,
     departureAt: { $gt: new Date() },
   })
-    .select("tripId departureAt arrivalAt source pricing")
+    .select("tripId departureAt arrivalAt source providerId providerSnapshot pricing")
     .lean();
 
   if (!departure) {
@@ -196,24 +201,47 @@ const resolveDraftTripSnapshot = async (requestedTrip, requestedSeats = 1) => {
     throw new AppError("TRIP_DEPARTURE_TRIP_MISMATCH", 400, "trip.tripId");
   }
 
-  const inventory = await Inventory.findOne({
-    inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
-    itemId: departure._id,
-    date: normalizeInventoryDate(departure.departureAt),
-    isActive: true,
-    isDeleted: { $ne: true },
-    available: { $gte: getPositiveInteger(requestedSeats, 1) },
-  })
-    .select("_id")
-    .lean();
+  const isExternal = departure.source === TRIP_SOURCES.API;
+  let external = null;
 
-  if (!inventory) {
-    throw new AppError(
-      "TRIP_DEPARTURE_NOT_AVAILABLE",
-      400,
-      "trip.departureId",
-      { id: requestedTrip.departureId },
-    );
+  if (isExternal) {
+    const provider = departure.providerId;
+    const offerId = departure.providerSnapshot?.offerId;
+    if (!provider || !offerId) {
+      throw new AppError("EXTERNAL_FLIGHT_UNAVAILABLE", 409, "trip.external.offerId");
+    }
+    const revalidated = await revalidateExternalFlightOffer({
+      provider,
+      offerId,
+      expected: {
+        pricing: {
+          total: departure.providerSnapshot?.total,
+          currency: departure.providerSnapshot?.currency,
+        },
+        passengers: { total: requestedSeats },
+      },
+    });
+    external = buildExternalFlightSnapshot({ provider, offer: revalidated.offer });
+  } else {
+    const inventory = await Inventory.findOne({
+      inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+      itemId: departure._id,
+      date: normalizeInventoryDate(departure.departureAt),
+      isActive: true,
+      isDeleted: { $ne: true },
+      available: { $gte: getPositiveInteger(requestedSeats, 1) },
+    })
+      .select("_id")
+      .lean();
+
+    if (!inventory) {
+      throw new AppError(
+        "TRIP_DEPARTURE_NOT_AVAILABLE",
+        400,
+        "trip.departureId",
+        { id: requestedTrip.departureId },
+      );
+    }
   }
 
   const trip = await Trip.findOne({
@@ -233,9 +261,9 @@ const resolveDraftTripSnapshot = async (requestedTrip, requestedSeats = 1) => {
     );
   }
 
-  const unitPrice = Number(
-    departure.pricing?.discountPrice || departure.pricing?.basePrice || 0,
-  );
+  const unitPrice = isExternal
+    ? Number(external?.pricing?.total || 0)
+    : Number(departure.pricing?.discountPrice || departure.pricing?.basePrice || 0);
 
   return {
     tripId: departure.tripId,
@@ -250,12 +278,13 @@ const resolveDraftTripSnapshot = async (requestedTrip, requestedSeats = 1) => {
     toCity: trip.toCity || "",
     departureAt: departure.departureAt,
     arrivalAt: departure.arrivalAt || null,
-    quantity: getPositiveInteger(requestedTrip.quantity, 1),
-    chargeType: String(
-      requestedTrip.chargeType || "PER_TRAVELER",
-    ).toUpperCase(),
+    quantity: isExternal ? 1 : getPositiveInteger(requestedTrip.quantity, 1),
+    chargeType: isExternal
+      ? "PER_BOOKING"
+      : String(requestedTrip.chargeType || "PER_TRAVELER").toUpperCase(),
     unitPrice,
-    currency: departure.pricing?.currency || "SAR",
+    currency: external?.pricing?.currency || departure.pricing?.currency || "SAR",
+    ...(external ? { external } : {}),
   };
 };
 

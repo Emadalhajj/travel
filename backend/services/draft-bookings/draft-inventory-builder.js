@@ -2,6 +2,7 @@ import { buildBookingItemsFromDraft } from "./draft-booking-service.js";
 import { INVENTORY_TYPES } from "../../constants/inventory/inventory-types.js";
 import { INVENTORY_RESERVATION_MODES } from "../../constants/inventory/inventory-reservation-modes.js";
 import AppError from "../../utils/AppError.js";
+import { TRIP_SOURCES } from "../../constants/trips/trip.constants.js";
 
 const getPositiveInteger = (value, fallback = 1) => {
   const number = Number(value);
@@ -90,13 +91,15 @@ export const buildInventoryRequirementsFromDraft = ({ draft }) => {
       );
     }
 
-    addSingleReservation(inventoryReservations, {
-      inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
-      itemId: trip.departureId,
-      date: trip.departureAt,
-      quantity: tripQuantity,
-      defaultTotal: 0,
-    });
+    if (trip.source !== TRIP_SOURCES.API && !trip.external?.provider) {
+      addSingleReservation(inventoryReservations, {
+        inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+        itemId: trip.departureId,
+        date: trip.departureAt,
+        quantity: tripQuantity,
+        defaultTotal: 0,
+      });
+    }
   }
 
   const transport = bookingItems?.transport;

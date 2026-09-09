@@ -70,6 +70,62 @@ const draftTransportSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const externalFlightSegmentSchema = new mongoose.Schema({
+  externalId: { type: String, trim: true, default: "" },
+  origin: { type: String, trim: true, default: "" },
+  destination: { type: String, trim: true, default: "" },
+  departureAt: { type: Date, default: null },
+  arrivalAt: { type: Date, default: null },
+  carrierCode: { type: String, trim: true, default: "" },
+  carrierName: { type: String, trim: true, default: "" },
+  serviceNumber: { type: String, trim: true, default: "" },
+}, { _id: false });
+
+const externalFlightSliceSchema = new mongoose.Schema({
+  externalId: { type: String, trim: true, default: "" },
+  origin: { type: String, trim: true, default: "" },
+  destination: { type: String, trim: true, default: "" },
+  segmentIds: { type: [String], default: [] },
+  segments: { type: [externalFlightSegmentSchema], default: [] },
+}, { _id: false });
+
+const externalFlightSnapshotSchema = new mongoose.Schema({
+  provider: { type: String, trim: true, default: "" },
+  offerId: { type: String, trim: true, default: "" },
+  offerRequestId: { type: String, trim: true, default: "" },
+  expiresAt: { type: Date, default: null },
+  route: {
+    origin: { type: String, trim: true, default: "" },
+    destination: { type: String, trim: true, default: "" },
+  },
+  slices: { type: [externalFlightSliceSchema], default: [] },
+  passengers: {
+    adults: { type: Number, min: 0, default: 0 },
+    children: { type: Number, min: 0, default: 0 },
+    infants: { type: Number, min: 0, default: 0 },
+    total: { type: Number, min: 0, default: 0 },
+    items: {
+      type: [new mongoose.Schema({
+        providerPassengerId: { type: String, trim: true, default: "" },
+        category: { type: String, trim: true, default: "" },
+      }, { _id: false })],
+      default: [],
+    },
+  },
+  pricing: {
+    total: { type: Number, min: 0, default: 0 },
+    currency: { type: String, trim: true, default: "" },
+  },
+  supportedIdentityDocumentTypes: { type: [String], default: [] },
+  paymentRequirements: {
+    requiresInstantPayment: { type: Boolean, default: false },
+    paymentRequiredBy: { type: Date, default: null },
+  },
+  validatedAt: { type: Date, default: null },
+}, { _id: false });
+
+
+
 const draftTripSchema = new mongoose.Schema(
   {
     tripId: {
@@ -104,6 +160,7 @@ const draftTripSchema = new mongoose.Schema(
       enum: SUPPORTED_CURRENCIES,
       default: DEFAULT_CURRENCY,
     },
+    external: { type: externalFlightSnapshotSchema, default: null },
   },
   { _id: false },
 );
@@ -171,10 +228,24 @@ const draftBookingSchema = new mongoose.Schema(
           trim: true,
         },
 
+        givenName: { type: String, trim: true, default: "" },
+        familyName: { type: String, trim: true, default: "" },
+        email: { type: String, trim: true, lowercase: true, default: "" },
+        phoneNumber: { type: String, trim: true, default: "" },
+        passengerCategory: {
+          type: String,
+          enum: ["adult", "child", "infant_without_seat"],
+          default: "adult",
+        },
+        responsibleAdultTravelerId: { type: String, trim: true, default: "" },
+
         passportNumber: {
           type: String,
           trim: true,
         },
+
+        passportExpiryDate: { type: Date, default: null },
+        passportIssuingCountryCode: { type: String, trim: true, default: "" },
 
         nationality: {
           type: String,

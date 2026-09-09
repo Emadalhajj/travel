@@ -30,6 +30,7 @@ import {
   findBlockingPublicPaymentForDraftService,
 } from "./paymentTransaction-service.js";
 import { buildBookingPricingFromDraft } from "../draft-bookings/draft-booking-service.js";
+import { revalidateDraftExternalFlight } from "../trips/external-flight-revalidation-service.js";
 
 import { PAYMENT_CONFIGURATION_TYPES } from "../../constants/payments/payment-configuration-types.js";
 import { PAYMENT_TRANSACTION_STATUSES } from "../../constants/payments/payment-transaction-statuses.js";
@@ -313,6 +314,16 @@ export const initializePublicPaymentService = async ({
   req,
 }) => {
   const draft = await getDraftBooking({ draftId, userId });
+
+  const refreshedExternal = await revalidateDraftExternalFlight({ trip: draft.trip });
+  if (refreshedExternal) {
+    draft.trip.external = refreshedExternal;
+    draft.trip.unitPrice = refreshedExternal.pricing.total;
+    draft.trip.currency = refreshedExternal.pricing.currency;
+    draft.trip.quantity = 1;
+    draft.trip.chargeType = "PER_BOOKING";
+    await draft.save();
+  }
 
   const existingPayment =
     await findBlockingPublicPaymentForDraftService({

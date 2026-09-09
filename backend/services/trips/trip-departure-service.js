@@ -694,7 +694,9 @@ export const updateTripDepartureService = async ({
     return departure;
   };
 
-  if (isScheduled && (dateChanged || capacityChanged)) {
+  const usesLocalInventory = departure.source !== TRIP_SOURCES.API;
+
+  if (isScheduled && usesLocalInventory && (dateChanged || capacityChanged)) {
     if (nextDepartureAt <= new Date()) {
       throw new AppError("TRIP_DEPARTURE_PAST", 400, "departureAt");
     }
@@ -782,7 +784,8 @@ export const scheduleTripDepartureService = async ({
     throw new AppError("TRIP_NOT_FOUND", 404, "tripId", { id: departure.tripId });
   }
   const total = Number(departure.capacity?.totalSeats || 0);
-  if (!Number.isFinite(total) || total <= 0) {
+  const usesLocalInventory = departure.source !== TRIP_SOURCES.API;
+  if (usesLocalInventory && (!Number.isFinite(total) || total <= 0)) {
     throw new AppError(
       "TRIP_DEPARTURE_CAPACITY_REQUIRED",
       400,
@@ -795,16 +798,18 @@ export const scheduleTripDepartureService = async ({
 
   const fromStatus = departure.status;
   await runInTransaction(async (session) => {
-    await syncSingleInventoryCapacity({
-      Inventory,
-      inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
-      itemId: departure._id,
-      date: departure.departureAt,
-      total,
-      isActive: true,
-      userId,
-      session,
-    });
+    if (usesLocalInventory) {
+      await syncSingleInventoryCapacity({
+        Inventory,
+        inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+        itemId: departure._id,
+        date: departure.departureAt,
+        total,
+        isActive: true,
+        userId,
+        session,
+      });
+    }
     departure.status = TRIP_DEPARTURE_STATUS.SCHEDULED;
     departure.isActive = true;
     departure.updatedBy = userId || null;
@@ -840,7 +845,10 @@ export const cancelTripDepartureService = async ({
   const fromStatus = departure.status;
 
   await runInTransaction(async (session) => {
-    if (fromStatus === TRIP_DEPARTURE_STATUS.SCHEDULED) {
+    if (
+      fromStatus === TRIP_DEPARTURE_STATUS.SCHEDULED &&
+      departure.source !== TRIP_SOURCES.API
+    ) {
       const state = await getSingleInventoryState({
         Inventory,
         inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
@@ -894,15 +902,17 @@ export const completeTripDepartureService = async ({
   const fromStatus = departure.status;
 
   await runInTransaction(async (session) => {
-    await setSingleInventoryActive({
-      Inventory,
-      inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
-      itemId: departure._id,
-      date: departure.departureAt,
-      isActive: false,
-      userId,
-      session,
-    });
+    if (departure.source !== TRIP_SOURCES.API) {
+      await setSingleInventoryActive({
+        Inventory,
+        inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+        itemId: departure._id,
+        date: departure.departureAt,
+        isActive: false,
+        userId,
+        session,
+      });
+    }
     departure.status = TRIP_DEPARTURE_STATUS.COMPLETED;
     departure.isActive = false;
     departure.updatedBy = userId || null;
@@ -960,7 +970,10 @@ export const toggleTripDepartureActiveService = async ({
     );
   }
 
-  if (departure.status === TRIP_DEPARTURE_STATUS.SCHEDULED) {
+  if (
+    departure.status === TRIP_DEPARTURE_STATUS.SCHEDULED &&
+    departure.source !== TRIP_SOURCES.API
+  ) {
     await runInTransaction(async (session) => {
       await setSingleInventoryActive({
         Inventory,

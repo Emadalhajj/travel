@@ -26,9 +26,10 @@ import {
   filterProductsByAvailabilityPolicy,
   getInventoryAvailabilityByProduct,
 } from "../../services/availability/inventory-availability-service.js";
-import { TRIP_TYPES } from "../../constants/trips/trip.constants.js";
+import { TRIP_SOURCES, TRIP_TYPES } from "../../constants/trips/trip.constants.js";
 import { TRIP_DEPARTURE_STATUS } from "../../constants/trips/trip-departure.constants.js";
 import { INVENTORY_TYPES } from "../../constants/inventory/inventory-types.js";
+import { revalidateExternalFlightOffer } from "../trips/external-flight-revalidation-service.js";
 
 /*
 =====================================================
@@ -300,7 +301,10 @@ const getTripDepartureInventory = async ({
 }) => {
   if (!departures.length) return new Map();
 
-  const departureIds = departures.map(({ _id }) => _id);
+  const departureIds = departures
+    .filter(({ source }) => source !== TRIP_SOURCES.API)
+    .map(({ _id }) => _id);
+  if (!departureIds.length) return new Map();
   const records = await Inventory.find({
     inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
     itemId: { $in: departureIds },
@@ -331,6 +335,52 @@ const getTripDepartureInventory = async ({
   }
 
   return availabilityByDepartureId;
+};
+
+const getExternalTripDepartureAvailability = async ({
+  departures,
+  pilgrimsCount,
+}) => {
+  const externalDepartures = departures.filter(
+    ({ source }) => source === TRIP_SOURCES.API,
+  );
+  const results = await Promise.allSettled(
+    externalDepartures.map(async (departure) => {
+      const provider = departure.providerId;
+      const offerId = departure.providerSnapshot?.offerId;
+      if (!provider || !offerId) return null;
+
+      const result = await revalidateExternalFlightOffer({
+        provider,
+        offerId,
+        expected: {
+          pricing: {
+            total: departure.providerSnapshot?.total,
+            currency: departure.providerSnapshot?.currency,
+          },
+          passengers: { total: pilgrimsCount },
+        },
+      });
+      return {
+        departureId: String(departure._id),
+        offer: result.offer,
+      };
+    }),
+  );
+
+  return new Map(results.flatMap((result) => {
+    if (result.status !== "fulfilled" || !result.value) return [];
+    return [[result.value.departureId, {
+      isAvailable: true,
+      availableCount: Number(pilgrimsCount || 1),
+      total: null,
+      reserved: null,
+      blocked: null,
+      available: null,
+      authority: "PROVIDER",
+      pricing: result.value.offer.pricing,
+    }]];
+  }));
 };
 
 const getAvailableTrips = async ({ startDate, endDate, pilgrimsCount = 1 }) => {
@@ -386,6 +436,15 @@ const getAvailableTrips = async ({ startDate, endDate, pilgrimsCount = 1 }) => {
     departures: validDepartures,
     pilgrimsCount,
   });
+  const providerAvailabilityByDepartureId =
+    await getExternalTripDepartureAvailability({
+      departures: validDepartures,
+      pilgrimsCount,
+    });
+
+  for (const [departureId, availability] of providerAvailabilityByDepartureId) {
+    availabilityByDepartureId.set(departureId, availability);
+  }
 
   return validDepartures
     .filter(({ _id }) =>
@@ -396,8 +455,12 @@ const getAvailableTrips = async ({ startDate, endDate, pilgrimsCount = 1 }) => {
       const availability = availabilityByDepartureId.get(
         String(departure._id),
       );
-      const basePrice = getNumber(departure.pricing?.basePrice);
-      const discountPrice = getNumber(departure.pricing?.discountPrice);
+      const providerPrice = getNumber(availability.pricing?.total);
+      const basePrice = providerPrice || getNumber(departure.pricing?.basePrice);
+      const discountPrice = providerPrice
+        ? 0
+        : getNumber(departure.pricing?.discountPrice);
+      const currency = availability.pricing?.currency || departure.pricing?.currency || "SAR";
 
       return {
         _id: departure._id,
@@ -437,12 +500,12 @@ const getAvailableTrips = async ({ startDate, endDate, pilgrimsCount = 1 }) => {
         price: discountPrice > 0 ? discountPrice : basePrice,
         basePrice,
         discountPrice,
-        currency: departure.pricing?.currency || "SAR",
+        currency,
         pricing: {
           basePrice,
           discountPrice,
           finalPrice: discountPrice > 0 ? discountPrice : basePrice,
-          currency: departure.pricing?.currency || "SAR",
+          currency,
         },
         inventory: {
           total: availability.total,
@@ -452,6 +515,7 @@ const getAvailableTrips = async ({ startDate, endDate, pilgrimsCount = 1 }) => {
         },
         availableCount: availability.availableCount,
         inventoryAvailability: availability,
+        availabilityAuthority: availability.authority || "LOCAL",
         isActive: departure.isActive,
       };
     });

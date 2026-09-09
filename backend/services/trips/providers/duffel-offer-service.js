@@ -61,6 +61,11 @@ const normalizeSegment = (segment = {}) => ({
   passengers: segment.passengers || [],
 });
 
+const normalizeOfferPassenger = (passenger = {}) => ({
+  providerPassengerId: passenger.id || "",
+  category: passenger.type || "",
+});
+
 export const normalizeDuffelOffer = (offer = {}, offerRequest = {}) => {
   const slices = offer.slices || [];
   const segments = slices.flatMap((slice) => slice.segments || []).map(normalizeSegment);
@@ -96,7 +101,17 @@ export const normalizeDuffelOffer = (offer = {}, offerRequest = {}) => {
     },
     passengers: {
       count: (offer.passengers || offerRequest.passengers || []).length,
-      items: offer.passengers || offerRequest.passengers || [],
+      items: (offer.passengers || offerRequest.passengers || [])
+        .map(normalizeOfferPassenger),
+    },
+    supportedIdentityDocumentTypes:
+      offer.supported_passenger_identity_document_types || [],
+    paymentRequirements: {
+      requiresInstantPayment: Boolean(
+        offer.payment_requirements?.requires_instant_payment,
+      ),
+      paymentRequiredBy:
+        offer.payment_requirements?.payment_required_by || null,
     },
   };
 };

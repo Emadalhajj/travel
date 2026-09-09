@@ -9,7 +9,17 @@ const customerSchema = Joi.object({
 
 const travelerSchema = Joi.object({
   fullName: Joi.string().allow("", null),
+  givenName: Joi.string().allow("", null),
+  familyName: Joi.string().allow("", null),
+  email: Joi.string().email().allow("", null),
+  phoneNumber: Joi.string().allow("", null),
+  passengerCategory: Joi.string()
+    .valid("adult", "child", "infant_without_seat")
+    .default("adult"),
+  responsibleAdultTravelerId: Joi.string().allow("", null),
   passportNumber: Joi.string().allow("", null),
+  passportExpiryDate: Joi.date().allow(null),
+  passportIssuingCountryCode: Joi.string().allow("", null),
   nationality: Joi.string().allow("", null),
   birthDate: Joi.date().allow(null),
   gender: Joi.string().valid("male", "female").allow(null),

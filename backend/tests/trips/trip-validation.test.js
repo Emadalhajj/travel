@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createTripSchema } from "../../services/validators/trip-validation.js";
+import { createTripSchema } from "../../services/validators/trips/trip-validation.js";
 
 const baseTrip = {
   nameAr: "رحلة برية",

@@ -33,7 +33,12 @@ export const createDuffelClient = ({
   fetchImpl = globalThis.fetch,
   configFactory = getDuffelConfig,
 } = {}) => ({
-  async request(path, { method = "GET", body, params = {} } = {}) {
+  async request(path, {
+    method = "GET",
+    body,
+    params = {},
+    includeResponseMeta = false,
+  } = {}) {
     const config = configFactory();
     const baseUrl = String(config.baseUrl).replace(/\/$/, "");
     const url = new URL(`${baseUrl}${path}`);
@@ -69,7 +74,9 @@ export const createDuffelClient = ({
         });
       }
 
-      return payload;
+      return includeResponseMeta
+        ? { payload, status: response.status }
+        : payload;
     } catch (error) {
       if (error instanceof AppError) throw error;
       if (error?.name === "AbortError") {

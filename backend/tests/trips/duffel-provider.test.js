@@ -134,6 +134,12 @@ test("offer normalizer preserves multi-segment operational and pricing data", ()
     total_currency: "SAR",
     tax_amount: "50.25",
     cabin_class: "business",
+    passengers: [{ id: "pas_1", type: "adult", private_field: "ignored" }],
+    supported_passenger_identity_document_types: ["passport"],
+    payment_requirements: {
+      requires_instant_payment: true,
+      payment_required_by: "2099-09-01T00:00:00Z",
+    },
     slices: [{
       id: "slice_1",
       duration: "PT4H",
@@ -152,6 +158,12 @@ test("offer normalizer preserves multi-segment operational and pricing data", ()
   assert.equal(normalized.segments[0].operatingCarrier.iataCode, "BB");
   assert.equal(normalized.pricing.total, 850.5);
   assert.equal(normalized.expiresAt, "2099-09-01T00:00:00Z");
+  assert.deepEqual(normalized.passengers.items, [{
+    providerPassengerId: "pas_1",
+    category: "adult",
+  }]);
+  assert.deepEqual(normalized.supportedIdentityDocumentTypes, ["passport"]);
+  assert.equal(normalized.paymentRequirements.requiresInstantPayment, true);
 });
 
 test("gets a fresh offer with the shared Duffel client and normalizer", async () => {

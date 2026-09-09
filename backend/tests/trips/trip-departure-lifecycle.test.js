@@ -168,6 +168,26 @@ test("scheduling creates and activates matching inventory", async () => {
   } finally { fixture.restore(); }
 });
 
+test("scheduling an API departure uses provider authority without local inventory", async () => {
+  const fixture = installFixture({
+    departure: makeDeparture({
+      source: "API",
+      providerId: "DUFFEL",
+      externalId: "slice-1",
+      providerSnapshot: { offerId: "off-1" },
+      capacity: { totalSeats: 0 },
+    }),
+  });
+
+  try {
+    const departure = await invoke(scheduleTripDepartureService);
+    assert.equal(departure.status, TRIP_DEPARTURE_STATUS.SCHEDULED);
+    assert.equal(fixture.inventory, null);
+  } finally {
+    fixture.restore();
+  }
+});
+
 test("scheduling the same scheduled departure is idempotent", async () => {
   const fixture = installFixture({
     departure: makeDeparture({ status: "SCHEDULED" }),

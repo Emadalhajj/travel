@@ -90,6 +90,32 @@ test("TripDeparture produces one SINGLE inventory reservation", () => {
   );
 });
 
+test("external flight has no local inventory while mixed local resources remain", () => {
+  const result = buildInventoryRequirementsFromDraft({
+    draft: buildDraft({
+      travelersCount: 2,
+      products: [
+        product("room", {
+          quantity: 1,
+          checkIn: dates.startDate,
+          checkOut: dates.endDate,
+        }),
+        product("flight", {
+          tripId: "trip-id",
+          departureId: "departure-id",
+          departureAt: "2026-10-02T08:00:00.000Z",
+          source: "API",
+          external: { provider: "DUFFEL", offerId: "off-1" },
+        }),
+      ],
+    }),
+  });
+
+  assert.equal(reservationOf(result, INVENTORY_TYPES.TRIP_DEPARTURE), undefined);
+  assert.equal(reservationOf(result, INVENTORY_TYPES.ROOM_TYPE)?.quantity, 1);
+  assert.equal(result.programReservation?.seats, 2);
+});
+
 test("new Draft with tripId but no departureId is rejected", () => {
   assert.throws(
     () => buildInventoryRequirementsFromDraft({
