@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import FileAttachmentUploader from "../../common/FileAttachmentUploader";
 import NationalitySelect from "../../common/NationalitySelect";
 import CalendarField from "../../common/CalendarField";
@@ -22,9 +22,14 @@ export default function BookingPartyDetailsForm({
   canAddTraveler = true,
   errors = {},
   isArabic = true,
+  isExternalFlight = false,
 }) {
   const [customerOpen, setCustomerOpen] = useState(true);
   const [openTravelers, setOpenTravelers] = useState({ 0: true });
+  const adultTravelers = useMemo(
+    () => travelers.filter((item) => item.passengerCategory === "adult"),
+    [travelers],
+  );
   const toggleTraveler = useCallback((index) =>
     setOpenTravelers((previous) => ({ ...previous, [index]: !previous[index] })), []);
   const handleTravelerHostChange = useCallback((index, hostId) =>
@@ -97,6 +102,8 @@ export default function BookingPartyDetailsForm({
               value={customer.nationality}
               required
               isArabic={isArabic}
+              isExternalFlight={isExternalFlight}
+              adultTravelers={adultTravelers}
               error={errors["customer.nationality"]}
               onChange={(value) => onCustomerChange("nationality", value)}
             />
@@ -163,6 +170,8 @@ export const TravelerFormSection = memo(function TravelerFormSection({
   canRemove,
   errors,
   isArabic,
+  isExternalFlight,
+  adultTravelers,
   onChange,
   onRemove,
   onToggle,
@@ -179,6 +188,81 @@ export const TravelerFormSection = memo(function TravelerFormSection({
                 </div>
               </div>
               {isOpen && <div className="grid gap-4 md:grid-cols-2">
+                {isExternalFlight && <>
+                  <TextField
+                    label={isArabic ? "الاسم الأول كما في الجواز" : "Given name as in passport"}
+                    value={traveler.givenName}
+                    required
+                    error={errors[`travelers.${index}.givenName`]}
+                    onChange={(value) => onChange(index, "givenName", value)}
+                  />
+                  {traveler.passengerCategory === "infant_without_seat" && (
+                    <Labeled label={isArabic ? "البالغ المسؤول عن الرضيع" : "Responsible adult"} required>
+                      <select
+                        className={inputClass}
+                        value={traveler.responsibleAdultTravelerId || ""}
+                        onChange={(event) => onChange(index, "responsibleAdultTravelerId", event.target.value)}
+                      >
+                        <option value="">{isArabic ? "اختر البالغ" : "Choose adult"}</option>
+                        {adultTravelers.map((adult, adultIndex) => (
+                          <option key={adult._id || adult.id || adultIndex} value={adult._id || adult.id || ""}>
+                            {adult.givenName || adult.fullName || `${isArabic ? "بالغ" : "Adult"} ${adultIndex + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                      {errors[`travelers.${index}.responsibleAdultTravelerId`] && <p className="mt-1 text-xs font-semibold text-red-600">{errors[`travelers.${index}.responsibleAdultTravelerId`]}</p>}
+                    </Labeled>
+                  )}
+                  <TextField
+                    label={isArabic ? "اسم العائلة كما في الجواز" : "Family name as in passport"}
+                    value={traveler.familyName}
+                    required
+                    error={errors[`travelers.${index}.familyName`]}
+                    onChange={(value) => onChange(index, "familyName", value)}
+                  />
+                  <TextField
+                    type="email"
+                    label={isArabic ? "بريد المسافر" : "Traveler email"}
+                    value={traveler.email}
+                    required
+                    error={errors[`travelers.${index}.email`]}
+                    onChange={(value) => onChange(index, "email", value)}
+                  />
+                  <PhoneNumberField
+                    label={isArabic ? "هاتف المسافر" : "Traveler phone"}
+                    value={traveler.phoneNumber}
+                    required
+                    isArabic={isArabic}
+                    error={errors[`travelers.${index}.phoneNumber`]}
+                    onChange={(value) => onChange(index, "phoneNumber", value)}
+                  />
+                  <TextField
+                    label={isArabic ? "نوع الراكب" : "Passenger category"}
+                    value={traveler.passengerCategory}
+                    required
+                    disabled
+                    onChange={() => {}}
+                  />
+                  <Labeled label={isArabic ? "تاريخ انتهاء الجواز" : "Passport expiry date"} required>
+                    <CalendarField
+                      value={traveler.passportExpiryDate}
+                      min={new Date().toISOString().slice(0, 10)}
+                      required
+                      isArabic={isArabic}
+                      error={errors[`travelers.${index}.passportExpiryDate`]}
+                      onChange={(value) => onChange(index, "passportExpiryDate", value)}
+                    />
+                  </Labeled>
+                  <Labeled label={isArabic ? "دولة إصدار الجواز" : "Passport issuing country"} required>
+                    <NationalitySelect
+                      value={traveler.passportIssuingCountryCode}
+                      required
+                      isArabic={isArabic}
+                      error={errors[`travelers.${index}.passportIssuingCountryCode`]}
+                      onChange={(value) => onChange(index, "passportIssuingCountryCode", value)}
+                    />
+                  </Labeled>
+                </>}
                 <TextField
                   label={isArabic ? "الاسم الكامل" : "Full name"}
                   value={traveler.fullName}
@@ -326,6 +410,8 @@ function areTravelerPropsEqual(previous, next) {
     previous.isOpen !== next.isOpen ||
     previous.canRemove !== next.canRemove ||
     previous.isArabic !== next.isArabic ||
+    previous.isExternalFlight !== next.isExternalFlight ||
+    previous.adultTravelers !== next.adultTravelers ||
     previous.onChange !== next.onChange ||
     previous.onRemove !== next.onRemove ||
     previous.onToggle !== next.onToggle
@@ -368,6 +454,7 @@ function TextField({
   inputMode,
   required,
   error,
+  disabled = false,
 }) {
   return (
     <Labeled label={label} required={required}>
@@ -376,6 +463,7 @@ function TextField({
         inputMode={inputMode}
         value={value || ""}
         onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
         className={`${inputClass} ${error ? "border-red-400" : ""}`}
       />
       {error && (

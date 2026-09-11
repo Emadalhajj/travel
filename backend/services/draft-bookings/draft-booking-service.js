@@ -1011,6 +1011,33 @@ buildBookingPricingFromDraft
 export const buildBookingPricingFromDraft = (
   draft,
 ) => {
+  const externalFlightPrice = Number(draft.trip?.external?.pricing?.total || 0);
+  if (
+    draft.bookingContext === "SERVICE" &&
+    draft.serviceType === "FLIGHT" &&
+    externalFlightPrice > 0
+  ) {
+    const currency = draft.trip.external.pricing.currency || draft.trip.currency || "SAR";
+    return {
+      pricingSource: "EXTERNAL_FLIGHT",
+      travelersCount: Math.max(1, draft.travelers?.length || 0),
+      packageUnitPrice: 0,
+      packageSubtotal: 0,
+      productsSubtotal: externalFlightPrice,
+      roomPrice: 0,
+      visaPrice: 0,
+      tripPrice: externalFlightPrice,
+      transportPrice: 0,
+      subtotal: externalFlightPrice,
+      discount: 0,
+      taxRate: 0,
+      taxAmount: 0,
+      tax: 0,
+      totalPrice: externalFlightPrice,
+      total: externalFlightPrice,
+      currency,
+    };
+  }
   const travelersCount = Math.max(
     1,
     Array.isArray(draft.travelers)
@@ -2016,6 +2043,8 @@ export const convertDraftToBooking = async ({
       remainingAmount: payment.remainingAmount,
 
       bookingType: BOOKING_TYPES.UMRAH_PACKAGE,
+      bookingContext: draft.bookingContext || "CUSTOM_PACKAGE",
+      serviceType: draft.serviceType || "",
       currentStep: BOOKING_STEPS.PAYMENT,
       bookingStatus: isFullyPaid
         ? BOOKING_STATUS.CONFIRMED

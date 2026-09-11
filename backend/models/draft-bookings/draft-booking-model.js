@@ -181,6 +181,17 @@ const draftHostSchema = new mongoose.Schema(
 
 const draftBookingSchema = new mongoose.Schema(
   {
+    bookingContext: {
+      type: String,
+      enum: ["READY_PACKAGE", "CUSTOM_PACKAGE", "SERVICE"],
+      default: "CUSTOM_PACKAGE",
+      index: true,
+    },
+    serviceType: {
+      type: String,
+      enum: ["", "FLIGHT"],
+      default: "",
+    },
     /*
     المستخدم الذي أنشأ المسودة.
     قد يكون عميلًا أو موظفًا من لوحة التحكم.

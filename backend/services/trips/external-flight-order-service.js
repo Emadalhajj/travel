@@ -20,7 +20,9 @@ export const buildExternalFlightOrderInput = async ({
     travelers: draft.travelers || [],
     providerPassengers: snapshot.passengers.items || [],
     requiredIdentityDocumentTypes:
-      dependencies.requiredIdentityDocumentTypes || [],
+      dependencies.requiredIdentityDocumentTypes ||
+      snapshot.supportedIdentityDocumentTypes ||
+      [],
   });
   const orderType = String(payment?.orderType || "").toLowerCase();
   if (snapshot.paymentRequirements.requiresInstantPayment && orderType !== "instant") {

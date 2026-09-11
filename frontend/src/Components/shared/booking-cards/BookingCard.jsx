@@ -21,6 +21,8 @@ export default function BookingCard({ booking, onView, isArabic = true, t }) {
     0;
 
   const currency = booking?.pricing?.currency || "SAR";
+  const isFlight = booking?.bookingContext === "SERVICE" && booking?.serviceType === "FLIGHT";
+  const flightRoute = booking?.flight?.route;
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-5">
@@ -42,6 +44,12 @@ export default function BookingCard({ booking, onView, isArabic = true, t }) {
             {t?.("createdAt", "تاريخ الإنشاء") || "تاريخ الإنشاء"}:{" "}
             {formatDate(booking?.createdAt, { isArabic })}
           </p>
+          {isFlight && (
+            <p className="text-sm font-semibold text-emerald-700 mt-1">
+              {(flightRoute?.origin || "-")} → {(flightRoute?.destination || "-")}
+              {booking?.flight?.bookingReference ? ` · ${booking.flight.bookingReference}` : ""}
+            </p>
+          )}
         </div>
 
         <div className="text-right">

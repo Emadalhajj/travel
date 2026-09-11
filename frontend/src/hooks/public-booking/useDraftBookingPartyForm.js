@@ -7,6 +7,9 @@ import { getProgramAvailableSeats } from "../../Components/shared/booking-wizard
 
 const createEmptyTraveler = () => ({
   fullName: "", passportNumber: "", nationality: "", birthDate: "", gender: "male",
+  givenName: "", familyName: "", email: "", phoneNumber: "",
+  passengerCategory: "adult", passportExpiryDate: "",
+  passportIssuingCountryCode: "", responsibleAdultTravelerId: "",
   passportImage: "", passportFiles: [], whatsapp: "",
   personalPhoto: "", personalPhotoFiles: [],
   vaccinationCertificate: "", vaccinationCertificateFiles: [],
@@ -32,6 +35,8 @@ export default function useDraftBookingPartyForm({
   const [localError, setLocalError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+  const isExternalFlight = draftBooking?.bookingContext === "SERVICE" &&
+    draftBooking?.serviceType === "FLIGHT";
 
   const initialTravelerCount = useMemo(() => Math.max(1, Number(
     draftBooking?.data?.travelersCount ??
@@ -97,7 +102,7 @@ export default function useDraftBookingPartyForm({
   ), []);
 
   const validateForm = () => {
-    const nextErrors = validateBookingParty({ customer, travelers, hosts, isArabic });
+    const nextErrors = validateBookingParty({ customer, travelers, hosts, isArabic, isExternalFlight });
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -164,6 +169,7 @@ export default function useDraftBookingPartyForm({
     availableSeats,
     travelersCount: travelers.length,
     showSaveConfirmation,
+    isExternalFlight,
     closeSaveConfirmation: () => !uploading && !submitLoading && setShowSaveConfirmation(false),
     requestSaveConfirmation,
     handleCustomerChange, handleTravelerChange, handleHostsChange,

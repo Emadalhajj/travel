@@ -51,6 +51,11 @@ export default function PublicBookingSuccessPage() {
       finalBooking?.pricing?.totalAmount ||
       0,
   );
+  const externalFlight = finalBooking?.bookingItems?.trip?.external;
+  const externalFlightRoute = externalFlight?.route || (externalFlight ? {
+    origin: externalFlight.slices?.[0]?.origin || "",
+    destination: externalFlight.slices?.at(-1)?.destination || "",
+  } : null);
 
   return (
     <PublicPageLayout containerClassName="max-w-4xl">
@@ -89,6 +94,17 @@ export default function PublicBookingSuccessPage() {
                 label={t("paymentStatus", "حالة الدفع")}
                 value={finalBooking?.paymentStatus || "-"}
               />
+
+              {externalFlight && <>
+                <InfoRow
+                  label={t("flightRoute", "مسار الرحلة")}
+                  value={`${externalFlightRoute?.origin || "-"} → ${externalFlightRoute?.destination || "-"}`}
+                />
+                <InfoRow
+                  label={t("airlineBookingReference", "مرجع حجز شركة الطيران")}
+                  value={externalFlight.bookingReference || "-"}
+                />
+              </>}
 
               <InfoRow
                 label={t("subtotal", "الإجمالي قبل الضريبة")}

@@ -58,7 +58,11 @@ const normalizeSegment = (segment = {}) => ({
   arrivalTerminal: segment.destination_terminal || "",
   marketingCarrier: normalizeCarrier(segment.marketing_carrier),
   operatingCarrier: normalizeCarrier(segment.operating_carrier),
-  passengers: segment.passengers || [],
+  baggage: (segment.passengers || []).flatMap((passenger) =>
+    (passenger.baggages || []).map((item) => ({
+      type: item.type || "",
+      quantity: Number(item.quantity || 0),
+    }))),
 });
 
 const normalizeOfferPassenger = (passenger = {}) => ({

@@ -8,6 +8,7 @@ export const validateBookingParty = ({
   travelers = [],
   hosts = [],
   isArabic = true,
+  isExternalFlight = false,
 }) => {
   const errors = {};
   const required = isArabic ? "هذا الحقل مطلوب" : "This field is required";
@@ -32,6 +33,22 @@ export const validateBookingParty = ({
     ["fullName", "passportNumber", "nationality", "birthDate"].forEach((field) => {
       if (!hasValue(traveler[field])) errors[`travelers.${index}.${field}`] = required;
     });
+
+    if (isExternalFlight) {
+      ["givenName", "familyName", "email", "phoneNumber", "passportExpiryDate", "passportIssuingCountryCode"]
+        .forEach((field) => {
+          if (!hasValue(traveler[field])) errors[`travelers.${index}.${field}`] = required;
+        });
+      if (traveler.email && !EMAIL_REGEX.test(String(traveler.email).trim())) {
+        errors[`travelers.${index}.email`] = isArabic ? "البريد الإلكتروني غير صالح" : "Invalid email address";
+      }
+      if (traveler.phoneNumber && !PHONE_REGEX.test(String(traveler.phoneNumber).trim())) {
+        errors[`travelers.${index}.phoneNumber`] = isArabic ? "رقم التواصل غير صالح" : "Invalid contact number";
+      }
+      if (traveler.passengerCategory === "infant_without_seat" && !hasValue(traveler.responsibleAdultTravelerId)) {
+        errors[`travelers.${index}.responsibleAdultTravelerId`] = required;
+      }
+    }
 
     if (!traveler.passportImage && !traveler.passportFiles?.length) {
       errors[`travelers.${index}.passportFiles`] = isArabic

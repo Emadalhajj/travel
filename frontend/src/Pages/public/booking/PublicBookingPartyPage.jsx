@@ -47,6 +47,10 @@ export default function PublicBookingPartyPage() {
   }, [dispatch, draftId]);
 
   const handleBack = () => {
+    if (party.isExternalFlight) {
+      navigate("/services/flights");
+      return;
+    }
     const packageType = String(draftBooking?.data?.packageType || "").toUpperCase();
     const selectedPackage = draftBooking?.data?.selectedPackage;
     const programId = selectedPackage?._id || selectedPackage?.id || draftBooking?.program?.programId;
@@ -100,6 +104,7 @@ export default function PublicBookingPartyPage() {
           canAddTraveler={party.canAddTraveler}
           errors={party.errors}
           isArabic={isArabic}
+          isExternalFlight={party.isExternalFlight}
         />
 
         {party.availableSeats !== null && !party.canAddTraveler && (

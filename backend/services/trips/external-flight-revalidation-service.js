@@ -28,6 +28,18 @@ const buildComparison = ({ offer, expected = {} }) => {
     expectedPassengers.total ?? expectedPassengers.count,
   );
   const currentPassengerCount = normalizeCount(offer.passengers?.count);
+  const currentCategories = (offer.passengers?.items || []).reduce(
+    (counts, passenger) => {
+      const category = String(passenger.category || "").toLowerCase();
+      if (category === "adult") counts.adults += 1;
+      else if (category === "child") counts.children += 1;
+      else if (category.startsWith("infant")) counts.infants += 1;
+      return counts;
+    },
+    { adults: 0, children: 0, infants: 0 },
+  );
+  const hasExpectedCategories = ["adults", "children", "infants"]
+    .some((key) => expectedPassengers[key] !== undefined);
 
   return {
     priceChanged: expectedTotal > 0 && currentTotal !== expectedTotal,
@@ -39,8 +51,11 @@ const buildComparison = ({ offer, expected = {} }) => {
       (Boolean(expectedRoute.destination) &&
         normalizeCode(expectedRoute.destination) !== route.destination),
     passengerCountChanged:
-      expectedPassengerCount > 0 &&
-      currentPassengerCount !== expectedPassengerCount,
+      (expectedPassengerCount > 0 &&
+        currentPassengerCount !== expectedPassengerCount) ||
+      (hasExpectedCategories &&
+        ["adults", "children", "infants"].some((key) =>
+          normalizeCount(expectedPassengers[key]) !== currentCategories[key])),
   };
 };
 
@@ -140,7 +155,10 @@ export const revalidateExternalFlightOffer = async ({
       comparison,
     });
   }
-  if (comparison.routeChanged || comparison.passengerCountChanged) {
+  if (
+    comparison.routeChanged ||
+    comparison.passengerCountChanged
+  ) {
     throw new AppError("EXTERNAL_FLIGHT_UNAVAILABLE", 409, "trip.external", {
       comparison,
     });

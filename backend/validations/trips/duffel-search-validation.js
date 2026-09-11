@@ -35,3 +35,26 @@ export const externalFlightSearchSchema = Joi.object({
     .valid("ECONOMY", "PREMIUM_ECONOMY", "BUSINESS", "FIRST")
     .default("ECONOMY"),
 });
+
+export const publicExternalFlightSearchSchema = externalFlightSearchSchema
+  .fork(["provider"], (schema) => schema.forbidden());
+
+export const publicExternalFlightDraftSchema = Joi.object({
+  offerId: Joi.string().trim().min(1).max(255).required(),
+  expected: Joi.object({
+    route: Joi.object({
+      origin: Joi.string().trim().uppercase().length(3).required(),
+      destination: Joi.string().trim().uppercase().length(3).required(),
+    }).required(),
+    pricing: Joi.object({
+      total: Joi.number().positive().required(),
+      currency: Joi.string().trim().uppercase().length(3).required(),
+    }).required(),
+    passengers: Joi.object({
+      adults: Joi.number().integer().min(1).max(9).required(),
+      children: Joi.number().integer().min(0).max(9).default(0),
+      infants: Joi.number().integer().min(0).max(9).default(0),
+      total: Joi.number().integer().min(1).max(27).required(),
+    }).required(),
+  }).required(),
+});

@@ -76,6 +76,9 @@ const AdminTransportList = lazy(
 const TransportTrips = lazy(
   () => import("../Pages/admin/transport/TransportTrips"),
 );
+const PublicFlightsPage = lazy(
+  () => import("../Pages/public/flights/PublicFlightsPage"),
+);
 const AdminTripDeparturesPage = lazy(
   () => import("../Pages/admin/transport/AdminTripDeparturesPage"),
 );
@@ -197,6 +200,7 @@ function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/programs" element={<PublicProgramListPage />} />
         <Route path="/programs/:id" element={<PublicProgramDetailsPage />} />
+        <Route path="/services/flights" element={<PublicFlightsPage />} />
         <Route
           path="/booking/program/:programId"
           element={<PublicBookingPage />}

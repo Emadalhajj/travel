@@ -86,6 +86,12 @@ export const BOOKING_LIST_PROJECTION = {
   "pricing.totalPrice": 1,
   "pricing.currency": 1,
   totalPilgrims: 1,
+  bookingContext: 1,
+  serviceType: 1,
+  "bookingItems.trip.external.bookingReference": 1,
+  "bookingItems.trip.external.route": 1,
+  "bookingItems.trip.external.slices.origin": 1,
+  "bookingItems.trip.external.slices.destination": 1,
   createdAt: 1,
 };
 
@@ -126,6 +132,16 @@ export const serializeBookingListItem = (booking = {}) => ({
   },
   pilgrimsCount: Number(booking.totalPilgrims) || 0,
   totalPilgrims: Number(booking.totalPilgrims) || 0,
+  bookingContext: booking.bookingContext || "CUSTOM_PACKAGE",
+  serviceType: booking.serviceType || "",
+  flight: booking.serviceType === "FLIGHT" ? {
+    bookingReference: booking.bookingItems?.trip?.external?.bookingReference || "",
+    route: booking.bookingItems?.trip?.external?.route || {
+      origin: booking.bookingItems?.trip?.external?.slices?.[0]?.origin || "",
+      destination: booking.bookingItems?.trip?.external?.slices?.at(-1)?.destination || "",
+    },
+    slices: booking.bookingItems?.trip?.external?.slices || [],
+  } : null,
   createdAt: booking.createdAt,
 });
 

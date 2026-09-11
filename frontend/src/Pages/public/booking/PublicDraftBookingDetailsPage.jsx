@@ -337,6 +337,8 @@ export default function PublicDraftBookingDetailsPage() {
 
   const hasTravelers = travelers.length > 0;
   const hasSelectedProducts = selectedProductsList.length > 0;
+  const isExternalFlight = draftBooking?.bookingContext === "SERVICE" &&
+    draftBooking?.serviceType === "FLIGHT";
 
   /*
   الباقة الجاهزة تحتوي خدمات مشمولة في سعر البرنامج،
@@ -369,7 +371,7 @@ export default function PublicDraftBookingDetailsPage() {
   };
 
   const hasRequiredServices =
-    hasSelectedProducts || hasReadyPackage;
+    hasSelectedProducts || hasReadyPackage || Boolean(draftBooking?.trip?.external);
 
   const isDraft = draftBooking?.status === "draft";
 
@@ -404,7 +406,7 @@ export default function PublicDraftBookingDetailsPage() {
     );
 
     if (currentStep === "dates" || currentStep === "services") {
-      navigate("/custom-package-builder");
+      navigate(isExternalFlight ? "/services/flights" : "/custom-package-builder");
       return;
     }
 
@@ -566,10 +568,10 @@ export default function PublicDraftBookingDetailsPage() {
       <PageHeader
         eyebrowAr="مراجعة المسودة"
         eyebrowEn="Draft Review"
-        titleAr={programName || "مراجعة مسودة الحجز"}
-        titleEn={programName || "Review Draft Booking"}
-        subtitleAr="راجع بيانات البرنامج والعميل والمعتمرين والخدمات قبل المتابعة إلى الدفع."
-        subtitleEn="Review the program, customer, travelers, and selected services before payment."
+        titleAr={isExternalFlight ? "مراجعة حجز الرحلة" : (programName || "مراجعة مسودة الحجز")}
+        titleEn={isExternalFlight ? "Review Flight Booking" : (programName || "Review Draft Booking")}
+        subtitleAr={isExternalFlight ? "راجع بيانات الرحلة والمسافرين والسعر المحدث قبل الدفع." : "راجع بيانات البرنامج والعميل والمعتمرين والخدمات قبل المتابعة إلى الدفع."}
+        subtitleEn={isExternalFlight ? "Review the flight, passengers, and latest price before payment." : "Review the program, customer, travelers, and selected services before payment."}
         actions={
           <div className="flex flex-wrap gap-3">
             {isDraft && <ActionButton action="back" onClick={handleEditTravelers} showLabel label={t("previousStep", "الخطوة السابقة")} size="lg" />}
@@ -708,13 +710,29 @@ export default function PublicDraftBookingDetailsPage() {
             )}
           </section>
 
-          <DraftBookingInfoCard
-            title={t(
-              "programInfo",
-              "بيانات البرنامج",
-            )}
-            items={programItems}
-          />
+          {isExternalFlight ? (
+            <DraftBookingInfoCard
+              title={t("flightInfo", "بيانات الرحلة")}
+              items={[
+                { label: t("route", "المسار"), value: `${draftBooking?.trip?.external?.route?.origin || "-"} → ${draftBooking?.trip?.external?.route?.destination || "-"}` },
+                { label: t("departureDate", "المغادرة"), value: formatDate(draftBooking?.trip?.departureAt, { isArabic }) },
+                { label: t("arrivalDate", "الوصول"), value: formatDate(draftBooking?.trip?.arrivalAt, { isArabic }) },
+                { label: t("travelersCount", "عدد المسافرين"), value: travelers.length },
+                { label: t("latestPrice", "السعر الحالي"), value: formatPrice(pricingSummary.total, pricingSummary.currency) },
+              ]}
+            />
+          ) : (
+            <DraftBookingInfoCard
+              title={t("programInfo", "بيانات البرنامج")}
+              items={programItems}
+            />
+          )}
+
+          {isExternalFlight && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+              {t("externalFlightPriceWarning", "يُعاد التحقق من السعر والتوفر عند بدء الدفع، ولن يستمر الحجز بصمت إذا تغير السعر أو انتهى العرض.")}
+            </div>
+          )}
 
           <PublicSectionCard>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-4">

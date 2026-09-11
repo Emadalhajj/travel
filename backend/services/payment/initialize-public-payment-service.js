@@ -32,6 +32,7 @@ import {
 } from "./paymentTransaction-service.js";
 import { buildBookingPricingFromDraft } from "../draft-bookings/draft-booking-service.js";
 import { revalidateDraftExternalFlight } from "../trips/external-flight-revalidation-service.js";
+import { buildExternalFlightPassengers } from "../trips/providers/external-flight-passenger-mapper.js";
 
 import { PAYMENT_CONFIGURATION_TYPES } from "../../constants/payments/payment-configuration-types.js";
 import { PAYMENT_TRANSACTION_STATUSES } from "../../constants/payments/payment-transaction-statuses.js";
@@ -336,6 +337,12 @@ export const initializePublicPaymentService = async ({
     draft.trip.quantity = 1;
     draft.trip.chargeType = "PER_BOOKING";
     await draft.save();
+    buildExternalFlightPassengers({
+      travelers: draft.travelers,
+      providerPassengers: refreshedExternal.passengers.items,
+      requiredIdentityDocumentTypes:
+        refreshedExternal.supportedIdentityDocumentTypes,
+    });
   }
 
   const existingPayment =

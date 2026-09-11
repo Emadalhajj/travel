@@ -616,6 +616,19 @@ Soft Delete Fields
       default: BOOKING_TYPES.UMRAH_PACKAGE,
     },
 
+    bookingContext: {
+      type: String,
+      enum: ["READY_PACKAGE", "CUSTOM_PACKAGE", "SERVICE"],
+      default: "CUSTOM_PACKAGE",
+      index: true,
+    },
+
+    serviceType: {
+      type: String,
+      enum: ["", "FLIGHT"],
+      default: "",
+    },
+
     currentStep: {
       type: String,
       enum: BOOKING_STEPS_LIST,

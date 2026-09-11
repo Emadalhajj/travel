@@ -18,6 +18,7 @@ import TransportRoutes from "./routes/transport-routes.js";
 import tripRoutes from "./routes/trips/trip-routers.js";
 import tripDepartureRoutes from "./routes/trips/trip-departure-routes.js";
 import duffelProviderRoutes from "./routes/trips/duffel-provider-route.js";
+import publicFlightRoutes from "./routes/trips/public-flight-route.js";
 import userRoutes from "./routes/users-routes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import BookingRoute from "./routes/booking/booking-route.js";
@@ -193,6 +194,7 @@ app.use("/api/admin/payment-providers", paymentProviderRoutes);
 app.use("/api/payments/configurations", paymentConfigurationRoutes);
 app.use("/api/public/payments", publicPaymentConfigurationRoutes);
 app.use("/api/public/payments", publicPaymentRoutes);
+app.use("/api/public/flights", publicFlightRoutes);
 app.use("/api", AdminLookupRoute);
 app.use("/api", PrivateFileRoute);
 

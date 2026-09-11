@@ -55,3 +55,9 @@ export const flightSearchRateLimiter = createLimiter({
   limit: 30,
   message: "تم تجاوز حد البحث عن الرحلات مؤقتًا",
 });
+
+export const publicFlightSearchRateLimiter = createLimiter({
+  windowMs: 60 * 1000,
+  limit: 15,
+  message: "تم تجاوز حد البحث عن الرحلات مؤقتًا",
+});
