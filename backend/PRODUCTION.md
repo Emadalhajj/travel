@@ -65,6 +65,15 @@ deployment secret manager rather than editing source files.
 `PAYMENT_RECOVERY_INTERVAL_MS` is clamped to 60000–300000 ms and defaults to
 120000 ms. `PAYMENT_RECOVERY_BATCH_LIMIT` controls the bounded recovery batch.
 
+When Duffel is enabled, configure `DUFFEL_ACCESS_TOKEN`,
+`DUFFEL_WEBHOOK_SECRET`, and `DUFFEL_ORDER_HTTP_TIMEOUT_MS` (at least 130000
+ms). Register the HTTPS receiver as
+`POST /api/webhooks/flight-providers/duffel` for `order.created` and
+`order.creation_failed`. Use separate Duffel test/live webhook secrets and do
+not reuse the access token as the webhook secret. The recovery worker
+reconciles pending orders; never retry Create Order manually after a timeout or
+HTTP 202 response.
+
 ## Reverse proxy, HTTPS, and CORS
 
 - Terminate HTTPS at the load balancer/reverse proxy and redirect HTTP to HTTPS.

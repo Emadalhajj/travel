@@ -37,6 +37,7 @@ import {
   attachProviderCheckoutService,
   createPaymentTransactionService,
   findPaymentTransactionService,
+  initializeExternalFulfillmentService,
   markPaymentTransactionFailedService,
   updatePaymentTransactionStatusService,
 } from "./paymentTransaction-service.js";
@@ -290,6 +291,13 @@ export const createPaymentCheckoutSessionService = async ({
   });
 
   const existingCheckout = await getExistingCheckoutResult(transaction);
+  if (draft?.trip?.external?.provider && draft.trip.external.offerId) {
+    await initializeExternalFulfillmentService({
+      transactionId: transaction._id,
+      provider: draft.trip.external.provider,
+      offerId: draft.trip.external.offerId,
+    });
+  }
   const providerCode = String(provider.code || "").toUpperCase();
 
   const normalizedReturnUrl = String(

@@ -66,6 +66,7 @@ import {
   sendPaymentFailedNotification,
   sendPaymentReceivedNotification,
 } from "../notifications/payment-notification-service.js";
+import { fulfillExternalFlight } from "../trips/external-flight-fulfillment-service.js";
 
 const SUCCESS_STATUSES = new Set([
   PAYMENT_TRANSACTION_STATUSES.SUCCESS,
@@ -389,6 +390,24 @@ export const completeProviderPaymentService = async ({
       });
   }
 
+  const fulfillmentResult = transaction.externalFulfillment?.required
+    ? await fulfillExternalFlight({ transaction })
+    : { required: false, confirmed: true, transaction };
+  transaction = fulfillmentResult.transaction || transaction;
+  if (fulfillmentResult.required && !fulfillmentResult.confirmed) {
+    transaction = await recordBookingConversionFailureService({
+      transactionId: transaction._id,
+      reason: "External flight fulfillment is pending provider confirmation",
+      source: PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+    });
+    await sendPaidPendingBookingNotification({ transaction, req });
+    return buildSafeResult({
+      transaction,
+      verificationStatus: "PROCESSING",
+      reused: Boolean(fulfillmentResult.locked),
+    });
+  }
+
   const conversionLock =
     await acquirePaymentBookingConversionLockService({
       transactionId: transaction._id,
@@ -441,7 +460,7 @@ export const completeProviderPaymentService = async ({
           holdId: linkedHold._id,
           draftBooking: transaction.draftBooking,
           paymentTransaction: transaction._id,
-          allowExpired: true,
+          allowExpired: !transaction.externalFulfillment?.required,
         })
       : null;
 
@@ -471,7 +490,9 @@ export const completeProviderPaymentService = async ({
         },
         inventoryHoldId:
           holdForConversion?._id || null,
-        allowExpiredInventoryHold: true,
+        allowExpiredInventoryHold: !transaction.externalFulfillment?.required,
+        externalFlightOrderSnapshot:
+          transaction.externalFulfillment?.orderSnapshot || null,
       });
   } catch (error) {
     await releasePaymentBookingConversionLockService({

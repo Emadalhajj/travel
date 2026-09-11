@@ -56,6 +56,7 @@ import { paymentCallbackRateLimiter } from "./middleware/security/rate-limiters.
 import {
   handleStripeWebhook,
 } from "./controllers/payment/stripe-webhook-controller.js";
+import { handleDuffelWebhook } from "./controllers/trips/duffel-webhook-controller.js";
 
 //use packages
 dotenv.config();
@@ -94,6 +95,12 @@ app.post(
   paymentCallbackRateLimiter,
   express.raw({ type: "application/json" }),
   handleStripeWebhook,
+);
+app.post(
+  "/api/webhooks/flight-providers/duffel",
+  paymentCallbackRateLimiter,
+  express.raw({ type: "application/json", limit: "256kb" }),
+  handleDuffelWebhook,
 );
 
 // قراءة البيانات المتداخلة

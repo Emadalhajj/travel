@@ -293,6 +293,10 @@ export const ERROR_MESSAGES = Object.freeze({
   EXTERNAL_FLIGHT_INSTANT_PAYMENT_REQUIRED: createMessages("هذا العرض يتطلب دفعًا فوريًا لدى مزود الرحلة", "This offer requires instant provider payment"),
   EXTERNAL_FLIGHT_SEGMENTS_MISSING: createMessages("عرض الرحلة لا يحتوي مقاطع تشغيلية صالحة", "The flight offer has no valid operational segments"),
   EXTERNAL_FLIGHT_IMPORT_CONFLICT: createMessages("تم استيراد العرض بالتزامن؛ يرجى تحديث القائمة", "The offer was imported concurrently; please refresh the list"),
+  EXTERNAL_FLIGHT_ORDER_FAILED: createMessages("تعذر إتمام حجز الرحلة لدى المزود", "The external flight order could not be completed"),
+  EXTERNAL_FLIGHT_ORDER_CREATION_FAILED: createMessages("فشل مزود الرحلة في إنشاء الحجز", "The flight provider failed to create the order"),
+  INVALID_WEBHOOK_SIGNATURE: createMessages("توقيع إشعار مزود الرحلة غير صالح", "The flight provider webhook signature is invalid"),
+  INVALID_WEBHOOK_PAYLOAD: createMessages("محتوى إشعار مزود الرحلة غير صالح", "The flight provider webhook payload is invalid"),
 });
 
 export const translateError = (code, language = "ar", params = {}) => {

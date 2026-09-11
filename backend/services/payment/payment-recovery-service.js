@@ -31,6 +31,7 @@ import {
   sendPaymentReceivedNotification,
 } from "../notifications/payment-notification-service.js";
 import { mapWithConcurrency } from "../../utils/async/mapWithConcurrency.js";
+import { fulfillExternalFlight } from "../trips/external-flight-fulfillment-service.js";
 
 const PAID_RECOVERY_CONCURRENCY = 5;
 const HOLD_RECOVERY_CONCURRENCY = 10;
@@ -80,12 +81,23 @@ export const createPaymentRecoveryServiceLayer = ({
   expireDrafts = expireOldDraftBookings,
   sendPaymentReceived = sendPaymentReceivedNotification,
   sendPaidPending = sendPaidPendingBookingNotification,
+  fulfillFlight = fulfillExternalFlight,
 } = {}) => {
   const recoverPaidTransaction = async ({ transaction, req }) => {
     const lock = await acquireConversionLock({ transactionId: transaction._id });
     if (!lock) return { status: "skipped_locked", transactionId: transaction._id };
 
     try {
+      const fulfillment = transaction.externalFulfillment?.required
+        ? await fulfillFlight({ transaction })
+        : { required: false, confirmed: true, transaction };
+      transaction = fulfillment.transaction || transaction;
+      if (fulfillment.required && !fulfillment.confirmed) {
+        return {
+          status: "awaiting_provider",
+          transactionId: transaction._id,
+        };
+      }
       const linkedHold = await findHoldByPayment({
         paymentTransaction: transaction._id,
       });
@@ -94,7 +106,7 @@ export const createPaymentRecoveryServiceLayer = ({
             holdId: linkedHold._id,
             draftBooking: transaction.draftBooking,
             paymentTransaction: transaction._id,
-            allowExpired: true,
+            allowExpired: !transaction.externalFulfillment?.required,
           })
         : null;
 
@@ -122,7 +134,9 @@ export const createPaymentRecoveryServiceLayer = ({
           paymentTransactionId: transaction._id,
         },
         inventoryHoldId: hold?._id || null,
-        allowExpiredInventoryHold: true,
+        allowExpiredInventoryHold: !transaction.externalFulfillment?.required,
+        externalFlightOrderSnapshot:
+          transaction.externalFulfillment?.orderSnapshot || null,
       });
       const booking = result?.booking || result;
 
@@ -185,6 +199,7 @@ export const createPaymentRecoveryServiceLayer = ({
       recovered: results.filter(({ status }) => status === "recovered").length,
       failed: results.filter(({ status }) => status === "failed").length,
       skipped: results.filter(({ status }) => status === "skipped_locked").length,
+      awaitingProvider: results.filter(({ status }) => status === "awaiting_provider").length,
       results,
     };
   };

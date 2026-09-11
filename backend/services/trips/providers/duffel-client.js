@@ -38,6 +38,8 @@ export const createDuffelClient = ({
     body,
     params = {},
     includeResponseMeta = false,
+    timeoutMs,
+    useOrderTimeout = false,
   } = {}) {
     const config = configFactory();
     const baseUrl = String(config.baseUrl).replace(/\/$/, "");
@@ -50,7 +52,10 @@ export const createDuffelClient = ({
     });
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), config.httpTimeoutMs);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      timeoutMs || (useOrderTimeout ? config.orderHttpTimeoutMs : config.httpTimeoutMs),
+    );
 
     try {
       const response = await fetchImpl(url, {

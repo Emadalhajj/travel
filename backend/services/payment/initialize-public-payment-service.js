@@ -28,6 +28,7 @@ import { createProviderCheckoutService } from "./payment-checkout-service.js";
 import {
   createPaymentTransactionService,
   findBlockingPublicPaymentForDraftService,
+  initializeExternalFulfillmentService,
 } from "./paymentTransaction-service.js";
 import { buildBookingPricingFromDraft } from "../draft-bookings/draft-booking-service.js";
 import { revalidateDraftExternalFlight } from "../trips/external-flight-revalidation-service.js";
@@ -221,6 +222,16 @@ const sanitizePublicInstructions = (value) => {
   return instructions;
 };
 
+const initializeFlightFulfillment = async ({ transaction, draft }) => {
+  const external = draft?.trip?.external;
+  if (!external?.provider || !external?.offerId) return transaction;
+  return initializeExternalFulfillmentService({
+    transactionId: transaction._id,
+    provider: external.provider,
+    offerId: external.offerId,
+  }) || transaction;
+};
+
 const initializeBankTransfer = async ({
   draft,
   configuration,
@@ -248,6 +259,7 @@ const initializeBankTransfer = async ({
     eventSource: PAYMENT_TRANSACTION_EVENT_SOURCES.PUBLIC_API,
   });
 
+  await initializeFlightFulfillment({ transaction, draft });
   return {
     action: "BANK_TRANSFER",
     paymentTransactionId: transaction._id,
@@ -292,6 +304,7 @@ const initializeManualPayment = async ({
     eventSource: PAYMENT_TRANSACTION_EVENT_SOURCES.PUBLIC_API,
   });
 
+  await initializeFlightFulfillment({ transaction, draft });
   return {
     action: "PENDING_APPROVAL",
     paymentTransactionId: transaction._id,

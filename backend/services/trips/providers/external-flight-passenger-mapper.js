@@ -4,23 +4,46 @@ const normalize = (value) => String(value || "").trim();
 const normalizeCategory = (value) => normalize(value).toLowerCase();
 const travelerId = (traveler) => normalize(traveler?._id || traveler?.id);
 
-const requireValue = (value, code, field, params = {}) => {
+const requireName = (value, field) => {
   const normalized = normalize(value);
-  if (!normalized) throw new AppError(code, 400, field, params);
+  if (!normalized) {
+    throw new AppError("EXTERNAL_FLIGHT_PASSENGER_NAME_REQUIRED", 400, field);
+  }
   return normalized;
 };
 
-const toDateOnly = (
-  value,
-  field,
-  code = "EXTERNAL_FLIGHT_PASSENGER_DOB_REQUIRED",
-) => {
-  if (!value) throw new AppError(code, 400, field);
+const requireContact = (value, field) => {
+  const normalized = normalize(value);
+  if (!normalized) {
+    throw new AppError("EXTERNAL_FLIGHT_PASSENGER_CONTACT_REQUIRED", 400, field);
+  }
+  return normalized;
+};
+
+const requireDocument = (value, field) => {
+  const normalized = normalize(value);
+  if (!normalized) {
+    throw new AppError("EXTERNAL_FLIGHT_PASSENGER_DOCUMENT_REQUIRED", 400, field);
+  }
+  return normalized;
+};
+
+const toDateOnly = (value, field) => {
+  if (!value) {
+    throw new AppError("EXTERNAL_FLIGHT_PASSENGER_DOB_REQUIRED", 400, field);
+  }
   const date = new Date(value || 0);
   if (Number.isNaN(date.getTime())) {
-    throw new AppError(code, 400, field);
+    throw new AppError("EXTERNAL_FLIGHT_PASSENGER_DOB_REQUIRED", 400, field);
   }
   return date.toISOString().slice(0, 10);
+};
+
+const toDocumentDateOnly = (value, field) => {
+  if (!value || Number.isNaN(new Date(value).getTime())) {
+    throw new AppError("EXTERNAL_FLIGHT_PASSENGER_DOCUMENT_REQUIRED", 400, field);
+  }
+  return new Date(value).toISOString().slice(0, 10);
 };
 
 const buildIdentityDocuments = ({ traveler, requiredTypes, index }) => {
@@ -28,20 +51,17 @@ const buildIdentityDocuments = ({ traveler, requiredTypes, index }) => {
 
   return [{
     type: "passport",
-    uniqueIdentifier: requireValue(
+    uniqueIdentifier: requireDocument(
       traveler.passportNumber,
-      "EXTERNAL_FLIGHT_PASSENGER_DOCUMENT_REQUIRED",
       `travelers.${index}.passportNumber`,
     ),
-    issuingCountryCode: requireValue(
+    issuingCountryCode: requireDocument(
       traveler.passportIssuingCountryCode,
-      "EXTERNAL_FLIGHT_PASSENGER_DOCUMENT_REQUIRED",
       `travelers.${index}.passportIssuingCountryCode`,
     ).toUpperCase(),
-    expiresOn: toDateOnly(
+    expiresOn: toDocumentDateOnly(
       traveler.passportExpiryDate,
       `travelers.${index}.passportExpiryDate`,
-      "EXTERNAL_FLIGHT_PASSENGER_DOCUMENT_REQUIRED",
     ),
   }];
 };
@@ -84,26 +104,22 @@ export const buildExternalFlightPassengers = ({
       localTravelerId: travelerId(traveler),
       providerPassengerId: providerPassenger.providerPassengerId,
       category,
-      givenName: requireValue(
+      givenName: requireName(
         traveler.givenName,
-        "EXTERNAL_FLIGHT_PASSENGER_NAME_REQUIRED",
         `travelers.${index}.givenName`,
       ),
-      familyName: requireValue(
+      familyName: requireName(
         traveler.familyName,
-        "EXTERNAL_FLIGHT_PASSENGER_NAME_REQUIRED",
         `travelers.${index}.familyName`,
       ),
       bornOn: toDateOnly(traveler.birthDate, `travelers.${index}.birthDate`),
       gender,
-      email: requireValue(
+      email: requireContact(
         traveler.email,
-        "EXTERNAL_FLIGHT_PASSENGER_CONTACT_REQUIRED",
         `travelers.${index}.email`,
       ),
-      phoneNumber: requireValue(
+      phoneNumber: requireContact(
         traveler.phoneNumber,
-        "EXTERNAL_FLIGHT_PASSENGER_CONTACT_REQUIRED",
         `travelers.${index}.phoneNumber`,
       ),
       identityDocuments: buildIdentityDocuments({ traveler, requiredTypes, index }),

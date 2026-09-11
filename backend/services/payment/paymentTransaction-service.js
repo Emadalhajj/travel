@@ -44,6 +44,7 @@ import {
 import { PAYMENT_TRANSACTION_STATUS_TRANSITIONS } from "../../constants/payments/payment-transaction-transitions.js";
 import { AUDIT_ACTIONS } from "../../constants/audit/audit-actions.js";
 import { recordPaymentTransactionAuditService } from "../audit/payment-transaction-audit-service.js";
+import { EXTERNAL_FULFILLMENT_STATUSES } from "../../constants/payments/external-fulfillment-statuses.js";
 
 const BLOCKING_PUBLIC_PAYMENT_STATUSES = Object.freeze([
   ...REUSABLE_PAYMENT_TRANSACTION_STATUSES,
@@ -62,6 +63,112 @@ const TERMINAL_STATUSES = new Set([
   PAYMENT_TRANSACTION_STATUSES.EXPIRED,
   PAYMENT_TRANSACTION_STATUSES.REFUNDED,
 ]);
+
+export const initializeExternalFulfillmentService = async ({
+  transactionId,
+  provider,
+  offerId,
+}) => PaymentTransaction.findOneAndUpdate(
+  {
+    _id: transactionId,
+    isDeleted: { $ne: true },
+    "externalFulfillment.required": { $ne: true },
+  },
+  {
+    $set: {
+      "externalFulfillment.required": true,
+      "externalFulfillment.provider": String(provider || "").toUpperCase(),
+      "externalFulfillment.offerId": offerId,
+      "externalFulfillment.attemptKey": `external-flight:${transactionId}`,
+      "externalFulfillment.status": EXTERNAL_FULFILLMENT_STATUSES.PENDING,
+    },
+  },
+  { new: true },
+).select("+externalFulfillment.processedEventIds");
+
+export const acquireExternalFulfillmentLockService = async ({ transactionId }) =>
+  PaymentTransaction.findOneAndUpdate(
+    {
+      _id: transactionId,
+      "externalFulfillment.required": true,
+      "externalFulfillment.status": {
+        $in: [
+          EXTERNAL_FULFILLMENT_STATUSES.PENDING,
+          EXTERNAL_FULFILLMENT_STATUSES.FAILED_RETRYABLE,
+        ],
+      },
+    },
+    {
+      $set: {
+        "externalFulfillment.status": EXTERNAL_FULFILLMENT_STATUSES.PROCESSING,
+        "externalFulfillment.attemptedAt": new Date(),
+        "externalFulfillment.lastCheckedAt": new Date(),
+        "externalFulfillment.retryable": false,
+        "externalFulfillment.lastErrorCode": "",
+      },
+    },
+    { new: true },
+  ).select("+externalFulfillment.processedEventIds");
+
+export const updateExternalFulfillmentService = async ({
+  transactionId,
+  status,
+  updates = {},
+}) => PaymentTransaction.findOneAndUpdate(
+  { _id: transactionId, "externalFulfillment.required": true },
+  {
+    $set: {
+      "externalFulfillment.status": status,
+      "externalFulfillment.lastCheckedAt": new Date(),
+      ...Object.fromEntries(
+        Object.entries(updates).map(([key, value]) => [
+          `externalFulfillment.${key}`,
+          value,
+        ]),
+      ),
+    },
+  },
+  { new: true },
+).select("+externalFulfillment.processedEventIds");
+
+export const findPaymentTransactionByExternalOrderService = async ({
+  provider,
+  providerOrderId,
+  offerId = "",
+}) => {
+  const identities = [
+    ...(providerOrderId
+      ? [{ "externalFulfillment.providerOrderId": providerOrderId }]
+      : []),
+    ...(offerId ? [{ "externalFulfillment.offerId": offerId }] : []),
+  ];
+  if (!identities.length) return null;
+  return PaymentTransaction.findOne({
+    "externalFulfillment.required": true,
+    "externalFulfillment.provider": String(provider || "").toUpperCase(),
+    $or: identities,
+    isDeleted: false,
+  }).select("+externalFulfillment.processedEventIds");
+};
+
+export const claimExternalFulfillmentEventService = async ({
+  transactionId,
+  eventId,
+}) => PaymentTransaction.findOneAndUpdate(
+  {
+    _id: transactionId,
+    "externalFulfillment.processedEventIds": { $ne: eventId },
+  },
+  {
+    $push: {
+      "externalFulfillment.processedEventIds": {
+        $each: [eventId],
+        $slice: -50,
+      },
+    },
+  },
+  { new: true },
+).select("+externalFulfillment.processedEventIds");
 
 /*
 =====================================================

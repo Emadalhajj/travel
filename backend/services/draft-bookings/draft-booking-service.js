@@ -706,6 +706,7 @@ buildBookingItemsFromDraft
 
 export const buildBookingItemsFromDraft = (
   draft,
+  externalFlightOrderSnapshot = null,
 ) => {
   const selectedProductsSource =
     draft.data?.selectedProducts ||
@@ -941,6 +942,7 @@ export const buildBookingItemsFromDraft = (
           draftTrip?.unitPrice,
           getProductUnitPrice(tripProduct || {}),
         ),
+      external: externalFlightOrderSnapshot || null,
     },
 
     transport: {
@@ -1815,6 +1817,7 @@ export const convertDraftToBooking = async ({
   paymentData = null,
   inventoryHoldId = null,
   allowExpiredInventoryHold = false,
+  externalFlightOrderSnapshot = null,
 }) => {
   /*
   =====================================================
@@ -1937,7 +1940,10 @@ export const convertDraftToBooking = async ({
 
   const pricing = buildBookingPricingFromDraft(draft);
   const payment = buildBookingPaymentFromDraft(draft, pricing, paymentData);
-  const bookingItems = buildBookingItemsFromDraft(draft);
+  const bookingItems = buildBookingItemsFromDraft(
+    draft,
+    externalFlightOrderSnapshot,
+  );
 
   let inventoryReservations = inventoryHold?.inventoryReservations || [];
   let booking = null;

@@ -32,5 +32,13 @@ export const validateStartupEnvironment = () => {
     throw new Error("Google OAuth configuration is incomplete");
   }
 
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.DUFFEL_ACCESS_TOKEN &&
+    !String(process.env.DUFFEL_WEBHOOK_SECRET || "").trim()
+  ) {
+    throw new Error("DUFFEL_WEBHOOK_SECRET is required when Duffel is enabled in production");
+  }
+
   getAllowedOrigins();
 };

@@ -19,6 +19,12 @@ export const getDuffelConfig = (environment = process.env) => {
     3000,
     65000,
   );
+  const orderHttpTimeoutMs = toBoundedInteger(
+    environment.DUFFEL_ORDER_HTTP_TIMEOUT_MS,
+    130000,
+    130000,
+    180000,
+  );
 
   if (!String(environment.DUFFEL_ACCESS_TOKEN || "").trim()) {
     throw new AppError("FLIGHT_PROVIDER_NOT_CONFIGURED", 503, "provider");
@@ -34,5 +40,7 @@ export const getDuffelConfig = (environment = process.env) => {
     apiVersion: String(environment.DUFFEL_API_VERSION || "v2").trim(),
     supplierTimeoutMs,
     httpTimeoutMs,
+    orderHttpTimeoutMs,
+    webhookSecret: String(environment.DUFFEL_WEBHOOK_SECRET || "").trim(),
   });
 };

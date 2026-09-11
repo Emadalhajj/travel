@@ -36,6 +36,7 @@ import {
   sendBankTransferRejectedNotification,
   sendPaidPendingBookingNotification,
 } from "../notifications/payment-notification-service.js";
+import { fulfillExternalFlight } from "../trips/external-flight-fulfillment-service.js";
 
 const REVIEWABLE_STATUSES = new Set([
   PAYMENT_TRANSACTION_STATUSES.PENDING_VERIFICATION,
@@ -133,6 +134,21 @@ export const approveBankTransferService =
           AUDIT_ACTIONS.BANK_TRANSFER_APPROVE,
       });
 
+    if (transaction.externalFulfillment?.required) {
+      const fulfillment = await fulfillExternalFlight({ transaction });
+      transaction = fulfillment.transaction || transaction;
+      if (!fulfillment.confirmed) {
+        transaction = await recordBookingConversionFailureService({
+          transactionId: transaction._id,
+          reason: "External flight fulfillment is pending provider confirmation",
+          source: PAYMENT_TRANSACTION_EVENT_SOURCES.ADMIN,
+          updatedBy: adminUserId,
+        });
+        await sendPaidPendingBookingNotification({ transaction, req });
+        return { transaction, booking: null, pendingFulfillment: true };
+      }
+    }
+
     let conversionResult;
 
     try {
@@ -157,6 +173,8 @@ export const approveBankTransferService =
             paymentTransactionId:
               transaction._id,
           },
+          externalFlightOrderSnapshot:
+            transaction.externalFulfillment?.orderSnapshot || null,
         });
     } catch (error) {
       transaction = await recordBookingConversionFailureService({

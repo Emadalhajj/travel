@@ -26,6 +26,32 @@ import {
   PAYMENT_TRANSACTION_EVENT_CODE_VALUES,
   PAYMENT_TRANSACTION_EVENT_SOURCE_VALUES,
 } from "../../constants/payments/payment-transaction-events.js";
+import {
+  EXTERNAL_FULFILLMENT_STATUSES,
+  EXTERNAL_FULFILLMENT_STATUS_VALUES,
+} from "../../constants/payments/external-fulfillment-statuses.js";
+
+const externalFulfillmentSchema = new mongoose.Schema({
+  required: { type: Boolean, default: false },
+  provider: { type: String, uppercase: true, trim: true, default: "" },
+  offerId: { type: String, trim: true, default: "" },
+  status: {
+    type: String,
+    enum: EXTERNAL_FULFILLMENT_STATUS_VALUES,
+    default: EXTERNAL_FULFILLMENT_STATUSES.NOT_REQUIRED,
+  },
+  attemptKey: { type: String, trim: true, default: "" },
+  providerOrderId: { type: String, trim: true, default: "" },
+  providerStatus: { type: String, trim: true, default: "" },
+  attemptedAt: { type: Date, default: null },
+  confirmedAt: { type: Date, default: null },
+  failedAt: { type: Date, default: null },
+  lastCheckedAt: { type: Date, default: null },
+  lastErrorCode: { type: String, trim: true, default: "" },
+  retryable: { type: Boolean, default: false },
+  orderSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
+  processedEventIds: { type: [String], default: [], select: false },
+}, { _id: false });
 
 const paymentProofSchema = new mongoose.Schema(
   {
@@ -364,6 +390,14 @@ const paymentTransactionSchema = new mongoose.Schema(
       select: false,
     },
 
+    externalFulfillment: {
+      type: externalFulfillmentSchema,
+      default: () => ({
+        required: false,
+        status: EXTERNAL_FULFILLMENT_STATUSES.NOT_REQUIRED,
+      }),
+    },
+
     notes: {
       type: String,
       default: "",
@@ -450,6 +484,14 @@ paymentTransactionSchema.index({
   booking: 1,
   updatedAt: 1,
   _id: 1,
+});
+paymentTransactionSchema.index({
+  "externalFulfillment.providerOrderId": 1,
+  "externalFulfillment.provider": 1,
+}, {
+  partialFilterExpression: {
+    "externalFulfillment.providerOrderId": { $type: "string", $gt: "" },
+  },
 });
 paymentTransactionSchema.index({
   draftBooking: 1,

@@ -370,6 +370,11 @@ const bookingItemSchema = new mongoose.Schema(
         default: 0,
         min: 0,
       },
+
+      external: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null,
+      },
     },
 
     transport: {

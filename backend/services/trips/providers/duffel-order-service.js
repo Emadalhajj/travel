@@ -129,6 +129,7 @@ export const createDuffelOrder = async (input, { client = duffelClient } = {}) =
     method: "POST",
     body: buildDuffelOrderRequest(input),
     includeResponseMeta: true,
+    useOrderTimeout: true,
   });
   return normalizeDuffelOrder(response?.payload?.data || {}, {
     httpStatus: response?.status,
