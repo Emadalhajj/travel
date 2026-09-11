@@ -13,6 +13,8 @@ const CABIN_OPTIONS = [
   ["FIRST", "الأولى", "First"],
 ];
 
+const IATA_CODE_PATTERN = /^[A-Z]{3}$/;
+
 const initialCriteria = {
   origin: "",
   destination: "",
@@ -99,6 +101,17 @@ export default function DuffelFlightSearchPanel({
       setError(language === "ar" ? "أدخل المطارات وتاريخ الذهاب" : "Enter airports and departure date");
       return;
     }
+    if (
+      !IATA_CODE_PATTERN.test(criteria.origin) ||
+      !IATA_CODE_PATTERN.test(criteria.destination)
+    ) {
+      setError(
+        language === "ar"
+          ? "يجب أن يكون رمز كل مطار مكونًا من ثلاثة أحرف إنجليزية"
+          : "Each airport must use a three-letter IATA code",
+      );
+      return;
+    }
     setLoading(true);
     setError("");
     setSelectedOffer(null);
@@ -183,7 +196,7 @@ export default function DuffelFlightSearchPanel({
         {["origin", "destination"].map((name) => (
           <Col md={3} key={name}>
             <Form.Label>{name === "origin" ? (language === "ar" ? "من" : "From") : (language === "ar" ? "إلى" : "To")}</Form.Label>
-            <Form.Control value={criteria[name]} maxLength={3} placeholder="IATA" onChange={(event) => update(name, event.target.value.toUpperCase())} />
+            <Form.Control value={criteria[name]} maxLength={3} placeholder="IATA" onChange={(event) => update(name, event.target.value.toUpperCase().replace(/[^A-Z]/g, ""))} />
           </Col>
         ))}
         <Col md={3}>

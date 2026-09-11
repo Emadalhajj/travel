@@ -84,3 +84,21 @@ test("distinguishes initial and searched-empty states", async () => {
 
   expect(await screen.findByText("لا توجد رحلات مطابقة")).toBeTruthy();
 });
+
+test("rejects an invalid IATA airport code before calling the provider API", () => {
+  const searchFlights = jest.fn();
+  render(<DuffelFlightSearchPanel searchFlights={searchFlights} />);
+
+  const airports = screen.getAllByPlaceholderText("IATA");
+  fireEvent.change(airports[0], { target: { value: "JE" } });
+  fireEvent.change(airports[1], { target: { value: "ADE" } });
+  fireEvent.change(screen.getAllByTestId("calendar-field")[0], {
+    target: { value: "2099-09-10" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "بحث" }));
+
+  expect(searchFlights).not.toHaveBeenCalled();
+  expect(
+    screen.getByText("يجب أن يكون رمز كل مطار مكونًا من ثلاثة أحرف إنجليزية"),
+  ).toBeTruthy();
+});
