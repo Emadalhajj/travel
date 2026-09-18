@@ -16,11 +16,14 @@ export default function UniversalCardsContainer({
   getMeta = () => [],
   getPrice,
   getDiscountPercent,
+  getIsActive = (item) => item.isActive ?? true,
+  getKey = (item, index) => item._id || item.id || index,
   onView,
   onEdit,
   onDelete,
   onDuplicate,
   onNavigate,
+  className = "",
 }) {
   if (loading || error) return null;
 
@@ -33,14 +36,16 @@ export default function UniversalCardsContainer({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div
+      className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 ${className}`}
+    >
       {items.map((item, index) => (
         <UniversalCard
-          key={item._id || item.id || index}
+          key={getKey(item, index)}
           title={getTitle(item)}
           subtitle={getSubtitle(item)}
           image={getImage(item)}
-          isActive={item.isActive ?? true}
+          isActive={getIsActive(item)}
           badges={getBadges(item)}
           meta={getMeta(item)}
           price={getPrice ? getPrice(item) : undefined}
