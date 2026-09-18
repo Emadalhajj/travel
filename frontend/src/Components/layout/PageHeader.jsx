@@ -11,6 +11,7 @@ export default function PageHeader({
   center = false,
   actions,
   children,
+  className = "",
 }) {
   const { i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
@@ -19,14 +20,16 @@ export default function PageHeader({
   const eyebrow = isArabic ? eyebrowAr : eyebrowEn;
 
   return (
-    <motion.div
+    <motion.header
       initial={{ opacity: 0, y: -16 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`mb-4 ${
+      className={[
+        "mb-4",
         center
           ? "text-center"
-          : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-      }`}
+          : "flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between",
+        className,
+      ].filter(Boolean).join(" ")}
     >
       <div className={center ? "" : "min-w-0 flex-1"}>
         {eyebrow && (
@@ -36,13 +39,13 @@ export default function PageHeader({
         )}
 
         {title && (
-          <h1 className="m-0 text-xl font-bold leading-tight text-slate-900 sm:text-2xl lg:text-3xl">
+          <h1 className="m-0 break-words text-xl font-bold leading-tight text-slate-900 sm:text-2xl lg:text-3xl">
             {title}
           </h1>
         )}
 
         {subtitle && (
-          <p className={`${title ? "mt-1" : "m-0"} max-w-3xl text-sm leading-6 text-slate-500`}>
+          <p className={`${title ? "mt-1" : "m-0"} max-w-3xl text-sm leading-6 text-slate-500 sm:text-base`}>
             {subtitle}
           </p>
         )}
@@ -51,10 +54,15 @@ export default function PageHeader({
       </div>
 
       {actions && (
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-shrink-0 sm:justify-end">
+        <div
+          className={[
+            "flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-shrink-0",
+            center ? "mt-3 justify-center" : "sm:justify-end",
+          ].join(" ")}
+        >
           {actions}
         </div>
       )}
-    </motion.div>
+    </motion.header>
   );
 }
