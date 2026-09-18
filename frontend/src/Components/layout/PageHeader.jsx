@@ -25,7 +25,7 @@ export default function PageHeader({
       className={`mb-4 ${
         center
           ? "text-center"
-          : "flex flex-row flex-nowrap items-center justify-between gap-3"
+          : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
       }`}
     >
       <div className={center ? "" : "min-w-0 flex-1"}>
@@ -36,13 +36,13 @@ export default function PageHeader({
         )}
 
         {title && (
-          <h1 className="m-0 text-2xl font-bold leading-tight text-slate-900">
+          <h1 className="m-0 text-xl font-bold leading-tight text-slate-900 sm:text-2xl lg:text-3xl">
             {title}
           </h1>
         )}
 
         {subtitle && (
-          <p className={`${title ? "mt-1" : "m-0"} text-sm text-slate-500`}>
+          <p className={`${title ? "mt-1" : "m-0"} max-w-3xl text-sm leading-6 text-slate-500`}>
             {subtitle}
           </p>
         )}
@@ -51,7 +51,7 @@ export default function PageHeader({
       </div>
 
       {actions && (
-        <div className="max-w-[65%] flex-shrink-0 overflow-x-auto">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-shrink-0 sm:justify-end">
           {actions}
         </div>
       )}
