@@ -1,0 +1,154 @@
+SECURITY-R1 — HISTORY REMEDIATION MANIFEST
+
+History rewrite has NOT been executed.
+Historical upload paths (directories and files): 122
+Affected commits: 6
+
+Affected repository:
+https://github.com/Emadalhajj/travel.git
+
+Affected branches observed:
+KAN-28-إضافة-بطاقة-ائتمان-جديدة
+KAN-7-Travel-Agent-Platform
+main
+origin/KAN-28-إضافة-بطاقة-ائتمان-جديدة
+origin/KAN-7-Travel-Agent-Platform
+origin/main
+
+Affected tags:
+(none)
+
+Affected commits:
+97afa04139fc27b991209370cc0e4b8efd5168ff trips update
+58aba852349986193e65b28d2123c8aef7218eba finsh update
+96071668bc003c6c9711a309002c4dec153d1a8e complete code
+38a7a062fef22996705d221c8e3a8ac6917603b2 KAN-28 Add bank transfer payment
+9f9ce186017e82c47491bdde42b1ea2c67948eb0 KAN-28 Add bank transfer payment
+ef10859c5df4853fe598039d13c1a9630a38d445 Initial commit - Travel Agent Project
+
+Exact historical paths:
+backend/uploads/[object Object]
+backend/uploads/[object Object]/1778575651880-5i1no0zyvex.pdf
+backend/uploads/draft-bookings
+backend/uploads/draft-bookings/1786520069927-ze8ekoa6y1m.png
+backend/uploads/draft-bookings/1786707690632-ibrfu8fvcq.pdf
+backend/uploads/draft-bookings/1786709118341-lkf7hq6gz0g.pdf
+backend/uploads/draft-bookings/1786709118789-hkkp8xbm0bp.jpeg
+backend/uploads/draft-bookings/1786709476219-sweptr5b4sq.png
+backend/uploads/draft-bookings/1786710023128-4622ofco694.jpeg
+backend/uploads/draft-bookings/1786710090870-bn9vddtnb5r.jpeg
+backend/uploads/draft-bookings/1787117331496-r9to1u3n7qa.jpg
+backend/uploads/draft-bookings/1787117331501-q3n3shwygur.pdf
+backend/uploads/draft-bookings/1787205681730-45w1hov74o6.png
+backend/uploads/extra-service
+backend/uploads/extra-service/1780647704297-c40whn58v4.png
+backend/uploads/hotels
+backend/uploads/hotels/1766292707119-4fbqay3a1.png
+backend/uploads/hotels/1766294906753-xe4lxtgfs.jpeg
+backend/uploads/hotels/1766469578462-ytgi5e1ug.png
+backend/uploads/hotels/1766552156266-7tqfwse25.jpg
+backend/uploads/hotels/1766552156397-yborhb414.jpeg
+backend/uploads/hotels/1767243777067-yb87fu0ud.jpeg
+backend/uploads/hotels/1767243959377-udrekehpx.jpeg
+backend/uploads/hotels/1767422729848-0hle8e1b7.jpeg
+backend/uploads/hotels/1767422729853-nh4qrcxw9.jpeg
+backend/uploads/hotels/1767590476731-nvpixei12.jpeg
+backend/uploads/hotels/1767590476737-gb6ockvlq.jpg
+backend/uploads/hotels/1767592113903-euamc1kgt.jpeg
+backend/uploads/hotels/1767592157340-zwgperzwj.jpg
+backend/uploads/hotels/1767594429306-cfyhin5j0.png
+backend/uploads/hotels/1767762557056-k0y5qqqgvl.png
+backend/uploads/hotels/1767763125521-5l6ywo7k9u5.jpeg
+backend/uploads/hotels/1767763399660-m82uw8urzds.jpeg
+backend/uploads/hotels/1767847998008-03rmoycrl.jpeg
+backend/uploads/hotels/1776428878624-25tl424tk.jpeg
+backend/uploads/hotels/1776666846472-urer8l7b1.jpeg
+backend/uploads/hotels/1776754787088-ywvd2jl5i.jpeg
+backend/uploads/hotels/1776755595423-wyahp5dlb.jpeg
+backend/uploads/hotels/1777625521406-wqvz57fbr.jpeg
+backend/uploads/hotels/1777791608044-8hf3jno6p.jpeg
+backend/uploads/hotels/1777793952306-drrgrhcrj.jpeg
+backend/uploads/hotels/1777794077848-nb2dvpg84.jpeg
+backend/uploads/hotels/1777989452419-5lji3hr.pdf
+backend/uploads/hotels/1777989467157-gqrvjyp.pdf
+backend/uploads/hotels/1777990259837-s65g6td.jpg
+backend/uploads/hotels/1777990459254-nx9bp1h.png
+backend/uploads/hotels/1778138322862-c87re2j.pdf
+backend/uploads/hotels/1778138433675-g2i4ehp.pdf
+backend/uploads/hotels/1778140552400-pstp1gn.pdf
+backend/uploads/hotels/1778140957943-kj3qso1.pdf
+backend/uploads/hotels/1778146060347-s65v3d4.pdf
+backend/uploads/hotels/1778147340057-mdnbm2a.jpeg
+backend/uploads/hotels/1778236499394-ohueft9.pdf
+backend/uploads/hotels/1778579409039-9gqc1as773u.jpeg
+backend/uploads/hotels/1779206535848-dxl5wf9t1mi.pdf
+backend/uploads/hotels/1779263335392-x0rz5ttdcro.png
+backend/uploads/payment-proofs
+backend/uploads/payment-proofs/1785996149954-w9wd0mf3iac.pdf
+backend/uploads/payment-proofs/1785996891836-nfmw172muz.pdf
+backend/uploads/payment-proofs/1786430640785-1chy6dcahv7.jpeg
+backend/uploads/payment-proofs/1786430697249-6jgb2p0hqjq.pdf
+backend/uploads/room-types
+backend/uploads/room-types/1765426073392-cl905p5hi.png
+backend/uploads/room-types/1765597972369-7xv5dubyv.jpg
+backend/uploads/room-types/1765691204929-r7teub72p.png
+backend/uploads/room-types/1765691723477-k9howv6uy.jpeg
+backend/uploads/room-types/1765691723478-syobai1e5.png
+backend/uploads/room-types/1765777531193-82iyhu7bj.jpeg
+backend/uploads/room-types/1765778983023-9gykyxcpi.png
+backend/uploads/room-types/1765859401469-775o68xey.jpg
+backend/uploads/room-types/1766297560363-w5be9w6ew.png
+backend/uploads/room-types/1789881574550-gyhepsx6oze.jpg
+backend/uploads/transport
+backend/uploads/transport/1768280928166-6p7qc4kik.png
+backend/uploads/transport/1768368679213-nt04ltmr6.png
+backend/uploads/transport/1768368679221-p0v76i85b.jpeg
+backend/uploads/transport/1768456251835-6g3yop35z.jpeg
+backend/uploads/transport/1768457551533-pbz2jnpnq.png
+backend/uploads/transport/1770987015291-1g6t6sbrd.jpeg
+backend/uploads/transport/1775485132127-3zgrnlkz2.jpeg
+backend/uploads/transport/1788069696284-tikekzq.png
+backend/uploads/transport/1788070050169-hdpjsnc.jpeg
+backend/uploads/transport/1788761047448-wnj96ud.png
+backend/uploads/transport/1788761846004-ogsu0ur.png
+backend/uploads/umrah-programs
+backend/uploads/umrah-programs/1787467630935-w81iirdsyq.jpeg
+backend/uploads/users
+backend/uploads/users/1772798713993-9tbp6yoiw.png
+backend/uploads/users/1774264488551-k4ge8e2x5.png
+backend/uploads/users/1787203207257-q04q7w1.jpg
+backend/uploads/visa
+backend/uploads/visa/1763354780653-y5tip0ilk.png
+backend/uploads/visa/1763356308130-gnjsrphs9.jpeg
+backend/uploads/visa/1763438235302-stlm5k903.png
+backend/uploads/visa/1763438928881-csoyp5308.jpeg
+backend/uploads/visa/1763448472374-tfigtzj8s.jpeg
+backend/uploads/visa/1763523868881-swcouw7xv.jpeg
+backend/uploads/visa/1763523868882-arrc9f8s1.jpeg
+backend/uploads/visa/1763525028811-er3zt7pop.jpeg
+backend/uploads/visa/1763525028811-xfkw2k9sg.jpeg
+backend/uploads/visa/1763525028817-hmg5c5ot4.jpeg
+backend/uploads/visa/1763525028817-ojmhnj3rv.png
+backend/uploads/visa/1763525028819-ut8fb7uyn.jpg
+backend/uploads/visa/1763617120766-f9uv6cvzs.png
+backend/uploads/visa/1765000782085-t78harkum.png
+backend/uploads/visa/1789880494632-1tfnao8.jpg
+backend/uploads/vouchers
+backend/uploads/vouchers/VCH-2026-1786168487615-9925.pdf
+backend/uploads/vouchers/VCH-2026-1786428987215-5822.pdf
+backend/uploads/vouchers/VCH-2026-1787207654069-2063.pdf
+backend/uploads/vouchers/VCH-2026-1789125456886-1705.pdf
+backend/uploads/vouchers/VCH-2026-1789276892377-5220.pdf
+backend/uploads/vouchers/VCH-2026-1789279770558-3378.pdf
+backend/uploads/vouchers/VCH-2026-1789283127561-7517.pdf
+backend/uploads/vouchers/VCH-2026-1789366031295-6124.pdf
+backend/uploads/vouchers/VCH-2026-1789366797984-8598.pdf
+backend/uploads/vouchers/VCH-2026-1789368342564-6694.pdf
+backend/uploads/vouchers/VCH-2026-1789453145974-2919.pdf
+backend/uploads/vouchers/VCH-2026-1789542832082-7691.pdf
+backend/uploads/vouchers/VCH-2026-1789794369775-3220.pdf
+backend/uploads/vouchers/VCH-2026-1789795867630-1857.pdf
+backend/uploads/vouchers/VCH-2026-1789884980186-3841.pdf
+
+Proposed command (DO NOT RUN during SECURITY-R1):
+git filter-repo --force --invert-paths --path backend/uploads/ --path backend/private-uploads/

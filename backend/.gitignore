@@ -1,5 +1,16 @@
 /node_modules
 /.env
 /private-uploads/
+/uploads/[[]object Object]/
+/uploads/draft-bookings/
+/uploads/extra-service/
+/uploads/hotels/
+/uploads/payment-proofs/
+/uploads/room-types/
+/uploads/transport/
+/uploads/umrah-programs/
+/uploads/users/
+/uploads/visa/
+/uploads/vouchers/
 /dist
 /coverage
