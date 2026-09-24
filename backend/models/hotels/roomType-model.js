@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
+import { productPricingPolicySchema } from "../shared/product-pricing-policy-schema.js";
 
 const RoomTypeSchema = new mongoose.Schema(
   {
@@ -25,7 +26,9 @@ const RoomTypeSchema = new mongoose.Schema(
     // ==================== السعة () ====================
     capacity: {
       maxAdults: { type: Number, default: 2, min: 1 },
-      maxChildren: { type: Number, default: 0, min: 0 }, // يمكن إزالته إذا لم تحتاجه
+      maxChildren: { type: Number, default: 0, min: 0 },
+      // Legacy-compatible mirror. It is always derived before writes.
+      maxOccupancy: { type: Number, default: 2, min: 1 },
     },
 
     // ==================== المساحة ونوع السرير ====================
@@ -34,24 +37,6 @@ const RoomTypeSchema = new mongoose.Schema(
 
     // المساحة ونوع السرير
     size: { type: Number, min: 1 },
-    bedType: {
-      type: String,
-      enum: [
-        "single",
-        "twin",
-        "double",
-        "queen",
-        "king",
-        "triple",
-        "quad",
-        "quintuple",
-        "family",
-        "suite",
-      ],
-      default: "quad",
-    },
-    //===================        ============
-    size: { type: Number }, // متر مربع
     bedType: {
       type: String,
       enum: [
@@ -81,6 +66,8 @@ const RoomTypeSchema = new mongoose.Schema(
         required: true,
         min: 0,
       },
+      // Legacy fallback only. Pricing periods remain authoritative per night.
+      weekendPrice: { type: Number, min: 0, default: null },
       currency: {
         type: String,
         enum: SUPPORTED_CURRENCIES,
@@ -148,6 +135,13 @@ const RoomTypeSchema = new mongoose.Schema(
         min: 0,
         max: 100,
       },
+      // Explicit legacy cache; never used as the Pricing V2 authority.
+      finalPrice: { type: Number, min: 0, default: 0 },
+    },
+
+    pricingPolicy: {
+      type: productPricingPolicySchema,
+      default: undefined,
     },
 
     // ==================== الوجبات ====================
@@ -202,10 +196,12 @@ const RoomTypeSchema = new mongoose.Schema(
       ref: "User",
     },
     updatedBy: {
-      // ← أضف هذا
       type: mongoose.Schema.ObjectId,
       ref: "User",
     },
+    isDeleted: { type: Boolean, default: false, index: true },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: mongoose.Schema.ObjectId, ref: "User", default: null },
     // slug:        String,
   },
   { timestamps: true },
@@ -225,6 +221,7 @@ RoomTypeSchema.pre("save", function (next) {
   // حساب إجمالي الأشخاص
   this.totalOccupancy =
     (this.capacity?.maxAdults || 0) + (this.capacity?.maxChildren || 0);
+  this.capacity.maxOccupancy = this.totalOccupancy;
 
   // حساب السعر بعد الخصم
   const base = this.pricing?.basePrice || 0;
@@ -237,9 +234,12 @@ RoomTypeSchema.pre("save", function (next) {
 RoomTypeSchema.pre(["updateOne", "findOneAndUpdate"], function (next) {
   const update = this.getUpdate();
 
-  if (update.capacity || update.$set?.capacity) {
+  if (update?.capacity || update?.$set?.capacity) {
     const cap = update.capacity || update.$set.capacity;
-    update.totalOccupancy = (cap.maxAdults || 0) + (cap.maxChildren || 0);
+    const occupancy = (cap.maxAdults || 0) + (cap.maxChildren || 0);
+    cap.maxOccupancy = occupancy;
+    if (update.$set) update.$set.totalOccupancy = occupancy;
+    else update.totalOccupancy = occupancy;
   }
 
   if (update.pricing || update.$set?.pricing) {
@@ -253,7 +253,7 @@ RoomTypeSchema.pre(["updateOne", "findOneAndUpdate"], function (next) {
 });
 
 // Index للبحث السريع
-RoomTypeSchema.index({ hotel: 1, isActive: 1 }); // لتحسين أداء البحث عن أنواع الغرف النشطة لفندق معين
+RoomTypeSchema.index({ hotel: 1, isDeleted: 1, isActive: 1 });
 RoomTypeSchema.index({ "pricing.basePrice": 1 }); // لتحسين أداء البحث والترتيب حسب السعر الأساسي
 
 // export default mongoose.model("RoomType", RoomTypeSchema);

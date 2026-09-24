@@ -328,7 +328,7 @@ export const completeProviderPaymentService = async ({
           req,
         });
       } catch (releaseError) {
-        console.error("Inventory hold release failed:", releaseError);
+        console.error("Inventory hold release failed:", releaseError?.message || String(releaseError));
       }
     }
 
@@ -390,9 +390,20 @@ export const completeProviderPaymentService = async ({
       });
   }
 
-  const fulfillmentResult = transaction.externalFulfillment?.required
-    ? await fulfillExternalFlight({ transaction })
-    : { required: false, confirmed: true, transaction };
+  let fulfillmentResult = { required: false, confirmed: true, transaction };
+  if (transaction.externalFulfillment?.required) {
+    try {
+      fulfillmentResult = await fulfillExternalFlight({ transaction });
+    } catch (error) {
+      transaction = await recordBookingConversionFailureService({
+        transactionId: transaction._id,
+        reason: error?.code || error?.message || "External flight order failed",
+        source: PAYMENT_TRANSACTION_EVENT_SOURCES.PROVIDER,
+      });
+      await sendPaidPendingBookingNotification({ transaction, req });
+      throw error;
+    }
+  }
   transaction = fulfillmentResult.transaction || transaction;
   if (fulfillmentResult.required && !fulfillmentResult.confirmed) {
     transaction = await recordBookingConversionFailureService({

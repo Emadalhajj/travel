@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
 import PageHeader from "../../../Components/layout/PageHeader";
-import Loader from "../../../Components/common/Loader";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
 import BookingProgressTimeline, {
@@ -23,6 +23,8 @@ import {
   selectPublicDraftLoading,
 } from "../../../redux/public/bookingSlice";
 import useDraftBookingPartyForm from "../../../hooks/public-booking/useDraftBookingPartyForm";
+import { isRequirementVisible } from
+  "../../../config/public-booking/bookingRequirements";
 
 export default function PublicBookingPartyPage() {
   const { draftId } = useParams();
@@ -51,6 +53,23 @@ export default function PublicBookingPartyPage() {
       navigate("/services/flights");
       return;
     }
+    const serviceRoutes = {
+      HOTEL: "/services/hotels",
+      ACCOMMODATION: "/services/hotels",
+      TRANSPORT: "/services/transports",
+      VISA: "/services/visas",
+      ZIYARAT: "/services/ziyarats",
+      EXTRA_SERVICE: "/services/extras",
+    };
+    if (serviceRoutes[party.serviceType]) {
+      const route = serviceRoutes[party.serviceType];
+      navigate(
+        party.serviceType === "ACCOMMODATION"
+          ? `${route}?draftId=${encodeURIComponent(draftId)}`
+          : route,
+      );
+      return;
+    }
     const packageType = String(draftBooking?.data?.packageType || "").toUpperCase();
     const selectedPackage = draftBooking?.data?.selectedPackage;
     const programId = selectedPackage?._id || selectedPackage?.id || draftBooking?.program?.programId;
@@ -69,18 +88,29 @@ export default function PublicBookingPartyPage() {
   };
 
   if (loading) {
-    return <PublicPageLayout><Loader /></PublicPageLayout>;
+    return (
+      <PublicPageLayout>
+        <LoadingOverlay show overlay={false} />
+      </PublicPageLayout>
+    );
   }
-
   return (
     <PublicPageLayout>
       <PageHeader
         eyebrowAr="تفاصيل الحجز"
         eyebrowEn="Booking Details"
-        titleAr="بيانات العميل والمعتمرين"
-        titleEn="Customer and Travelers"
-        subtitleAr="أكمل بيانات العميل والمعتمرين والمستضيفين ثم انتقل للمراجعة."
-        subtitleEn="Complete customer, traveler, and host details, then continue to review."
+        titleAr={party.bookingType === "UMRAH"
+          ? "بيانات العميل والمعتمرين"
+          : isRequirementVisible(party.requirements.travelers)
+            ? "بيانات المسافرين"
+            : "بيانات الحجز"}
+        titleEn={party.bookingType === "UMRAH" ? "Customer and Travelers" : "Travelers"}
+        subtitleAr={party.bookingType === "UMRAH"
+          ? "أكمل بيانات العميل والمعتمرين والمستضيفين ثم انتقل للمراجعة."
+          : "أكمل فقط البيانات المطلوبة لهذه الخدمة ثم انتقل للمراجعة."}
+        subtitleEn={party.bookingType === "UMRAH"
+          ? "Complete customer, traveler, and host details, then continue to review."
+          : "Complete only the details required for this service, then continue to review."}
       />
 
       <BookingProgressTimeline
@@ -105,9 +135,10 @@ export default function PublicBookingPartyPage() {
           errors={party.errors}
           isArabic={isArabic}
           isExternalFlight={party.isExternalFlight}
+          requirements={party.requirements}
         />
 
-        {party.availableSeats !== null && !party.canAddTraveler && (
+        {isRequirementVisible(party.requirements.travelers) && party.availableSeats !== null && !party.canAddTraveler && (
           <Alert variant="warning" className="mt-5 mb-0 rounded-4">
             <p className="mb-1 fw-semibold">
               {t(
@@ -118,7 +149,9 @@ export default function PublicBookingPartyPage() {
             <p className="mb-0 small">
               {t("availableCapacity", "السعة المتاحة")}: {party.availableSeats}
               {" — "}
-              {t("currentTravelersCount", "عدد المعتمرين الحالي")}: {party.travelersCount}
+              {party.bookingType === "UMRAH"
+                ? t("currentTravelersCount", "عدد المعتمرين الحالي")
+                : t("currentTravelersCount", "عدد المسافرين الحالي")}: {party.travelersCount}
             </p>
           </Alert>
         )}

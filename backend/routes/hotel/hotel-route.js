@@ -30,14 +30,15 @@ const uploadAndParse = [
     imagesField: "images",
     attachmentsField: "attachments",
     uploadPath: "/uploads/hotels", // نفس الدالة المعدّلة التي أرسلتها لك سابقًا
+    privateAttachments: true,
   }),
 ];
 
 const HotelsRoute = express.Router();
 
 //public routes
-HotelsRoute.get("/hotels", getAllHotels);
-HotelsRoute.get("/hotel/:id", getHotelById);
+HotelsRoute.get("/hotels", protect, authorize("admin", "superAdmin"), getAllHotels);
+HotelsRoute.get("/hotel/:id", protect, authorize("admin", "superAdmin"), getHotelById);
 
 // Protected routes التوجه المحمي
 HotelsRoute.post(

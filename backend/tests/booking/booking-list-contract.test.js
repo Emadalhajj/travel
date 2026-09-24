@@ -32,6 +32,12 @@ test("booking list contract contains every field used by booking cards", () => {
     program: { nameAr: "برنامج", nameEn: "Program", services: [{ secret: true }] },
     pricing: { totalPrice: 750, currency: "SAR", breakdown: { room: 500 } },
     totalPilgrims: 3,
+    serviceType: "TRIP",
+    fulfillment: {
+      serviceType: "TRIP",
+      status: "in_progress",
+      currentStep: "BOOKING_REQUESTED",
+    },
     createdAt: new Date("2026-08-26T00:00:00.000Z"),
   });
 
@@ -45,6 +51,8 @@ test("booking list contract contains every field used by booking cards", () => {
   });
   assert.equal(item.pilgrimsCount, 3);
   assert.equal(item.totalPilgrims, 3);
+  assert.equal(item.fulfillment.currentStep, "BOOKING_REQUESTED");
+  assert.equal(BOOKING_LIST_PROJECTION.fulfillment, 1);
   assert.equal("email" in item.customer, false);
 });
 

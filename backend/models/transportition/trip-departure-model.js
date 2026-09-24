@@ -12,6 +12,7 @@ import {
   DEFAULT_CURRENCY,
   SUPPORTED_CURRENCIES,
 } from "../../constants/currencies.js";
+import { productPricingPolicySchema } from "../shared/product-pricing-policy-schema.js";
 
 /*
 يمثل جزءًا تشغيليًا واحدًا من الرحلة، ويصلح للرحلات
@@ -154,6 +155,10 @@ const tripDepartureSchema = new mongoose.Schema(
         enum: SUPPORTED_CURRENCIES,
         default: DEFAULT_CURRENCY,
       },
+    },
+    pricingPolicy: {
+      type: productPricingPolicySchema,
+      default: undefined,
     },
     capacity: {
       totalSeats: {

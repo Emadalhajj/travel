@@ -3,8 +3,14 @@ import { toast } from "react-toastify";
 import ActionButton from "./ActionButton";
 
 export default function ExportTableButtons({
-  data = [], columns = [], fileName = "Report", filename, lang = "ar", title,
-  pdfOptions, excelOptions,
+  data = [],
+  columns = [],
+  fileName = "Report",
+  filename,
+  lang = "ar",
+  title,
+  pdfOptions,
+  excelOptions,
 }) {
   const isArabic = lang === "ar";
   const disabled = !data.length;
@@ -17,10 +23,21 @@ export default function ExportTableButtons({
     if (exportingExcel) return;
     setExportingExcel(true);
     try {
-      const { exportTableExcel } = await import("../../../Utils/tableExportExcel");
-      await exportTableExcel({ data, columns, fileName: `${resolvedFileName}.xlsx`, lang, title: reportTitle, excelOptions });
+      const { exportTableExcel } =
+        await import("../../../Utils/tableExportExcel");
+      await exportTableExcel({
+        data,
+        columns,
+        fileName: `${resolvedFileName}.xlsx`,
+        lang,
+        title: reportTitle,
+        excelOptions,
+      });
     } catch (error) {
-      toast.error(error?.message || (isArabic ? "تعذر تصدير ملف Excel" : "Unable to export Excel"));
+      toast.error(
+        error?.message ||
+          (isArabic ? "تعذر تصدير ملف Excel" : "Unable to export Excel"),
+      );
     } finally {
       setExportingExcel(false);
     }
@@ -31,27 +48,59 @@ export default function ExportTableButtons({
     setExportingPdf(true);
     try {
       const { exportTablePDF } = await import("../../../Utils/tableExportPdf");
-      await exportTablePDF({ data, columns, fileName: `${resolvedFileName}.pdf`, lang, title: reportTitle, pdfOptions });
+      await exportTablePDF({
+        data,
+        columns,
+        fileName: `${resolvedFileName}.pdf`,
+        lang,
+        title: reportTitle,
+        pdfOptions,
+      });
     } catch (error) {
-      toast.error(error?.message || (isArabic ? "تعذر تصدير ملف PDF" : "Unable to export PDF"));
+      toast.error(
+        error?.message ||
+          (isArabic ? "تعذر تصدير ملف PDF" : "Unable to export PDF"),
+      );
     } finally {
       setExportingPdf(false);
     }
   };
   return (
-    <div className="d-flex flex-wrap align-items-center gap-2" dir={isArabic ? "rtl" : "ltr"}>
+    <div
+      className="flex flex-wrap items-center gap-2"
+      dir={isArabic ? "rtl" : "ltr"}
+    >
       <ActionButton
         action="exportPdf"
         showLabel
+        loading={exportingPdf}
         disabled={disabled || exportingPdf}
-        label={exportingPdf ? (isArabic ? "جارٍ تجهيز PDF..." : "Preparing PDF...") : (isArabic ? "تصدير PDF" : "Export PDF")}
+        label={
+          exportingPdf
+            ? isArabic
+              ? "جارٍ تجهيز PDF..."
+              : "Preparing PDF..."
+            : isArabic
+              ? "تصدير PDF"
+              : "Export PDF"
+        }
         onClick={handleExportPdf}
       />
+
       <ActionButton
         action="exportExcel"
         showLabel
+        loading={exportingExcel}
         disabled={disabled || exportingExcel}
-        label={exportingExcel ? (isArabic ? "جارٍ تجهيز Excel..." : "Preparing Excel...") : (isArabic ? "تصدير Excel" : "Export Excel")}
+        label={
+          exportingExcel
+            ? isArabic
+              ? "جارٍ تجهيز Excel..."
+              : "Preparing Excel..."
+            : isArabic
+              ? "تصدير Excel"
+              : "Export Excel"
+        }
         onClick={handleExportExcel}
       />
     </div>

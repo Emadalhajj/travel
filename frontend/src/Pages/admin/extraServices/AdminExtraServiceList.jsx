@@ -35,6 +35,38 @@ import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import useAdminEntityCrudState from "../../../hooks/admin/useAdminEntityCrudState";
 import AdminPageActions from "../../../Components/layout/AdminPageActions";
+import { PRODUCT_SORT_OPTIONS } from "../../../constants/filters/productSortOptions";
+
+const INITIAL_FILTERS = {
+  search: "",
+  category: "",
+  isActive: "",
+  sort: "createdAt_desc",
+};
+
+const EXTRA_SERVICE_CATEGORY_OPTIONS = [
+  {
+    value: "airport_service",
+    labelAr: "خدمة مطار",
+    labelEn: "Airport Service",
+  },
+  { value: "insurance", labelAr: "تأمين", labelEn: "Insurance" },
+  { value: "meal", labelAr: "وجبات", labelEn: "Meals" },
+  {
+    value: "religious_guide",
+    labelAr: "إرشاد ديني",
+    labelEn: "Religious Guide",
+  },
+  { value: "vip_service", labelAr: "خدمة VIP", labelEn: "VIP Service" },
+  { value: "sim_card", labelAr: "شريحة اتصال", labelEn: "SIM Card" },
+  { value: "wheelchair", labelAr: "كرسي متحرك", labelEn: "Wheelchair" },
+  { value: "other", labelAr: "أخرى", labelEn: "Other" },
+];
+
+const ACTIVE_STATUS_OPTIONS = [
+  { value: "true", labelAr: "نشط", labelEn: "Active" },
+  { value: "false", labelAr: "غير نشط", labelEn: "Inactive" },
+];
 
 export default function AdminExtraServiceList() {
   const dispatch = useDispatch();
@@ -48,16 +80,41 @@ export default function AdminExtraServiceList() {
     pagination = { total: 0, page: 1, limit: 10, totalPages: 0 },
   } = useSelector((state) => state.extraServices || {});
 
-  const [filters, setFilters] = useState({
-    search: "",
-    category: "",
-    isActive: "",
-    sort: "createdAt_desc",
-  });
+  const [filters, setFilters] = useState(INITIAL_FILTERS);
 
   const memoizedConfig = useMemo(() => extraServiceFormConfig(), []);
+  const filterConfig = useMemo(
+    () => ({
+      search: {
+        type: "text",
+        col: 3,
+        placeholder: lang === "ar" ? "ابحث باسم الخدمة" : "Search service name",
+      },
+      category: {
+        type: "select",
+        col: 2,
+        placeholder: lang === "ar" ? "التصنيف" : "Category",
+        options: EXTRA_SERVICE_CATEGORY_OPTIONS,
+      },
+      isActive: {
+        type: "select",
+        col: 2,
+        placeholder: lang === "ar" ? "الحالة" : "Status",
+        options: ACTIVE_STATUS_OPTIONS,
+      },
+      sort: {
+        type: "select",
+        col: 3,
+        placeholder: lang === "ar" ? "الترتيب" : "Sort",
+        showAllOption: false,
+        options: PRODUCT_SORT_OPTIONS,
+      },
+    }),
+    [lang],
+  );
   const listQuery = useMemo(
-    () => buildQuery(filters, { page: pagination.page, limit: pagination.limit }),
+    () =>
+      buildQuery(filters, { page: pagination.page, limit: pagination.limit }),
     [filters, pagination.page, pagination.limit],
   );
   const {
@@ -169,13 +226,15 @@ export default function AdminExtraServiceList() {
       header: lang === "ar" ? "التوفر" : "Availability",
       render: (row) => (
         <StatusBadge
-          value={row.isAlwaysAvailable
-            ? lang === "ar"
-              ? "دائم التوفر"
-              : "Always Available"
-            : lang === "ar"
-              ? "حسب المخزون"
-              : "By Inventory"}
+          value={
+            row.isAlwaysAvailable
+              ? lang === "ar"
+                ? "دائم التوفر"
+                : "Always Available"
+              : lang === "ar"
+                ? "حسب المخزون"
+                : "By Inventory"
+          }
           isArabic={lang === "ar"}
         />
       ),
@@ -213,9 +272,40 @@ export default function AdminExtraServiceList() {
       ),
     },
   ];
+  const fields = [
+    {
+      label: lang === "ar" ? "الاسم بالعربية" : "Arabic Name",
+      value: currentService?.nameAr || "غير متوفر",
+    },
+    {
+      label: lang === "ar" ? "الاسم بالإنجليزية" : "English Name",
+      value: currentService?.nameEn || "غير متوفر",
+    },
+    {
+      label: lang === "ar" ? "التصنيف" : "Category",
+      value: categoryLabel(currentService?.category),
+    },
+    {
+      label: lang === "ar" ? "السعر" : "Price",
+      value: formatPrice(
+        currentService?.pricing?.basePrice,
+        currentService?.pricing?.currency || "SAR",
+      ),
+    },
+    {
+      label: lang === "ar" ? "التوفر" : "Availability",
+      value: currentService?.isAlwaysAvailable
+        ? lang === "ar"
+          ? "دائم التوفر"
+          : "Always Available"
+        : lang === "ar"
+          ? "حسب المخزون"
+          : "By Inventory",
+    },
+  ];
 
   return (
-    <div className="container py-2">
+    <div className="container-fluid py-2">
       <PageHeader
         titleAr="إدارة الخدمات الإضافية"
         titleEn="Extra Services Management"
@@ -223,13 +313,23 @@ export default function AdminExtraServiceList() {
         subtitleEn="Manage Extra Services"
         actions={
           <AdminPageActions>
-          <ActionButton
-            size="md"
-            action="add"
-            label={lang === "ar" ? "إضافة خدمة" : "Add Service"}
-            onClick={openCreateModal}
-          />
-          <ExportTableButtons data={extraServicesList} columns={columns} fileName="extra-services" lang={lang} title={lang === "ar" ? "تقرير الخدمات الإضافية" : "Extra Services Report"} />
+            <ActionButton
+              size="md"
+              action="add"
+              label={lang === "ar" ? "إضافة خدمة" : "Add Service"}
+              onClick={openCreateModal}
+            />
+            <ExportTableButtons
+              data={extraServicesList}
+              columns={columns}
+              fileName="extra-services"
+              lang={lang}
+              title={
+                lang === "ar"
+                  ? "تقرير الخدمات الإضافية"
+                  : "Extra Services Report"
+              }
+            />
           </AdminPageActions>
         }
       />
@@ -240,38 +340,7 @@ export default function AdminExtraServiceList() {
       <EntityFilter
         filters={filters}
         setFilters={setFilters}
-        config={{
-          search: {
-            type: "text",
-            col: 4,
-            placeholder:
-              lang === "ar" ? "ابحث باسم الخدمة" : "Search service name",
-          },
-          category: {
-            type: "select",
-            col: 3,
-            placeholder: lang === "ar" ? "التصنيف" : "Category",
-            options: [
-              { value: "airport_service", labelAr: "خدمة مطار", labelEn: "Airport Service" },
-              { value: "insurance", labelAr: "تأمين", labelEn: "Insurance" },
-              { value: "meal", labelAr: "وجبات", labelEn: "Meals" },
-              { value: "religious_guide", labelAr: "إرشاد ديني", labelEn: "Religious Guide" },
-              { value: "vip_service", labelAr: "خدمة VIP", labelEn: "VIP Service" },
-              { value: "sim_card", labelAr: "شريحة اتصال", labelEn: "SIM Card" },
-              { value: "wheelchair", labelAr: "كرسي متحرك", labelEn: "Wheelchair" },
-              { value: "other", labelAr: "أخرى", labelEn: "Other" },
-            ],
-          },
-          isActive: {
-            type: "select",
-            col: 3,
-            placeholder: lang === "ar" ? "الحالة" : "Status",
-            options: [
-              { value: "true", labelAr: "نشط", labelEn: "Active" },
-              { value: "false", labelAr: "غير نشط", labelEn: "Inactive" },
-            ],
-          },
-        }}
+        config={filterConfig}
       />
 
       <UniversalFormModal
@@ -296,37 +365,7 @@ export default function AdminExtraServiceList() {
         onHide={closeDetails}
         title={lang === "ar" ? "تفاصيل الخدمة" : "Service Details"}
         images={currentService?.images || []}
-        fields={[
-          {
-            label: lang === "ar" ? "الاسم بالعربية" : "Arabic Name",
-            value: currentService?.nameAr || "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "الاسم بالإنجليزية" : "English Name",
-            value: currentService?.nameEn || "غير متوفر",
-          },
-          {
-            label: lang === "ar" ? "التصنيف" : "Category",
-            value: categoryLabel(currentService?.category),
-          },
-          {
-            label: lang === "ar" ? "السعر" : "Price",
-            value: formatPrice(
-              currentService?.pricing?.basePrice,
-              currentService?.pricing?.currency || "SAR",
-            ),
-          },
-          {
-            label: lang === "ar" ? "التوفر" : "Availability",
-            value: currentService?.isAlwaysAvailable
-              ? lang === "ar"
-                ? "دائم التوفر"
-                : "Always Available"
-              : lang === "ar"
-                ? "حسب المخزون"
-                : "By Inventory",
-          },
-        ]}
+        fields={fields}
       />
 
       <UniversalTable

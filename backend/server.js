@@ -6,7 +6,6 @@ import mongoose from "mongoose";
 import path from "path";
 import { fileURLToPath } from "url";
 import { connectDB } from "./DB/mongoose.js";
-import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import passport from "./config/passport.js";
 import authRouter from "./routes/auth-routes.js";
@@ -28,6 +27,7 @@ import BookingLogRoute from "./routes/booking/booking-log-route.js";
 import NotificationRoute from "./routes/notifications/notification-route.js";
 import voucherRoute from "./routes/voucher-route.js";
 import DraftBookingRoute from "./routes/draft-bookings/draft-booking-route.js";
+import couponRoutes from "./routes/pricing/coupon-routes.js";
 import SoftDeleteRoute from "./routes/soft-delete-route.js";
 import AuditLogRoute from "./routes/audit/audit-log-route.js";
 import SecurityEventRoute from "./routes/audit/security-event-route.js";
@@ -58,6 +58,8 @@ import {
   handleStripeWebhook,
 } from "./controllers/payment/stripe-webhook-controller.js";
 import { handleDuffelWebhook } from "./controllers/trips/duffel-webhook-controller.js";
+import { requestContext } from "./middleware/request-context.js";
+import { operationalLogger, safeErrorContext } from "./utils/operational-logger.js";
 
 //use packages
 dotenv.config();
@@ -71,6 +73,7 @@ const shutdownTimeoutMs = Math.max(
 );
 let httpServer = null;
 let shutdownPromise = null;
+let isShuttingDown = false;
 // use middleware
 
 // 1️⃣ CORS أول شيء
@@ -86,6 +89,7 @@ app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginResourcePolicy: false,
 }));
+app.use(requestContext);
 
 /*
 Stripe يحتاج Raw Body للتحقق من Stripe-Signature.
@@ -109,12 +113,19 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 // 2️⃣ JSON Parser
 app.use(express.json({ limit: "1mb" }));
-// 3️⃣ Logger + Cookie Parser
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+// 3️⃣ Cookie Parser
 app.use(cookieParser()); // لتحليل الكوكيز في الريكوست
 // Private booking/payment documents must never fall through to static serving.
 app.use("/uploads/draft-bookings", (_req, res) => res.sendStatus(404));
 app.use("/uploads/payment-proofs", (_req, res) => res.sendStatus(404));
+app.use("/uploads/vouchers", (_req, res) => res.sendStatus(404));
+app.use(/^\/uploads\/(?:%5Bobject%20Object%5D|\[object%20Object\]|undefined|null)(?:\/|$)/i, (_req, res) =>
+  res.sendStatus(404),
+);
+app.use("/uploads/hotels", (req, res, next) => {
+  if (/\.(?:pdf|doc|docx)$/i.test(req.path)) return res.sendStatus(404);
+  return next();
+});
 // 4️⃣ Public Static Files
 app.use("/uploads", express.static("uploads"));
 // Stateless Passport initialization for Google OAuth.
@@ -124,12 +135,23 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+export const getReadinessState = ({
+  connectionState = mongoose.connection.readyState,
+  shuttingDown = isShuttingDown,
+} = {}) => {
+  const ready = !shuttingDown && connectionState === 1;
+  return {
+    statusCode: ready ? 200 : 503,
+    body: {
+      status: ready ? "ready" : "not_ready",
+      database: ready ? "connected" : "disconnected",
+    },
+  };
+};
+
 app.get("/ready", (req, res) => {
-  const ready = mongoose.connection.readyState === 1;
-  res.status(ready ? 200 : 503).json({
-    status: ready ? "ready" : "not_ready",
-    database: ready ? "connected" : "disconnected",
-  });
+  const readiness = getReadinessState();
+  res.status(readiness.statusCode).json(readiness.body);
 });
 
 // 7️⃣ Routers
@@ -168,6 +190,7 @@ app.use("/api", NotificationRoute);
 app.use("/api/vouchers", voucherRoute);
 
 app.use("/api", DraftBookingRoute);
+app.use("/api/admin/coupons", couponRoutes);
 
 app.use("/api", SoftDeleteRoute);
 
@@ -228,12 +251,13 @@ export const shutdown = ({ reason = "shutdown", exitCode = 0 } = {}) => {
   if (shutdownPromise) return shutdownPromise;
 
   shutdownPromise = (async () => {
-    console.log(`Shutting down: ${reason}`);
+    isShuttingDown = true;
+    operationalLogger.info("api_shutdown_started", { reason, exitCode });
     await closeHttpServer(httpServer);
     if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
     process.exitCode = exitCode;
   })().catch((error) => {
-    console.error("Shutdown failed:", error?.message || error);
+    operationalLogger.error("api_shutdown_failed", safeErrorContext(error, { reason }));
     process.exitCode = 1;
   });
 
@@ -243,10 +267,11 @@ export const shutdown = ({ reason = "shutdown", exitCode = 0 } = {}) => {
 export const startServer = async ({
   connect = connectDB,
   listen = () => app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+    operationalLogger.info("api_started", { operation: "listen", status: "ready" });
   }),
 } = {}) => {
   validateStartupEnvironment();
+  isShuttingDown = false;
   await connect();
   httpServer = listen();
   return httpServer;
@@ -256,11 +281,11 @@ export const installProcessHandlers = () => {
   process.once("SIGTERM", () => void shutdown({ reason: "SIGTERM" }));
   process.once("SIGINT", () => void shutdown({ reason: "SIGINT" }));
   process.once("unhandledRejection", (error) => {
-    console.error("Unhandled rejection:", error?.message || error);
+    operationalLogger.error("unhandled_rejection", safeErrorContext(error));
     void shutdown({ reason: "unhandledRejection", exitCode: 1 });
   });
   process.once("uncaughtException", (error) => {
-    console.error("Uncaught exception:", error?.message || error);
+    operationalLogger.error("uncaught_exception", safeErrorContext(error));
     void shutdown({ reason: "uncaughtException", exitCode: 1 });
   });
 };
@@ -272,7 +297,7 @@ const isMainModule =
 if (isMainModule) {
   installProcessHandlers();
   startServer().catch((error) => {
-    console.error("Server startup failed:", error?.message || error);
+    operationalLogger.error("api_startup_failed", safeErrorContext(error));
     void shutdown({ reason: "startupFailure", exitCode: 1 });
   });
 }

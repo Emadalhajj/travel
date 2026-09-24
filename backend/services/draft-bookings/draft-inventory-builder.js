@@ -81,8 +81,12 @@ export const buildInventoryRequirementsFromDraft = ({ draft }) => {
   const trip = bookingItems?.trip;
   const tripQuantity =
     trip?.chargeType === "PER_UNIT" ? trip?.quantity : travelersCount;
+  const isExternalTrip =
+    trip?.source === TRIP_SOURCES.API ||
+    Boolean(trip?.external?.provider) ||
+    Boolean(safeDraft?.trip?.external?.provider);
 
-  if (trip?.tripId || trip?.departureId || trip?.departureAt) {
+  if (!isExternalTrip && (trip?.tripId || trip?.departureId || trip?.departureAt)) {
     if (!trip?.tripId || !trip?.departureId || !trip?.departureAt) {
       throw new AppError(
         "TRIP_DEPARTURE_DATA_INCOMPLETE",
@@ -91,15 +95,13 @@ export const buildInventoryRequirementsFromDraft = ({ draft }) => {
       );
     }
 
-    if (trip.source !== TRIP_SOURCES.API && !trip.external?.provider) {
-      addSingleReservation(inventoryReservations, {
-        inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
-        itemId: trip.departureId,
-        date: trip.departureAt,
-        quantity: tripQuantity,
-        defaultTotal: 0,
-      });
-    }
+    addSingleReservation(inventoryReservations, {
+      inventoryType: INVENTORY_TYPES.TRIP_DEPARTURE,
+      itemId: trip.departureId,
+      date: trip.departureAt,
+      quantity: tripQuantity,
+      defaultTotal: 0,
+    });
   }
 
   const transport = bookingItems?.transport;

@@ -114,8 +114,15 @@ export const updateExternalFulfillmentService = async ({
   transactionId,
   status,
   updates = {},
+  expectedStatuses = null,
 }) => PaymentTransaction.findOneAndUpdate(
-  { _id: transactionId, "externalFulfillment.required": true },
+  {
+    _id: transactionId,
+    "externalFulfillment.required": true,
+    ...(Array.isArray(expectedStatuses) && expectedStatuses.length
+      ? { "externalFulfillment.status": { $in: expectedStatuses } }
+      : {}),
+  },
   {
     $set: {
       "externalFulfillment.status": status,
@@ -676,12 +683,12 @@ export const updatePaymentTransactionStatusService = async ({
   req = null,
   auditAction = AUDIT_ACTIONS.PAYMENT_STATUS_CHANGE,
   providerResult = null,
+  failIfAlreadyTransitioned = false,
 }) => {
   validateObjectId(transactionId, "transactionId");
 
   const transaction = await PaymentTransaction.findOne({
     _id: transactionId,
-    user: submittedBy,
     isDeleted: false,
   }).select("+events +metadata");
 
@@ -786,6 +793,13 @@ export const updatePaymentTransactionStatusService = async ({
       currentTransaction?.status ===
       toStatus
     ) {
+      if (failIfAlreadyTransitioned) {
+        throw new AppError(
+          "PAYMENT_CONCURRENT_CHANGE",
+          409,
+          "status",
+        );
+      }
       return currentTransaction;
     }
 
@@ -968,7 +982,7 @@ export const calculateBookingPaymentSummary = async ({ booking }) => {
     0,
   );
 
-  const totalPrice = Number(booking.pricing?.totalPrice) || 0;
+  const totalPrice = Number(booking.pricing?.total ?? booking.pricing?.totalPrice) || 0;
   const remainingAmount = Math.max(0, roundPrice(totalPrice - paidAmount));
 
   let paymentStatus = "pending";

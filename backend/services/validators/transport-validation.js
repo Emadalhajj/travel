@@ -1,10 +1,14 @@
 import Joi from "joi";
+import {
+  arabicTextSchema,
+  englishTextSchema,
+} from "../../utils/validation/text-language.js";
 
 export const createTransportSchema = Joi.object({
-  nameEn: Joi.string().min(3).max(70).required(),
-  nameAr: Joi.string().min(3).max(70).required(),
-  descriptionEn: Joi.string().allow(""),
-  descriptionAr: Joi.string().allow(""),
+  nameEn: englishTextSchema().min(3).max(70).required(),
+  nameAr: arabicTextSchema().min(3).max(70).required(),
+  descriptionEn: englishTextSchema().allow(""),
+  descriptionAr: arabicTextSchema().allow(""),
 
   vehicleType: Joi.string().valid("bus", "van", "car", "plane", "ship","train" , "other").required(),
 
@@ -17,10 +21,10 @@ export const createTransportSchema = Joi.object({
 });
 
 export const updateTransportSchema = Joi.object({
-  nameEn: Joi.string().min(3).max(70).required(),
-  nameAr: Joi.string().min(3).max(70).required(),
-  descriptionEn: Joi.string().allow(""),
-  descriptionAr: Joi.string().allow(""),
+  nameEn: englishTextSchema().min(3).max(70).required(),
+  nameAr: arabicTextSchema().min(3).max(70).required(),
+  descriptionEn: englishTextSchema().allow(""),
+  descriptionAr: arabicTextSchema().allow(""),
   vehicleType: Joi.string().valid("bus", "van", "car", "plane", "ship","train" , "other").required(),
 
   capacity: Joi.number().min(1).required(),

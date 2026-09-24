@@ -20,7 +20,7 @@ import {
 } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 
-import Loader from "../../../Components/common/Loader";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import PageHeader from "../../../Components/layout/PageHeader";
 import BookingProgressTimeline from "../../../Components/shared/booking/BookingProgressTimeline";
@@ -48,13 +48,18 @@ import {
 import { calculateBookingPricing } from "../../../Components/shared/booking-wizard/bookingPricing";
 
 import { apiVerifyPublicProviderPayment } from "../../../services/api/public/paymentApi";
+import {
+  apiApplyDraftCoupon,
+  apiRemoveDraftCoupon,
+} from "../../../services/api/public/bookingApi";
 
 import {
   PAYMENT_CONFIGURATION_TYPES,
-  PAYMENT_SECTION_CODES,
   PUBLIC_PAYMENT_GROUPS,
   groupPublicPaymentConfigurations,
   resolvePrimaryPaymentConfiguration,
+  resolvePaymentSectionCode,
+  resolveAuthoritativePricingTotal,
 } from "../../../constants/payments/paymentConfigurationConstants";
 
 /*
@@ -115,6 +120,8 @@ export default function PublicBookingPaymentPage() {
 
   const [autoInitializedConfigurationId, setAutoInitializedConfigurationId] =
     useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [couponLoading, setCouponLoading] = useState(false);
 
   /*
   =====================================================
@@ -149,9 +156,9 @@ export default function PublicBookingPaymentPage() {
     [draftBooking],
   );
 
-  const pricing = useMemo(
-    () =>
-      calculateBookingPricing({
+  const pricing = useMemo(() => {
+    if (Number(draftBooking?.pricing?.version) === 2) return draftBooking.pricing;
+    return calculateBookingPricing({
         selectedPackage:
           draftBooking?.data?.selectedPackage || draftBooking?.program,
 
@@ -160,8 +167,42 @@ export default function PublicBookingPaymentPage() {
         selectedProducts,
 
         fallbackPricing: draftBooking?.pricing || {},
-      }),
-    [draftBooking, travelers, selectedProducts],
+      });
+  }, [draftBooking, travelers, selectedProducts]);
+
+  const refreshDraft = () => dispatch(ensurePublicDraftBooking(draftId, { force: true }));
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    try {
+      setCouponLoading(true);
+      await apiApplyDraftCoupon({ draftId, couponCode: couponCode.trim() });
+      await refreshDraft();
+      toast.success(isArabic ? "تم تطبيق الكوبون" : "Coupon applied");
+    } catch (couponError) {
+      toast.error(couponError?.response?.data?.message || couponError?.message);
+    } finally { setCouponLoading(false); }
+  };
+  const handleRemoveCoupon = async () => {
+    try {
+      setCouponLoading(true);
+      await apiRemoveDraftCoupon(draftId);
+      setCouponCode("");
+      await refreshDraft();
+    } catch (couponError) {
+      toast.error(couponError?.response?.data?.message || couponError?.message);
+    } finally { setCouponLoading(false); }
+  };
+
+  const paymentSectionCode = useMemo(
+    () => resolvePaymentSectionCode(draftBooking),
+    [draftBooking],
+  );
+  const paymentAmount = useMemo(
+    () => resolveAuthoritativePricingTotal({
+      total: pricing.total,
+      totalPrice: pricing.totalPrice,
+    }),
+    [pricing.total, pricing.totalPrice],
   );
 
   /*
@@ -177,20 +218,23 @@ export default function PublicBookingPaymentPage() {
 
     dispatch(
       fetchPublicPaymentConfigurations({
-        sectionCode: PAYMENT_SECTION_CODES.CUSTOM_PACKAGE,
+        sectionCode: paymentSectionCode,
 
         currency: draftBooking.currency || pricing.currency || "SAR",
 
-        amount: pricing.totalPrice ?? pricing.total,
+        // Pricing V2 authoritative total يسبق مرآة totalPrice القديمة.
+        // بعض المسودات تحمل totalPrice=0 للتوافق، واستخدام ?? كان يرسل صفرًا
+        // فيستبعد إعداد الدفع بسبب minimumAmount.
+        amount: paymentAmount,
       }),
     );
   }, [
     dispatch,
     draftBooking?._id,
     draftBooking?.currency,
+    paymentSectionCode,
     pricing.currency,
-    pricing.total,
-    pricing.totalPrice,
+    paymentAmount,
   ]);
 
   /*
@@ -301,7 +345,7 @@ export default function PublicBookingPaymentPage() {
 
           configurationId: selectedConfiguration._id,
 
-          sectionCode: PAYMENT_SECTION_CODES.CUSTOM_PACKAGE,
+          sectionCode: paymentSectionCode,
 
           paymentMethodCode: selectedConfiguration.paymentMethodCode,
 
@@ -399,6 +443,9 @@ export default function PublicBookingPaymentPage() {
         );
       }
     } catch (paymentError) {
+      if (paymentError?.code === "PRICE_CHANGED") {
+        await refreshDraft();
+      }
       toast.error(
         paymentError?.message ||
           (isArabic ? "تعذر بدء عملية الدفع" : "Unable to initialize payment"),
@@ -442,7 +489,7 @@ export default function PublicBookingPaymentPage() {
   ]);
 
   if (loading) {
-    return <Loader />;
+    return <LoadingOverlay show overlay={false} />;
   }
 
   return (
@@ -471,6 +518,11 @@ export default function PublicBookingPaymentPage() {
               pricing={pricing}
               programName={programName}
               isArabic={isArabic}
+              couponCode={couponCode}
+              setCouponCode={setCouponCode}
+              couponLoading={couponLoading}
+              onApplyCoupon={handleApplyCoupon}
+              onRemoveCoupon={handleRemoveCoupon}
             />
           </aside>
 
@@ -493,7 +545,11 @@ export default function PublicBookingPaymentPage() {
               ) : paymentMethodsError ? (
                 <PaymentError error={paymentMethodsError} />
               ) : paymentGroups.length === 0 ? (
-                <EmptyPaymentMethods isArabic={isArabic} />
+                <EmptyPaymentMethods
+                  isArabic={isArabic}
+                  sectionCode={paymentSectionCode}
+                  currency={pricing.currency || "SAR"}
+                />
               ) : (
                 <>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -928,6 +984,11 @@ function BookingSummary({
   pricing,
   programName,
   isArabic,
+  couponCode,
+  setCouponCode,
+  couponLoading,
+  onApplyCoupon,
+  onRemoveCoupon,
 }) {
   return (
     <div className="sticky top-8 rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
@@ -958,15 +1019,25 @@ function BookingSummary({
 
         <div className="border-y border-slate-200 py-5">
           <SummaryRow
+            label={isArabic ? "خصم المنتج" : "Product discount"}
+            value={formatMoney(pricing.adminDiscountAmount || pricing.discount, pricing.currency)}
+          />
+          <SummaryRow
+            label={isArabic ? "خصم الكوبون" : "Coupon discount"}
+            value={formatMoney(pricing.couponDiscountAmount, pricing.currency)}
+          />
+          <SummaryRow
             label={isArabic ? "الإجمالي قبل الضريبة" : "Subtotal"}
             value={formatMoney(pricing.subtotal, pricing.currency)}
           />
 
           <SummaryRow
             label={
-              isArabic
-                ? `ضريبة القيمة المضافة ${pricing.taxRate}%`
-                : `VAT ${pricing.taxRate}%`
+              Number(pricing.version) === 2
+                ? (isArabic ? "الضريبة" : "Tax")
+                : isArabic
+                  ? `ضريبة القيمة المضافة ${pricing.taxRate}%`
+                  : `VAT ${pricing.taxRate}%`
             }
             value={formatMoney(
               pricing.tax || pricing.taxAmount,
@@ -982,6 +1053,30 @@ function BookingSummary({
             )}
             strong
           />
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 p-4">
+          <label className="mb-2 block text-sm font-bold text-slate-700">
+            {isArabic ? "رمز الكوبون" : "Coupon code"}
+          </label>
+          <div className="flex gap-2">
+            <input
+              value={couponCode}
+              onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+              disabled={couponLoading || Boolean(pricing.coupon)}
+              className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2"
+            />
+            {pricing.coupon ? (
+              <button type="button" onClick={onRemoveCoupon} disabled={couponLoading} className="rounded-xl bg-rose-600 px-4 py-2 text-white">
+                {isArabic ? "إزالة" : "Remove"}
+              </button>
+            ) : (
+              <button type="button" onClick={onApplyCoupon} disabled={couponLoading} className="rounded-xl bg-emerald-600 px-4 py-2 text-white">
+                {isArabic ? "تطبيق" : "Apply"}
+              </button>
+            )}
+          </div>
+          {pricing.coupon?.code && <p className="mt-2 text-xs text-emerald-700">{pricing.coupon.code}</p>}
         </div>
 
         <p className="text-xs leading-6 text-slate-500">
@@ -1124,12 +1219,19 @@ function PaymentError({ error }) {
   );
 }
 
-function EmptyPaymentMethods({ isArabic }) {
+function EmptyPaymentMethods({ isArabic, sectionCode, currency }) {
   return (
     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-800">
-      {isArabic
-        ? "لا توجد طرق دفع متاحة لهذا الحجز حاليًا."
-        : "No payment methods are currently available for this booking."}
+      <p className="font-semibold">
+        {isArabic
+          ? `لا توجد طريقة دفع نشطة تدعم عملة ${currency} لهذا النوع من الحجوزات.`
+          : `No active payment method supports ${currency} for this booking type.`}
+      </p>
+      <p className="mt-2 text-xs opacity-80">
+        {isArabic ? "القسم" : "Section"}: {sectionCode}
+        {" · "}
+        {isArabic ? "العملة" : "Currency"}: {currency}
+      </p>
     </div>
   );
 }
@@ -1224,7 +1326,6 @@ function formatMoney(value, currency = "SAR") {
 // import { useNavigate, useParams } from "react-router-dom";
 // import { toast } from "react-toastify";
 
-// import Loader from "../../../Components/common/Loader";
 // import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 // import PageHeader from "../../../Components/layout/PageHeader";
 // import BookingProgressTimeline from "../../../Components/shared/booking/BookingProgressTimeline";
@@ -1413,7 +1514,6 @@ function formatMoney(value, currency = "SAR") {
 //     }
 //   };
 
-//   if (loading) return <Loader />;
 
 //   return (
 //     <div

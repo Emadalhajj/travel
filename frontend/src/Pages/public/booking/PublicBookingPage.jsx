@@ -15,7 +15,7 @@ import {
 } from "../../../redux/public/bookingSlice";
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PageHeader from "../../../Components/layout/PageHeader";
-import Loader from "../../../Components/common/Loader";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import PublicButton from "../../../Components/shared/buttons/PublicButton";
 
@@ -36,6 +36,7 @@ const buildReadyPackageDraftPayload = (program) => ({
     selectedProducts: [],
   },
 });
+
 
 const createReadyPackageDraftOnce = ({ dispatch, program }) => {
   const programId = String(program?._id || program?.id || "");
@@ -138,7 +139,7 @@ export default function PublicBookingPage() {
       <ErrorOverlay show={Boolean(displayError)} message={displayError} />
 
       {!displayError && (detailsLoading || submitLoading || !selectedProgram) && (
-        <Loader />
+        <LoadingOverlay show overlay={false} />
       )}
 
       {displayError && (

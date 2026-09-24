@@ -3,6 +3,7 @@ import VehicleRental from "../../models/transportition/vehicle-rental-model.js";
 import AppError from "../../utils/AppError.js";
 import { buildPagination } from "../../utils/Builders/buildPagination.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
+import { buildProductSort } from "../../utils/buildProductSort.js";
 
 export const getAllVehicleRentals = asyncHandler(async (req, res) => {
   const filter = {
@@ -29,11 +30,15 @@ export const getAllVehicleRentals = asyncHandler(async (req, res) => {
   }
 
   const { page, skip, limit } = buildPagination(req.query);
+  const sort = buildProductSort({
+    value: req.query.sort,
+    priceField: "pricing.basePrice",
+  });
 
   const [items, total] = await Promise.all([
     VehicleRental.find(filter)
       .populate("transport")
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip(skip)
       .limit(limit),
 

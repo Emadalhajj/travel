@@ -13,6 +13,18 @@ export default function usePackageForm() {
     maxCapacity: 1,
     serviceLevel: "economy",
     status: "draft",
+    sellingPrice: 0,
+    sellingCurrency: "SAR",
+    pricingPolicy: {
+      tax: { enabled: false, rate: 0, inclusive: false },
+      discount: {
+        enabled: false,
+        type: "PERCENTAGE",
+        value: 0,
+        expiresAt: null,
+      },
+      couponEligible: false,
+    },
     images: [],
   });
 
@@ -100,6 +112,22 @@ const loadPackageForEdit = useCallback((program) => {
     maxCapacity: program.capacity?.totalSeats || 1,
     serviceLevel: program.serviceLevel || "economy",
     status: program.status || "draft",
+    sellingPrice:
+      program.pricing?.basePrice ??
+      program.pricing?.totalPrice ??
+      program.pricing?.finalPrice ??
+      0,
+    sellingCurrency: program.pricing?.currency || "SAR",
+    pricingPolicy: program.pricingPolicy || {
+      tax: { enabled: false, rate: 0, inclusive: false },
+      discount: {
+        enabled: false,
+        type: "PERCENTAGE",
+        value: 0,
+        expiresAt: null,
+      },
+      couponEligible: false,
+    },
     images: program.images || [],
   });
 
@@ -127,9 +155,11 @@ const loadPackageForEdit = useCallback((program) => {
   };
 
   const totals = useMemo(() => {
-    const totalBeforeDiscount = selectedItems.reduce((sum, item) => {
+    const itemsReferenceTotal = selectedItems.reduce((sum, item) => {
       return sum + Number(item.priceAtTime || 0) * Number(item.quantity || 1);
     }, 0);
+
+    const totalBeforeDiscount = Number(basicInfo.sellingPrice || 0);
 
     let discountValue = 0;
 
@@ -146,12 +176,13 @@ const loadPackageForEdit = useCallback((program) => {
     const finalPrice = Math.max(totalBeforeDiscount - discountValue, 0);
 
     return {
-      currency: "SAR",
+      currency: basicInfo.sellingCurrency || "SAR",
+      itemsReferenceTotal,
       totalBeforeDiscount,
       discountValue,
       finalPrice,
     };
-  }, [selectedItems, discount]);
+  }, [selectedItems, discount, basicInfo.sellingPrice, basicInfo.sellingCurrency]);
 
   //
   const calculateDurationDays = (startDate, endDate) => {
@@ -178,6 +209,13 @@ const loadPackageForEdit = useCallback((program) => {
   );
 
   const maxCapacity = Number(currentBasicInfo.maxCapacity || 1);
+  const sellingPrice = Number(currentBasicInfo.sellingPrice || 0);
+  const legacyDiscountValue = discount.discountType === "percentage"
+    ? sellingPrice * (Number(discount.discountPercentage || 0) / 100)
+    : discount.discountType === "fixed"
+      ? Number(discount.discountAmount || 0)
+      : 0;
+  const legacyFinalPrice = Math.max(sellingPrice - legacyDiscountValue, 0);
 
   return {
     nameAr: currentBasicInfo.nameAr,
@@ -204,15 +242,17 @@ const loadPackageForEdit = useCallback((program) => {
     },
 
     pricing: {
-      basePrice: totals.totalBeforeDiscount,
-      totalPrice: totals.totalBeforeDiscount,
+      basePrice: sellingPrice,
+      totalPrice: sellingPrice,
       discountType: discount.discountType,
       discountPercentage: Number(discount.discountPercentage || 0),
       discountAmount: Number(discount.discountAmount || 0),
       discountExpiresAt: discount.discountExpiresAt || null,
-      finalPrice: totals.finalPrice,
-      currency: totals.currency || "SAR",
+      finalPrice: legacyFinalPrice,
+      currency: currentBasicInfo.sellingCurrency || "SAR",
     },
+
+    pricingPolicy: currentBasicInfo.pricingPolicy,
 
     items: selectedItems.map((item) => ({
       productId: item.productId,

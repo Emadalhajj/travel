@@ -4,57 +4,141 @@ import { useTranslation } from "react-i18next";
 export default function PageHeader({
   titleAr,
   titleEn,
+
   subtitleAr,
   subtitleEn,
+
   eyebrowAr,
   eyebrowEn,
+
   center = false,
+
   actions,
+
   children,
+
+  className = "",
 }) {
   const { i18n } = useTranslation();
+
   const isArabic = i18n.language === "ar";
+
   const title = isArabic ? titleAr : titleEn;
+
   const subtitle = isArabic ? subtitleAr : subtitleEn;
+
   const eyebrow = isArabic ? eyebrowAr : eyebrowEn;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -16 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`mb-4 ${
+    <motion.header
+      initial={{
+        opacity: 0,
+        y: -12,
+      }}
+      animate={{
+        opacity: 1,
+        y: 0,
+      }}
+      transition={{
+        duration: 0.2,
+      }}
+      className={[
+        "mb-5",
+
         center
           ? "text-center"
-          : "flex flex-row flex-nowrap items-center justify-between gap-3"
-      }`}
+          : [
+              "flex flex-col gap-3",
+              "sm:flex-row",
+              "sm:items-start",
+              "sm:justify-between",
+            ].join(" "),
+
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      <div className={center ? "" : "min-w-0 flex-1"}>
+      {/* =========================
+          PAGE INFO
+      ========================= */}
+
+      <div
+        className={["min-w-0", center ? "" : "flex-1"]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {eyebrow && (
-          <p className="mb-1 text-sm font-semibold text-emerald-700">
+          <p
+            className="
+              mb-1
+              text-sm
+              font-semibold
+              text-primary
+            "
+          >
             {eyebrow}
           </p>
         )}
 
         {title && (
-          <h1 className="m-0 text-2xl font-bold leading-tight text-slate-900">
+          <h1
+            className="
+              m-0
+              break-words
+              text-xl
+              font-bold
+              leading-tight
+              text-content
+
+              sm:text-2xl
+              lg:text-3xl
+            "
+          >
             {title}
           </h1>
         )}
 
         {subtitle && (
-          <p className={`${title ? "mt-1" : "m-0"} text-sm text-slate-500`}>
+          <p
+            className={[
+              title ? "mt-1" : "m-0",
+
+              "max-w-3xl",
+              "text-sm",
+              "leading-6",
+              "text-content-muted",
+
+              "sm:text-base",
+            ].join(" ")}
+          >
             {subtitle}
           </p>
         )}
 
-        {children}
+        {children && <div className="mt-2">{children}</div>}
       </div>
 
+      {/* =========================
+          PAGE ACTIONS
+      ========================= */}
+
       {actions && (
-        <div className="max-w-[65%] flex-shrink-0 overflow-x-auto">
+        <div
+          className={[
+            "w-full",
+
+            "sm:w-auto",
+            "sm:flex-shrink-0",
+
+            center ? "mt-3 flex justify-center" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           {actions}
         </div>
       )}
-    </motion.div>
+    </motion.header>
   );
 }

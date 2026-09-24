@@ -2,6 +2,8 @@
 
 import { forwardRef, useMemo } from "react";
 import UniversalFormPage from "../../../../Components/forms/UniversalFormPage";
+import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "../../../../constants/currencies";
+import { createPricingPolicyFields } from "../../../../Components/common/ModalForms/shared/pricingPolicyFields";
 
 /*
 =========================================================
@@ -150,13 +152,37 @@ const PackageBasicInfoForm = forwardRef(function PackageBasicInfoForm({
         ],
       },
       {
+        name: "sellingPrice",
+        labelAr: "سعر بيع البرنامج",
+        labelEn: "Program Selling Price",
+        type: "number",
+        col: 6,
+        required: true,
+        min: 0,
+        step: 0.01,
+        defaultValue: 0,
+        order: 6,
+      },
+      {
+        name: "sellingCurrency",
+        labelAr: "عملة سعر البيع",
+        labelEn: "Selling Currency",
+        type: "select",
+        col: 6,
+        required: true,
+        defaultValue: DEFAULT_CURRENCY,
+        options: CURRENCY_OPTIONS,
+        order: 6,
+      },
+      ...createPricingPolicyFields({ order: 7 }),
+      {
         name: "images",
         labelAr: "صور البرنامج",
         labelEn: "Program Images",
         type: "file",
         col: 12,
         multiple: true,
-        order: 6,
+        order: 10,
       },
     ],
   }), []);

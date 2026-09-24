@@ -2,12 +2,11 @@ import React, { useEffect } from "react";
 import { Navbar, Nav, Container, Image } from "react-bootstrap";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faHeart,
   faUser,
   faGlobe,
   faRightFromBracket,
 } from "@fortawesome/free-solid-svg-icons";
-import { Link, useNavigate, NavLink } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { logoutUser } from "../../redux/auth/authSlice";
 import { useTranslation } from "react-i18next";
@@ -55,67 +54,43 @@ export default function Header() {
         <Navbar.Brand as={Link} to="/">
           <img
             style={{ width: "35px" }}
-            src="./assets/images/logo.jpeg"
-            alt="logo"
+            src="/favicon.ico"
+            alt={lang === "ar" ? "الصفحة الرئيسية" : "Home"}
           />
         </Navbar.Brand>
 
+        <Navbar.Toggle aria-controls="primary-navigation" />
+
         {/* ✅ روابط التنقل */}
 
-        <Nav className="mx-auto d-flex gap-3">
-          <Nav.Link as={Link} to="/">
-            {t("Home")}
-          </Nav.Link>
-          <Nav.Link as={Link} to="/shop">
-            {t("shop.title")}
-          </Nav.Link>
-          <Nav.Link as={Link} to="/ourTeam">
-            {t("ourTeam")}
-          </Nav.Link>
-
-          <Nav.Link as={Link} to="/aboutUs">
-            {t("AboutUs")}
-          </Nav.Link>
-
-          {isAdmin && (
-            <Nav.Link as={Link} to="/adminDashboard">
-              {t("Dashboad")}
+        <Navbar.Collapse id="primary-navigation">
+          <Nav className="mx-auto gap-3">
+            <Nav.Link as={Link} to="/">
+              {t("home")}
             </Nav.Link>
-          )}
-
-          {isAdmin && (
-            <Nav.Link as={Link} to="/admin">
-              {lang === "ar" ? "لوحة الاعدادات" : "Settings"}
+            <Nav.Link as={Link} to="/programs">
+              {lang === "ar" ? "البرامج" : "Programs"}
             </Nav.Link>
-          )}
-
-          {!currentUser && (
-            <Nav.Link as={Link} to="/authpage">
-              {t("SignIn")}
+            <Nav.Link as={Link} to="/services">
+              {lang === "ar" ? "الخدمات" : "Services"}
             </Nav.Link>
-          )}
-
-          <Nav.Link disabled>{t("Disabled")}</Nav.Link>
-        </Nav>
+            {isAdmin && (
+              <Nav.Link as={Link} to="/admin">
+                {lang === "ar" ? "لوحة الإدارة" : "Admin"}
+              </Nav.Link>
+            )}
+          </Nav>
 
         {/* ✅ أيقونات ويمين الهيدر */}
-        <div className="d-flex align-items-center gap-3 position-relative">
+          <div className="d-flex flex-wrap align-items-center gap-3 position-relative">
           {currentUser && (
             <Nav.Link
               as={Link}
-              to="/myBookings"
+              to="/my-bookings"
               className="btn btn-info text-white"
             >
               {t("myOrders")}
             </Nav.Link>
-          )}
-
-          {/* ✅ إذا كان المستخدم أدمن، نعرض أيقونة الداشبورد */}
-
-          {isAdmin && (
-            <NavLink className="btn btn-light" as={Link} to="/adminDashboard">
-              {t("Dashboad")}
-            </NavLink>
           )}
 
           {/* ✅ إذا كان المستخدم لم يسجل دخول، نعرض زر Login */}
@@ -142,13 +117,16 @@ export default function Header() {
               onClick={() => navigate("/profile")}
               className="cursor-pointer"
             />
-          ) : (
-            <FontAwesomeIcon
-              icon={faUser}
+          ) : currentUser ? (
+            <button
+              type="button"
+              className="border-0 bg-transparent p-0 text-white"
+              aria-label={t("profile", "Profile")}
               onClick={() => navigate("/profile")}
-              className="text-white fs-5 cursor-pointer"
-            />
-          )}
+            >
+              <FontAwesomeIcon icon={faUser} className="fs-5" />
+            </button>
+          ) : null}
 
           {/* ShoppingCart */}
 
@@ -177,34 +155,28 @@ export default function Header() {
             )}
           </div> */}
 
-          <FontAwesomeIcon
-            onClick={() => navigate("/favoritesPage")}
-            icon={faHeart}
-            className="text-white fs-5 cursor-pointer"
-          />
-
-          <div className="d-flex align-items-center gap-1">
-            <FontAwesomeIcon
-              onClick={toggleLanguage}
-              icon={faGlobe}
-              className="text-white fs-5 cursor-pointer"
-            />
-            <span
-              onClick={toggleLanguage}
-              className=" fw-bold cursor-pointer text-white"
-            >
-              {i18n.language === "ar" ? "AR" : "EN"}
-            </span>
-          </div>
+          <button
+            type="button"
+            onClick={toggleLanguage}
+            className="d-flex align-items-center gap-1 border-0 bg-transparent p-0 fw-bold text-white"
+            aria-label={lang === "ar" ? "Switch to English" : "التبديل إلى العربية"}
+          >
+            <FontAwesomeIcon icon={faGlobe} className="fs-5" />
+            <span>{i18n.language === "ar" ? "AR" : "EN"}</span>
+          </button>
 
           {currentUser && (
-            <FontAwesomeIcon
+            <button
+              type="button"
               onClick={handleLogout}
-              icon={faRightFromBracket}
-              className="text-white fs-5 cursor-pointer"
-            />
+              className="border-0 bg-transparent p-0 text-white"
+              aria-label={t("logout")}
+            >
+              <FontAwesomeIcon icon={faRightFromBracket} className="fs-5" />
+            </button>
           )}
-        </div>
+          </div>
+        </Navbar.Collapse>
       </Container>
     </Navbar>
   );

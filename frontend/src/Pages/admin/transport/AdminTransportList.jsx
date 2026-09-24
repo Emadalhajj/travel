@@ -107,7 +107,7 @@ export default function AdminTransportList() {
   };
 
   return (
-    <div className="container py-3">
+    <div className="container-fluid py-3">
       <PageHeader
         titleAr="إدارة وسائل النقل"
         titleEn="Transport Management"
@@ -129,7 +129,7 @@ export default function AdminTransportList() {
               className="bg-green-100 text-green-700 hover:bg-green-200"
             />
             <ActionButton
-            action= "add"
+            action= "manage"
             onClick={() => navigate("/admin/vehicle-rentals")}
             label={lang === "ar" ? "إدارة تأجير النقل" : "Manage Vehicle Rentals"}
             size="md"

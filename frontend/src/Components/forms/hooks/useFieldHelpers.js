@@ -58,7 +58,7 @@ export default function useFieldHelpers(
 
   const validateField = useCallback((field, value) => {
     const path = getFieldStatePath(field);
-    const message = validateFormField(field, value, isArabic);
+    const message = validateFormField(field, value, isArabic, formStateRef.current);
     setFieldErrors((previous) => ({ ...previous, [path]: message }));
     return message;
   }, [getFieldStatePath, isArabic, setFieldErrors]);

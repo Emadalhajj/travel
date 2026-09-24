@@ -180,7 +180,7 @@ export const buildPaymentReport = ({ bookings = [], payments = [] }) => {
   const pendingTransactions = statuses.filter((status) => PENDING_TRANSACTION_STATUSES.has(status)).length;
   const bankTransfers = payments.filter((payment) => payment.methodCode === PAYMENT_METHOD_CODES.BANK_TRANSFER);
   return {
-    totalBookingValue: money(bookings.reduce((sum, booking) => sum + asNumber(booking.pricing?.totalPrice), 0)),
+    totalBookingValue: money(bookings.reduce((sum, booking) => sum + asNumber(booking.pricing?.total ?? booking.pricing?.totalPrice), 0)),
     paidAmount: money(bookings.reduce((sum, booking) => sum + asNumber(booking.paidAmount), 0)),
     remainingAmount: money(bookings.reduce((sum, booking) => sum + asNumber(booking.remainingAmount), 0)),
     transactions: {
@@ -225,7 +225,7 @@ export const buildProgramReport = ({ bookings = [] }) => {
     };
     current.bookingsCount += 1;
     current.travelersCount += asNumber(booking.totalPilgrims ?? booking.pilgrims?.length);
-    current.grossBookingValue += asNumber(booking.pricing?.totalPrice);
+    current.grossBookingValue += asNumber(booking.pricing?.total ?? booking.pricing?.totalPrice);
     current.paidAmount += asNumber(booking.paidAmount);
     groups.set(key, current);
   }
@@ -264,7 +264,7 @@ export const buildBookingReportAggregation = (filter, { includeAttention = false
           travelersTotal: {
             $sum: { $ifNull: ["$totalPilgrims", { $size: { $ifNull: ["$pilgrims", []] } }] },
           },
-          totalBookingValue: { $sum: { $ifNull: ["$pricing.totalPrice", 0] } },
+          totalBookingValue: { $sum: { $ifNull: ["$pricing.total", { $ifNull: ["$pricing.totalPrice", 0] }] } },
           paidAmount: { $sum: { $ifNull: ["$paidAmount", 0] } },
           remainingAmount: { $sum: { $ifNull: ["$remainingAmount", 0] } },
         },
@@ -282,7 +282,7 @@ export const buildBookingReportAggregation = (filter, { includeAttention = false
             travelersCount: {
               $sum: { $ifNull: ["$totalPilgrims", { $size: { $ifNull: ["$pilgrims", []] } }] },
             },
-            grossBookingValue: { $sum: { $ifNull: ["$pricing.totalPrice", 0] } },
+            grossBookingValue: { $sum: { $ifNull: ["$pricing.total", { $ifNull: ["$pricing.totalPrice", 0] }] } },
             paidAmount: { $sum: { $ifNull: ["$paidAmount", 0] } },
           },
         },

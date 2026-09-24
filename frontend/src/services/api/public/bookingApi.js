@@ -43,6 +43,16 @@ export const apiCancelDraftBooking = async (draftId) => {
   return response.data;
 };
 
+export const apiApplyDraftCoupon = async ({ draftId, couponCode }) => {
+  const response = await api.post(`${DRAFT_BOOKING_BASE_URL}/${draftId}/coupon`, { couponCode });
+  return response.data;
+};
+
+export const apiRemoveDraftCoupon = async (draftId) => {
+  const response = await api.delete(`${DRAFT_BOOKING_BASE_URL}/${draftId}/coupon`);
+  return response.data;
+};
+
 export const apiUploadDraftDocument = async ({ draftId, file }) => {
   const body = new FormData();
   body.append("document", file);
@@ -76,5 +86,16 @@ export const apiGetMyBookings = async (params = {}) => {
 // مسوداتي
 export const apiGetMyDraftBookings = async (params = {}) => {
   const response = await api.get("/draft-bookings/my", { params });
+  return response.data;
+};
+
+export const apiSubmitBookingFulfillmentAction = async ({ bookingId, note, files = [] }) => {
+  const body = new FormData();
+  body.append("note", note || "");
+  files.forEach((file) => body.append("documents", file));
+  const response = await api.post(
+    `/bookings/${encodeURIComponent(bookingId)}/fulfillment/action-response`,
+    body,
+  );
   return response.data;
 };

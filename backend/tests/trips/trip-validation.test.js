@@ -24,3 +24,21 @@ test("land trips accept a valid transport reference", () => {
   }, { abortEarly: false });
   assert.equal(error, undefined);
 });
+
+test("trip names enforce their configured language and allow uppercase acronyms in Arabic", () => {
+  const valid = createTripSchema.validate({
+    ...baseTrip,
+    nameAr: "رحلة VIP مكة",
+    transportId: "64b000000000000000000001",
+  }, { abortEarly: false });
+  assert.equal(valid.error, undefined);
+
+  const invalid = createTripSchema.validate({
+    ...baseTrip,
+    nameAr: "Makkah Trip",
+    nameEn: "رحلة مكة",
+    transportId: "64b000000000000000000001",
+  }, { abortEarly: false });
+  assert.equal(invalid.error?.details.some(({ path }) => path.join(".") === "nameAr"), true);
+  assert.equal(invalid.error?.details.some(({ path }) => path.join(".") === "nameEn"), true);
+});

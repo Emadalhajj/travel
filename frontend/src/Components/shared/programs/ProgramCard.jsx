@@ -1,4 +1,5 @@
 import { formatImagePath } from "../../../Utils/imageUtils";
+import TruncatedText from "../../common/TruncatedText";
 
 export default function ProgramCard({
   program,
@@ -10,18 +11,18 @@ export default function ProgramCard({
   const description = getProgramDescription(program, isArabic);
   const image = getProgramImage(program);
 
-const imageSrc = formatImagePath(image);
+  const imageSrc = formatImagePath(image);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md">
       <div className="h-52 overflow-hidden bg-slate-100">
-       <img
-  src={imageSrc}
-  alt={name}
-  loading="lazy"
-  decoding="async"
-  className="h-full w-full object-cover transition hover:scale-105"
-/>
+        <img
+          src={imageSrc}
+          alt={name}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover transition hover:scale-105"
+        />
       </div>
 
       <div className="p-5">
@@ -37,9 +38,9 @@ const imageSrc = formatImagePath(image);
           )}
         </div>
 
-        <p className="min-h-[44px] line-clamp-2 text-sm leading-6 text-slate-500">
-          {description}
-        </p>
+        <div className="min-h-[44px] text-sm leading-6 text-slate-500">
+          <TruncatedText text={description} maxLines={2} />
+        </div>
 
         <div className="mt-5 space-y-2 text-sm">
           <InfoRow
@@ -77,17 +78,23 @@ function InfoRow({ label, value, strongClassName = "text-slate-900" }) {
   return (
     <div className="flex items-center justify-between gap-4">
       <span className="text-slate-500">{label}</span>
-      <strong className={`text-end ${strongClassName}`}>
-        {value}
-      </strong>
+      <strong className={`text-end ${strongClassName}`}>{value}</strong>
     </div>
   );
 }
 
 function getProgramName(program, isArabic) {
   return isArabic
-    ? program.nameAr || program.name?.ar || program.nameEn || program.name?.en || "-"
-    : program.nameEn || program.name?.en || program.nameAr || program.name?.ar || "-";
+    ? program.nameAr ||
+        program.name?.ar ||
+        program.nameEn ||
+        program.name?.en ||
+        "-"
+    : program.nameEn ||
+        program.name?.en ||
+        program.nameAr ||
+        program.name?.ar ||
+        "-";
 }
 
 function getProgramDescription(program, isArabic) {
@@ -107,7 +114,11 @@ function getProgramDescription(program, isArabic) {
 function getProgramImage(program) {
   if (program.thumbnailUrl) return program.thumbnailUrl;
   if (Array.isArray(program.images) && program.images.length > 0) {
-    return program.images[0]?.thumbnailUrl || program.images[0]?.url || program.images[0];
+    return (
+      program.images[0]?.thumbnailUrl ||
+      program.images[0]?.url ||
+      program.images[0]
+    );
   }
 
   return "/images/default-program.jpg";

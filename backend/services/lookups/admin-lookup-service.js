@@ -5,6 +5,7 @@ import Transport from "../../models/transportition/transport-model.js";
 import VehicleRental from "../../models/transportition/vehicle-rental-model.js";
 import ExtraService from "../../models/extra-services/extra-service-model.js";
 import Visa from "../../models/visa-model.js";
+import UmrahProgram from "../../models/umrah-programs/umrah-program-model.js";
 import PaymentMethod from "../../models/payments/payment-method-model.js";
 import PaymentProvider from "../../models/payments/payment-provider-model.js";
 import BankAccount from "../../models/payments/bank-account-model.js";
@@ -13,12 +14,13 @@ const MAX_LIMIT = 100;
 
 const definitions = Object.freeze({
   hotels: { model: Hotel, fields: "nameAr nameEn" },
-  "room-types": { model: RoomType, fields: "nameAr nameEn" },
+  "room-types": { model: RoomType, fields: "nameAr nameEn pricingPolicy.couponEligible" },
   trips: { model: Trip, fields: "nameAr nameEn" },
-  transports: { model: Transport, fields: "nameAr nameEn" },
-  "vehicle-rentals": { model: VehicleRental, fields: "nameAr nameEn" },
-  "extra-services": { model: ExtraService, fields: "nameAr nameEn" },
-  visas: { model: Visa, fields: "name.ar name.en" },
+  transports: { model: Transport, fields: "nameAr nameEn pricingPolicy.couponEligible" },
+  "vehicle-rentals": { model: VehicleRental, fields: "nameAr nameEn pricingPolicy.couponEligible" },
+  "extra-services": { model: ExtraService, fields: "nameAr nameEn pricingPolicy.couponEligible" },
+  visas: { model: Visa, fields: "name.ar name.en pricingPolicy.couponEligible" },
+  "umrah-programs": { model: UmrahProgram, fields: "nameAr nameEn pricingPolicy.couponEligible" },
   "payment-methods": {
     model: PaymentMethod,
     fields: "code nameAr nameEn configurationType requiresBankAccount requiresPaymentProvider isActive",
@@ -47,7 +49,7 @@ export async function getAdminLookupService({ type, search, limit = 100 }) {
   }
 
   const boundedLimit = Math.min(Math.max(Number(limit) || 100, 1), MAX_LIMIT);
-  const query = { isActive: { $ne: false } };
+  const query = { isActive: { $ne: false }, isDeleted: { $ne: true } };
   if (search) {
     const pattern = new RegExp(escapeRegex(search), "i");
     query.$or = type === "visas"
@@ -66,9 +68,12 @@ export async function getAdminLookupService({ type, search, limit = 100 }) {
     _id: row._id,
     nameAr: row.nameAr ?? row.name?.ar ?? "",
     nameEn: row.nameEn ?? row.name?.en ?? "",
+    couponEligible: row.pricingPolicy?.couponEligible === true,
   })));
 }
 
 export async function getHotelLookupByIdService(hotelId) {
-  return Hotel.findById(hotelId).select("nameAr nameEn").lean();
+  return Hotel.findOne({ _id: hotelId, isDeleted: { $ne: true } })
+    .select("nameAr nameEn")
+    .lean();
 }

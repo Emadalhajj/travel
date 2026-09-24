@@ -26,6 +26,7 @@ import { createHandleSave } from "../../../Utils/formData/createHandleSave";
 import { normalizeForForm } from "../../../Utils/formData/normalize";
 import { handleApiError } from "../../../Utils/handleApiError";
 import { formatPrice } from "../../../Utils/roundPrice";
+import { VISA_SORT_OPTIONS } from "../../../constants/filters/productSortOptions";
 import { visaFormConfig } from "../../../Components/common/ModalForms/visa/visaFormConfig";
 import PageHeader from "../../../Components/layout/PageHeader";
 import ActionButton from "../../../Components/common/buttons/ActionButton";
@@ -57,6 +58,7 @@ export default function AdminVisaList() {
     search: "",
     visaType: "",
     isActive: "",
+    sort: "createdAt_desc",
   });
 
   const formConfig = useMemo(() => visaFormConfig(visaTypes), [visaTypes]);
@@ -198,17 +200,11 @@ export default function AdminVisaList() {
       header: lang === "ar" ? "الحالة" : "Status",
       align: "center",
       render: (row) => (
-        <div className="d-flex align-items-center justify-content-center gap-2">
-          <StatusBadge
-            value={row.isActive ? "active" : "inactive"}
-            type="user"
-            isArabic={lang === "ar"}
-          />
-          <ActionButton
-            action={row.isActive ? "deactivate" : "activate"}
-            onClick={() => handleToggleStatus(row)}
-          />
-        </div>
+        <StatusBadge
+          value={row.isActive ? "active" : "inactive"}
+          type="user"
+          isArabic={lang === "ar"}
+        />
       ),
     },
     {
@@ -231,13 +227,17 @@ export default function AdminVisaList() {
               openDelete(row, lang === "ar" ? row.name?.ar : row.name?.en)
             }
           />
+          <ActionButton
+            action={row.isActive ? "deactivate" : "activate"}
+            onClick={() => handleToggleStatus(row)}
+          />
         </div>
       ),
     },
   ];
 
   return (
-    <div className="container py-3">
+    <div className="container-fluid py-3">
       <PageHeader
         titleAr="إدارة خدمات التأشيرات"
         titleEn="Visa Services Management"
@@ -254,7 +254,8 @@ export default function AdminVisaList() {
           <Link to="/admin/visa-types">
             <ActionButton
               size="md"
-              action="edit"
+              action="manage"
+              showLabel
               label={lang === "ar" ? "إدارة أنواع التأشيرات" : "Manage Visa Types"}
             />
           </Link>
@@ -269,12 +270,12 @@ export default function AdminVisaList() {
         config={{
           search: {
             type: "text",
-            col: 4,
+            col: 3,
             placeholder: lang === "ar" ? "بحث بالاسم" : "Search by name",
           },
           visaType: {
             type: "select",
-            col: 4,
+            col: 3,
             options: visaTypes.map((type) => ({
               value: type._id,
               labelAr: type.nameAr,
@@ -283,11 +284,17 @@ export default function AdminVisaList() {
           },
           isActive: {
             type: "select",
-            col: 4,
+            col: 2,
             options: [
               { value: "true", labelAr: "نشط", labelEn: "Active" },
               { value: "false", labelAr: "غير نشط", labelEn: "Inactive" },
             ],
+          },
+          sort: {
+            type: "select",
+            col: 3,
+            showAllOption: false,
+            options: VISA_SORT_OPTIONS,
           },
         }}
       />

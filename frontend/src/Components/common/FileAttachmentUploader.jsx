@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { FaUpload, FaFilePdf, FaFileWord } from "react-icons/fa";
 import ActionButton from "./buttons/ActionButton";
 import { formatImagePath } from "../../Utils/imageUtils";
+import { isPrivateFileUrl, openPrivateFile } from "../../Utils/privateFile";
 
 const FileAttachmentUploader = ({
   labelAr = "الملفات المرفقة",
@@ -108,8 +109,13 @@ const FileAttachmentUploader = ({
     onDeleteExisting?.(file);
   };
 
-  const previewFile = (file) => {
+  const previewFile = async (file) => {
     const isLocalFile = file instanceof File;
+    const storedUrl = typeof file === "string" ? file : file?.url;
+    if (!isLocalFile && isPrivateFileUrl(storedUrl)) {
+      await openPrivateFile(storedUrl);
+      return;
+    }
     const previewUrl = isLocalFile ? URL.createObjectURL(file) : formatImagePath(file);
     if (!previewUrl) return;
 

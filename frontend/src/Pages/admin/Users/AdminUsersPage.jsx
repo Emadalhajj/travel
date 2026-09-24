@@ -180,7 +180,7 @@ export default function AdminUsersPage() {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <div className="container py-5">
+    <div className="container-fluid py-5">
       <PageHeader
         titleAr="إدارة المستخدمين"
         titleEn="Users Management"

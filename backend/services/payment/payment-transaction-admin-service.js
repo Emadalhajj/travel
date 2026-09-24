@@ -85,6 +85,12 @@ const hasExternalProvider = (transaction) =>
       String(transaction?.providerCode || "").trim(),
   );
 
+export const resolveAdminPaymentReference = (transaction = {}) =>
+  transaction.paymentReference ||
+  transaction.providerReference ||
+  transaction.transferReference ||
+  "";
+
 const executeExternalProviderOperation = async ({
   transaction,
   operation,
@@ -157,6 +163,8 @@ const buildAdminTransactionItem = (
     normalizeCode(transaction.status),
   paymentReference:
     transaction.paymentReference || "",
+  displayReference:
+    resolveAdminPaymentReference(transaction),
   providerReference:
     transaction.providerReference || "",
   checkoutId:

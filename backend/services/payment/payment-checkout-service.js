@@ -23,6 +23,8 @@ import DraftBooking from "../../models/draft-bookings/draft-booking-model.js";
 import PaymentProvider from "../../models/payments/payment-provider-model.js";
 
 import { buildBookingPricingFromDraft } from "../draft-bookings/draft-booking-service.js";
+import { buildAuthoritativeDraftQuote, pricingQuoteChanged } from "../pricing/draft-pricing-service.js";
+import { resolveCouponForDraft } from "../pricing/coupon-service.js";
 import { ensureDraftInventoryHoldService } from "../draft-bookings/draft-inventory-hold-service.js";
 import {
   releaseInventoryHoldService,
@@ -51,6 +53,7 @@ import {
   PAYMENT_TRANSACTION_EVENT_SOURCES,
 } from "../../constants/payments/payment-transaction-events.js";
 import { sendPaymentFailedNotification } from "../notifications/payment-notification-service.js";
+import { assertDraftAccommodationAvailable } from "../availability/accommodation-availability-service.js";
 
 const PAYMENT_PROVIDER_CREDENTIAL_SELECT = [
   "+credentials.entityId",
@@ -110,7 +113,7 @@ const releaseCheckoutHoldBestEffort = async ({ hold, reason, req }) => {
   try {
     await releaseInventoryHoldService({ holdId: hold._id, reason, req });
   } catch (releaseError) {
-    console.error("Inventory hold release failed:", releaseError);
+    console.error("Inventory hold release failed:", releaseError?.message || String(releaseError));
   }
 };
 
@@ -216,9 +219,41 @@ export const createPaymentCheckoutSessionService = async ({
     );
   }
 
+
+  await assertDraftAccommodationAvailable(draft);
+
+  const previousPricing = typeof draft.pricing?.toObject === "function"
+    ? draft.pricing.toObject()
+    : { ...(draft.pricing || {}) };
+  let coupon = null;
+  let couponInvalidated = false;
+  if (previousPricing.coupon?.code) {
+    try {
+      coupon = await resolveCouponForDraft({
+        code: previousPricing.coupon.code,
+        draft,
+        userId: draft.user,
+      });
+    } catch (_error) {
+      couponInvalidated = true;
+    }
+  }
+  const authoritativeQuote = await buildAuthoritativeDraftQuote({ draft, coupon });
+  if (
+    Number(previousPricing.version) === 2 &&
+    (pricingQuoteChanged(previousPricing, authoritativeQuote) || couponInvalidated)
+  ) {
+    draft.pricing = authoritativeQuote;
+    await draft.save();
+    const error = new AppError("PRICE_CHANGED", 409, "pricing");
+    error.quote = authoritativeQuote;
+    throw error;
+  }
+  draft.pricing = authoritativeQuote;
+  await draft.save();
   const pricing = await buildBookingPricingFromDraft(draft);
   const amount = Number(
-    pricing.totalPrice || pricing.totalAmount || pricing.total || 0,
+    pricing.total ?? pricing.totalPrice ?? pricing.totalAmount ?? 0,
   );
   const currency = pricing.currency || draft.currency || "SAR";
 
@@ -429,7 +464,7 @@ export const createPaymentCheckoutSessionService = async ({
         updatedBy: actorId,
       });
     } catch (transactionError) {
-      console.error("Payment transaction failure update failed:", transactionError);
+      console.error("Payment transaction failure update failed:", transactionError?.message || String(transactionError));
     }
 
     if (failedTransaction) {

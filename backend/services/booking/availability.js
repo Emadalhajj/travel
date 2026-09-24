@@ -66,7 +66,11 @@ export const checkRoomAvailability = async ({
   RoomType,
   req = null,
 }) => {
-  const roomType = await RoomType.findById(roomTypeId);
+  const roomType = await RoomType.findOne({
+    _id: roomTypeId,
+    isActive: true,
+    isDeleted: { $ne: true },
+  });
 
   if (!roomType) {
     throw new AppError(

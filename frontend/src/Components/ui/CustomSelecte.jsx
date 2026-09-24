@@ -9,12 +9,19 @@ export default function CustomSelect({
   className = "",
   disabled = false,
   showAllOption = true,
+  id,
+  ariaLabel,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const lang = i18n.language || "ar";
 
-  const selectedOption = options.find((opt) => opt.value === value);
+  const visibleOptions = showAllOption
+    ? options.filter((option) => option.value !== "")
+    : options;
+  const selectedOption = visibleOptions.find(
+    (option) => option.value !== "" && option.value === value,
+  );
 
   const getOptionLabel = (option) => {
     if (!option) return "";
@@ -36,9 +43,13 @@ export default function CustomSelect({
   return (
     <div className="relative w-full" ref={dropdownRef}>
       <button
+        id={id}
         type="button"
+        aria-label={ariaLabel || placeholder}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between px-4 py-2 
+        className={`w-full flex items-center justify-between px-4 py-2 text-start
           bg-white border border-gray-300 rounded-xl 
           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
           transition-all duration-200 hover:border-gray-400
@@ -61,9 +72,11 @@ export default function CustomSelect({
 
       {/* القائمة المنسدلة */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 max-h-80 overflow-auto animate-in fade-in slide-in-from-top-2">
+        <div role="listbox" className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 max-h-80 overflow-auto animate-in fade-in slide-in-from-top-2">
           {showAllOption && (
             <div
+              role="option"
+              aria-selected={value === ""}
               onClick={() => {
                 onChange("");
                 setIsOpen(false);
@@ -74,9 +87,11 @@ export default function CustomSelect({
             </div>
           )}
 
-          {options.map((option, index) => (
+          {visibleOptions.map((option) => (
             <div
-              key={index}
+              key={String(option.value)}
+              role="option"
+              aria-selected={value === option.value}
               onClick={() => {
                 onChange(option.value);
                 setIsOpen(false);

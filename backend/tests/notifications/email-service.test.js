@@ -37,6 +37,23 @@ test("SMTP adapter sends through a cached transporter", async () => {
   assert.equal(messages.length, 2);
 });
 
+test("SMTP adapter forwards completed service documents as attachments", async () => {
+  let sent;
+  const sendEmail = createEmailService({
+    environment: configuredEnvironment,
+    nodemailerClient: {
+      createTransport: () => ({ sendMail: async (message) => { sent = message; } }),
+    },
+  });
+  await sendEmail({
+    to: "customer@example.com",
+    subject: "Ticket",
+    text: "Attached",
+    attachments: [{ filename: "ticket.pdf", path: "C:/safe/ticket.pdf" }],
+  });
+  assert.equal(sent.attachments[0].filename, "ticket.pdf");
+});
+
 test("email HTML wrapper escapes dynamic values", () => {
   const html = buildEmailHtml({
     title: "<script>alert(1)</script>",

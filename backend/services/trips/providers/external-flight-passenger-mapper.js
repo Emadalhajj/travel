@@ -1,8 +1,22 @@
 import AppError from "../../../utils/AppError.js";
+import { validatePassengerAge } from "../../../utils/passengers/passenger-age.js";
 
 const normalize = (value) => String(value || "").trim();
 const normalizeCategory = (value) => normalize(value).toLowerCase();
 const travelerId = (traveler) => normalize(traveler?._id || traveler?.id);
+
+const resolveProviderTitle = ({ traveler, gender }) => {
+  const title = normalize(traveler.title).toUpperCase();
+  const supportedTitles = {
+    MR: "mr",
+    MRS: "mrs",
+    MS: "ms",
+  };
+  if (supportedTitles[title]) return supportedTitles[title];
+
+  // CHILD/OTHER are local UI values and are not valid Duffel titles.
+  return gender === "f" ? "miss" : "mr";
+};
 
 const requireName = (value, field) => {
   const normalized = normalize(value);
@@ -20,14 +34,6 @@ const requireContact = (value, field) => {
   return normalized;
 };
 
-const requireDocument = (value, field) => {
-  const normalized = normalize(value);
-  if (!normalized) {
-    throw new AppError("EXTERNAL_FLIGHT_PASSENGER_DOCUMENT_REQUIRED", 400, field);
-  }
-  return normalized;
-};
-
 const toDateOnly = (value, field) => {
   if (!value) {
     throw new AppError("EXTERNAL_FLIGHT_PASSENGER_DOB_REQUIRED", 400, field);
@@ -39,37 +45,59 @@ const toDateOnly = (value, field) => {
   return date.toISOString().slice(0, 10);
 };
 
-const toDocumentDateOnly = (value, field) => {
-  if (!value || Number.isNaN(new Date(value).getTime())) {
-    throw new AppError("EXTERNAL_FLIGHT_PASSENGER_DOCUMENT_REQUIRED", 400, field);
-  }
-  return new Date(value).toISOString().slice(0, 10);
-};
+const buildIdentityDocuments = ({
+  traveler,
+  supportedTypes,
+  index,
+  travelEndsAt,
+}) => {
+  if (
+    !supportedTypes.includes("passport") ||
+    String(traveler.documentType || "PASSPORT").toUpperCase() !== "PASSPORT"
+  ) return [];
 
-const buildIdentityDocuments = ({ traveler, requiredTypes, index }) => {
-  if (!requiredTypes.includes("passport")) return [];
+  const documentNumber = normalize(
+    traveler.documentNumber || traveler.passportNumber,
+  );
+  const issuingCountryCode = normalize(
+    traveler.documentIssuingCountry || traveler.passportIssuingCountryCode,
+  ).toUpperCase();
+  const expiryDate = new Date(traveler.passportExpiryDate || 0);
+
+  // Supported identity documents are optional. Send one only when complete.
+  if (
+    !documentNumber ||
+    !issuingCountryCode ||
+    Number.isNaN(expiryDate.getTime())
+  ) return [];
+
+  const expiresOn = expiryDate.toISOString().slice(0, 10);
+  if (
+    travelEndsAt &&
+    new Date(expiresOn) < new Date(travelEndsAt)
+  ) {
+    throw new AppError(
+      "EXTERNAL_FLIGHT_PASSPORT_EXPIRES_BEFORE_TRAVEL",
+      400,
+      `travelers.${index}.passportExpiryDate`,
+    );
+  }
 
   return [{
     type: "passport",
-    uniqueIdentifier: requireDocument(
-      traveler.passportNumber,
-      `travelers.${index}.passportNumber`,
-    ),
-    issuingCountryCode: requireDocument(
-      traveler.passportIssuingCountryCode,
-      `travelers.${index}.passportIssuingCountryCode`,
-    ).toUpperCase(),
-    expiresOn: toDocumentDateOnly(
-      traveler.passportExpiryDate,
-      `travelers.${index}.passportExpiryDate`,
-    ),
+    uniqueIdentifier: documentNumber,
+    issuingCountryCode,
+    expiresOn,
   }];
 };
 
 export const buildExternalFlightPassengers = ({
   travelers = [],
   providerPassengers = [],
-  requiredIdentityDocumentTypes = [],
+  supportedIdentityDocumentTypes = [],
+  requiredIdentityDocumentTypes,
+  travelStartsAt = null,
+  travelEndsAt = null,
 }) => {
   if (travelers.length !== providerPassengers.length) {
     throw new AppError("EXTERNAL_FLIGHT_PASSENGER_COUNT_MISMATCH", 400, "travelers");
@@ -83,10 +111,32 @@ export const buildExternalFlightPassengers = ({
     availableByCategory.set(category, queue);
   });
 
-  const requiredTypes = requiredIdentityDocumentTypes
+  const supportedTypes = (
+    supportedIdentityDocumentTypes.length
+      ? supportedIdentityDocumentTypes
+      : requiredIdentityDocumentTypes || []
+  )
     .map(normalizeCategory);
   const mapped = travelers.map((traveler, index) => {
     const category = normalizeCategory(traveler.passengerCategory || "adult");
+    if (travelStartsAt) {
+      const ageValidation = validatePassengerAge({
+        passengerType: category,
+        birthDate: traveler.birthDate,
+        travelDate: travelStartsAt,
+      });
+      if (ageValidation.reason === "PASSENGER_TYPE_MISMATCH") {
+        throw new AppError(
+          "EXTERNAL_FLIGHT_PASSENGER_TYPE_MISMATCH",
+          400,
+          `travelers.${index}.birthDate`,
+          {
+            expectedType: ageValidation.expectedType || category,
+            calculatedType: ageValidation.calculatedType || "",
+          },
+        );
+      }
+    }
     const providerPassenger = availableByCategory.get(category)?.shift();
     if (!providerPassenger?.providerPassengerId) {
       throw new AppError("EXTERNAL_FLIGHT_PASSENGER_CATEGORY_MISMATCH", 400,
@@ -105,15 +155,16 @@ export const buildExternalFlightPassengers = ({
       providerPassengerId: providerPassenger.providerPassengerId,
       category,
       givenName: requireName(
-        traveler.givenName,
+        traveler.firstName || traveler.givenName,
         `travelers.${index}.givenName`,
       ),
       familyName: requireName(
-        traveler.familyName,
+        traveler.lastName || traveler.familyName,
         `travelers.${index}.familyName`,
       ),
       bornOn: toDateOnly(traveler.birthDate, `travelers.${index}.birthDate`),
       gender,
+      title: resolveProviderTitle({ traveler, gender }),
       email: requireContact(
         traveler.email,
         `travelers.${index}.email`,
@@ -122,7 +173,12 @@ export const buildExternalFlightPassengers = ({
         traveler.phoneNumber,
         `travelers.${index}.phoneNumber`,
       ),
-      identityDocuments: buildIdentityDocuments({ traveler, requiredTypes, index }),
+      identityDocuments: buildIdentityDocuments({
+        traveler,
+        supportedTypes,
+        index,
+        travelEndsAt,
+      }),
       responsibleAdultTravelerId: normalize(traveler.responsibleAdultTravelerId),
       infantPassengerId: "",
     };

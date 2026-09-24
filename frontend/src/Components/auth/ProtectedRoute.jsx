@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 
 import { resolveRouteAccess, ROUTE_ACCESS } from "./routeAccess";
@@ -10,12 +10,13 @@ import { resolveRouteAccess, ROUTE_ACCESS } from "./routeAccess";
  * }} props
  */
 export default function ProtectedRoute({ allowedRoles = [], children }) {
+  const location = useLocation();
   const currentUser = useSelector((state) => state.auth.currentUser);
   const user = currentUser?.user || currentUser;
   const access = resolveRouteAccess({ user, allowedRoles });
 
   if (access === ROUTE_ACCESS.AUTH_REQUIRED) {
-    return <Navigate to="/authpage" replace />;
+    return <Navigate to="/authpage" replace state={{ from: location.pathname + location.search }} />;
   }
   if (access === ROUTE_ACCESS.FORBIDDEN) {
     return <Navigate to="/" replace />;

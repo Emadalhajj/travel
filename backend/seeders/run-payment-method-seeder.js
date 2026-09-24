@@ -4,35 +4,24 @@ import dotenv from "dotenv";
 import {
   seedPaymentMethods,
 } from "./payment-method-seeder.js";
+import { assertExecuteApproved, getDatabaseConfig } from "../scripts/operations/database-safety.js";
 
 dotenv.config();
 
 const run = async () => {
   try {
-    const databaseUrl =
-      process.env.DB_URL ||
-      process.env.MONGO_URI ||
-      process.env.MONGODB_URI;
-
-    if (!databaseUrl) {
-      throw new Error(
-        "MongoDB connection URI is missing",
-      );
-    }
+    const execute = process.argv.includes("--execute");
+    assertExecuteApproved({ execute, operation: "payment method seed" });
+    const { uri: databaseUrl, dbName } = getDatabaseConfig();
 
     await mongoose.connect(databaseUrl, {
-      dbName:
-        process.env.DB_NAME ||
-        "umrahDB",
+      dbName,
     });
 
     console.log("MongoDB connected");
 
-    await seedPaymentMethods();
-
-    console.log(
-      "Payment method seeding completed",
-    );
+    const summary = await seedPaymentMethods({ execute });
+    console.log(JSON.stringify(summary, null, 2));
 
     await mongoose.disconnect();
 

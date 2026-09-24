@@ -4,6 +4,7 @@ import AppError from "../../utils/AppError.js";
 import { buildPagination } from "../../utils/Builders/buildPagination.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 import { deleteImagesFromDisk } from "../../utils/imageManager.js";
+import { buildProductSort } from "../../utils/buildProductSort.js";
 
 const getUploadedImages = (req) =>
   (req.files?.images || []).map(
@@ -47,9 +48,13 @@ export const getAllExtraServices = asyncHandler(async (req, res) => {
     ];
   }
   const { page, skip, limit } = buildPagination(req.query);
+  const sort = buildProductSort({
+    value: req.query.sort,
+    priceField: "pricing.basePrice",
+  });
   const [items, total] = await Promise.all([
     ExtraService.find(filter)
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip(skip)
       .limit(limit)
       .populate("createdBy", "firstName lastName username email")

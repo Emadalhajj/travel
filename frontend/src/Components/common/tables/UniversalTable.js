@@ -1,163 +1,152 @@
-import React from "react";
-import { Table } from "react-bootstrap";
-import { motion } from "framer-motion";
-
 export default function UniversalTable({
   columns = [],
   data = [],
   emptyMessage = "No data",
   lang = "ar",
+
+  getRowKey = (row, index) => row?._id || row?.id || index,
+
+  className = "",
 }) {
-  const visibleColumns = columns.filter((col) => !col.hidden);
+  const visibleColumns = columns.filter((column) => !column.hidden);
 
   const getValue = (row, accessor) => {
-    if (!accessor) return null;
+    if (!accessor) {
+      return null;
+    }
+// تعمل على استرجاع القيمة حسب اللغة 
+    const resolvedAccessor = Array.isArray(accessor)
+      ? lang === "ar"
+        ? accessor[0]
+        : accessor[1]
+      : accessor;
 
-    if (Array.isArray(accessor)) {
-      const key = lang === "ar" ? accessor[0] : accessor[1];
-      return key.split(".").reduce((obj, k) => obj?.[k], row) ?? "";
+    if (typeof resolvedAccessor !== "string") {
+      return null;
     }
 
-    if (typeof accessor === "string") {
-      return accessor.split(".").reduce((obj, k) => obj?.[k], row) ?? "";
-    }
-
-    return null;
+    return resolvedAccessor
+      .split(".")
+      .reduce((value, key) => value?.[key], row);
   };
 
   return (
-    <Table hover responsive className="mb-0 align-middle">
-      <thead
-        className="text-white"
-        style={{
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        }}
-      >
-        <tr>
-          {visibleColumns.map((col, idx) => (
-            <th
-              key={idx}
-              className="text-center align-middle"
-              style={{ width: col.width }}
-            >
-              {col.header}
-            </th>
-          ))}
-        </tr>
-      </thead>
+    <div
+      className={[
+        "w-full overflow-x-auto",
 
-      <tbody>
-        {data.length === 0 ? (
+        "rounded-app border border-line",
+
+        "bg-surface",
+
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <table className="w-full min-w-max border-collapse">
+        <thead className="bg-surface-muted">
           <tr>
-            <td
-              colSpan={visibleColumns.length}
-              className="text-center  py-5 text-muted"
-            >
-              {emptyMessage}
-            </td>
+            {visibleColumns.map((column, index) => (
+              <th
+                key={column.key || column.accessor || index}
+                scope="col"
+                style={{
+                  width: column.width,
+                }}
+                className={[
+                  "border-b border-line",
+
+                  "px-4 py-3",
+
+                  "text-sm font-semibold",
+
+                  "text-content",
+
+                  "whitespace-nowrap",
+
+                  column.align === "start"
+                    ? "text-start"
+                    : column.align === "end"
+                      ? "text-end"
+                      : "text-center",
+                ].join(" ")}
+              >
+                {column.header}
+              </th>
+            ))}
           </tr>
-        ) : (
-          data.map((row, rowIndex) => (
-            <motion.tr
-              key={row._id || rowIndex}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-            >
-              {visibleColumns.map((col, colIndex) => (
-                <td
-                  key={colIndex}
-                  style={{
-                    width: col.width,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    // whiteSpace: col.wrap ? 'normal' : 'nowrap',
-                    textAlign: col.align || "center", // ← ✅ افتراضي: توسيط
-                    verticalAlign: "middle", // ← ✅ توسيط رأسي
-                  }}
-                >
-                  {col.render
-                    ? col.render(row, rowIndex, lang)
-                    : (getValue(row, col.accessor) ?? "—")}
-                </td>
-              ))}
-            </motion.tr>
-          ))
-        )}
-      </tbody>
-    </Table>
+        </thead>
+
+        <tbody className="divide-y divide-line">
+          {!data.length ? (
+            <tr>
+              <td
+                colSpan={Math.max(visibleColumns.length, 1)}
+                className="
+                  px-4 py-10
+
+                  text-center
+
+                  text-sm
+                  text-content-muted
+                "
+              >
+                {emptyMessage}
+              </td>
+            </tr>
+          ) : (
+            data.map((row, rowIndex) => (
+              <tr
+                key={getRowKey(row, rowIndex)}
+                className="
+                  transition-colors
+
+                  hover:bg-surface-muted/60
+                "
+              >
+                {visibleColumns.map((column, columnIndex) => {
+                  const value = column.render
+                    ? column.render(row, rowIndex, lang)
+                    : getValue(row, column.accessor);
+
+                  return (
+                    <td
+                      key={column.key || column.accessor || columnIndex}
+                      style={{
+                        width: column.width,
+                      }}
+                      className={[
+                        "px-4 py-3",
+
+                        "align-middle",
+
+                        "text-sm",
+
+                        "text-content-muted",
+
+                        column.wrap
+                          ? "whitespace-normal break-words"
+                          : "whitespace-nowrap",
+
+                        column.align === "start"
+                          ? "text-start"
+                          : column.align === "end"
+                            ? "text-end"
+                            : "text-center",
+                      ].join(" ")}
+                    >
+                      {value === null || value === undefined || value === ""
+                        ? "—"
+                        : value}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
-
-// export default function UniversalTable({
-//   columns = [],
-//   data = [],
-//   emptyMessage = "No data",
-//     lang = "ar", // ← جديد: اللغة الحالية
-
-// }) {
-//     // دالة مساعدة للحصول على القيمة المعربة
-//   const getLocalizedValue = (row, field) => {
-//     if (!field) return "";
-
-//     // إذا كان accessor مصفوفة [nameAr, nameEn]
-//     if (Array.isArray(field)) {
-//       const key = lang === "ar" ? field[0] : field[1];
-//       return row[key] ?? "";
-//     }
-
-//     // إذا كان accessor نص عادي
-//     return row[field] ?? "";
-//   };
-
-//   return (
-
-//     <Table hover responsive className="mb-0 align-middle">
-//       <thead
-//         className="text-white"
-//         style={{
-//           background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-//         }}
-//       >
-//         <tr>
-//           {columns.map((col, idx) => (
-//             <th
-//               key={idx}
-//               className={col.align === "center" ? "text-center" : ""}
-//             >
-//               {col.header}
-//             </th>
-//           ))}
-//         </tr>
-//       </thead>
-
-//       <tbody>
-//         {data.length === 0 ? (
-//           <tr>
-//             <td colSpan={columns.length} className="text-center py-5 text-muted">
-//               {emptyMessage}
-//             </td>
-//           </tr>
-//         ) : (
-//           data.map((row, rowIndex) => (
-//             <motion.tr
-//               key={row._id || rowIndex}
-//               initial={{ opacity: 0, x: -20 }}
-//               animate={{ opacity: 1, x: 0 }}
-//             >
-//               {columns.map((col, colIndex) => (
-//                 <td
-//                   key={colIndex}
-//                   className={col.align === "center" ? "text-center" : ""}
-//                 >
-//                   {col.render
-//                     ? col.render(row, rowIndex)
-//                     : row[col.accessor]}
-//                 </td>
-//               ))}
-//             </motion.tr>
-//           ))
-//         )}
-//       </tbody>
-//     </Table>
-//   );
-// }

@@ -11,6 +11,7 @@ const LOOKUP_PATHS = Object.freeze({
   paymentMethod: "/lookups/payment-methods",
   paymentProvider: "/lookups/payment-providers",
   bankAccount: "/lookups/bank-accounts",
+  umrahProgram: "/lookups/umrah-programs",
 });
 
 export async function apiGetAdminLookup(type, params) {

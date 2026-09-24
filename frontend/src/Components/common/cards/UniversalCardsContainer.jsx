@@ -1,63 +1,112 @@
-import React from "react";
-import { motion } from "framer-motion";
+import { LayoutGrid } from "lucide-react";
+
 import UniversalCard from "./UniversalCard";
+
+import EmptyState from "../../shared/common/EmptyState";
 
 export default function UniversalCardsContainer({
   items = [],
+
   loading = false,
   error = null,
+
   lang = "ar",
 
-  // نصوص الرسالة عند عدم وجود بيانات
   emptyMessageAr = "لا توجد عناصر مضافة بعد",
   emptyMessageEn = "No items added yet",
 
-  // دوال لاستخراج البيانات من كل عنصر (مرنة جداً)
-  getImage = (item) => item.thumbnailUrl || item.images?.[0]?.thumbnailUrl || item.images?.[0] || null,
-  getTitle = (item) => item.nameAr || item.nameEn || "بدون اسم",
-  getSubtitle = (item) => item.descriptionAr || item.descriptionEn || "",
+  emptyDescriptionAr,
+  emptyDescriptionEn,
 
-  // للـ badges (مثل نوع الفندق)
-  getBadges = (item) => [{ label: "ITEM" }],
+  emptyIcon = LayoutGrid,
 
-  // الدوال المطلوبة لكل بطاقة
+  emptyAction,
+
+  getKey = (item) => item?._id || item?.id,
+
+  getImage = (item) =>
+    item?.thumbnailUrl || 
+    item?.images?.[0]?.thumbnailUrl ||
+    item?.images?.[0] ||
+    null,
+
+  getTitle = (item) => item?.nameAr || item?.nameEn || "",
+
+  getSubtitle = (item) => item?.descriptionAr || item?.descriptionEn || "",
+
+  getBadges = () => [],
+
+  getMeta = () => [],
+
+  getPrice,
+
+  getCurrency,
+
+  getIcon = () => null,
+
+  getIsActive = (item) => item?.isActive ?? true,
+
   onView,
   onEdit,
   onDelete,
   onDuplicate,
   onNavigate,
-}) {
-  // حالة التحميل يتم التعامل معها خارج المكون (بـ LoadingOverlay)
-  if (error) return null;
 
-  // حالة عدم وجود بيانات
-  if (!items || items.length === 0) {
+  showStatus = true,
+
+  clickable = false,
+
+  className = "",
+}) {
+  /*
+   * Loading/Error يتم التعامل معهما في مستوى الصفحة
+   * بواسطة LoadingOverlay / ErrorOverlay.
+   */
+  if (loading || error) {
+    return null;
+  }
+
+  if (!items?.length) {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="text-center py-5"
-      >
-        <div className="bg-light rounded-4 p-5">
-          <h4 className="text-muted">
-            {lang === "ar" ? emptyMessageAr : emptyMessageEn}
-          </h4>
-        </div>
-      </motion.div>
+      <EmptyState
+        icon={emptyIcon}
+        title={lang === "ar" ? emptyMessageAr : emptyMessageEn}
+        description={lang === "ar" ? emptyDescriptionAr : emptyDescriptionEn}
+        action={emptyAction}
+      />
     );
   }
 
-  // عرض البطاقات
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {items.map((item) => (
+    <div
+      className={[
+        "grid grid-cols-1 gap-4",
+
+        "sm:grid-cols-2",
+
+        "lg:grid-cols-3",
+
+        "2xl:grid-cols-4", // تعني أن كل بطاقة ستأخذ 1/4 من عرض الحاوية على الشاشات الكبيرة جدًا
+
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {items.map((item, index) => (
         <UniversalCard
-          key={item._id}
+          key={getKey(item) ?? index}
           title={getTitle(item)}
           subtitle={getSubtitle(item)}
           image={getImage(item) || null}
-          isActive={item.isActive ?? true}
-          badges={getBadges(item)}
+          icon={getIcon(item)}
+          isActive={getIsActive(item)}
+          showStatus={showStatus}
+          clickable={clickable}
+          badges={getBadges(item) || []}
+          meta={getMeta(item) || []}
+          price={getPrice ? getPrice(item) : undefined}
+          currency={getCurrency ? getCurrency(item) : undefined}
           onView={onView ? () => onView(item) : undefined}
           onEdit={onEdit ? () => onEdit(item) : undefined}
           onDelete={onDelete ? () => onDelete(item) : undefined}
@@ -68,3 +117,4 @@ export default function UniversalCardsContainer({
     </div>
   );
 }
+

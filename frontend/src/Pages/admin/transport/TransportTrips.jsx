@@ -6,8 +6,16 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import {
-  createNewTrip, deleteTrip, fetchTrips, setLimit, setPage, updateExistingTrip,
-  selectTripItems, selectTripPagination, selectTripListLoading, selectTripError,
+  createNewTrip,
+  deleteTrip,
+  fetchTrips,
+  setLimit,
+  setPage,
+  updateExistingTrip,
+  selectTripItems,
+  selectTripPagination,
+  selectTripListLoading,
+  selectTripError,
 } from "../../../redux/transports/tripSlice";
 import { buildQuery } from "../../../Utils/buildQuery";
 import { createHandleSave } from "../../../Utils/formData/createHandleSave";
@@ -17,8 +25,12 @@ import { formatPrice } from "../../../Utils/roundPrice";
 import { tripFormConfig } from "../../../Components/common/ModalForms/transport/tripFormConfig";
 import DuffelFlightSearchPanel from "../../../Components/common/ModalForms/transport/DuffelFlightSearchPanel";
 import {
-  formatTripRoute, getTripLabel, getTripSubtypeOptions,
-  TRIP_SCOPE_OPTIONS, TRIP_SOURCE_OPTIONS, TRIP_TYPE_OPTIONS,
+  formatTripRoute,
+  getTripLabel,
+  getTripSubtypeOptions,
+  TRIP_SCOPE_OPTIONS,
+  TRIP_SOURCE_OPTIONS,
+  TRIP_TYPE_OPTIONS,
 } from "../../../constants/trips/trip.constants";
 import PageHeader from "../../../Components/layout/PageHeader";
 import AdminPageActions from "../../../Components/layout/AdminPageActions";
@@ -51,39 +63,154 @@ export default function TransportTrips() {
   const { lookups, loadLookup } = useAdminLookups();
   const transports = lookups.transport || EMPTY;
   const [activeType, setActiveType] = useState("");
-  const [filters, setFilters] = useState({ search: "", scope: "", subtype: "", source: "", origin: "", destination: "", isActive: "" });
+  const INITIAL_FILTERS = {
+    search: "",
+    scope: "",
+    subtype: "",
+    source: "",
+    origin: "",
+    destination: "",
+    isActive: "",
+    sort: "createdAt_desc",
+  };
+
+  const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [loadedTransport, setLoadedTransport] = useState(false);
   const [tripFormState, setTripFormState] = useState({});
 
-  const formConfig = useMemo(() => tripFormConfig(transports), [transports]);
-  const listQuery = useMemo(() => buildQuery(
-    { ...filters, type: activeType || undefined },
-    { page: pagination.page, limit: pagination.limit },
-  ), [activeType, filters, pagination.page, pagination.limit]);
+  const filterConfig = useMemo(
+    () => ({
+      search: {
+        type: "text",
+        col: 2,
+        placeholder: lang === "ar" ? "بحث بالاسم" : "Search",
+      },
+      scope: {
+        type: "select",
+         col: 1,
+        options: TRIP_SCOPE_OPTIONS,
+      },
+      subtype: {
+        type: "select",
+        col: 2,
+        options: activeType ? getTripSubtypeOptions(activeType) : [],
+      },
+      source: {
+        type: "select",
+        col: 1,
+        options: TRIP_SOURCE_OPTIONS,
+      },
+      origin: {
+        type: "text",
+        col: 1,
+        placeholder: lang === "ar" ? "نقطة الانطلاق" : "Origin",
+      },
+      destination: {
+        type: "text",
+        col: 1,
+        placeholder: lang === "ar" ? "الوجهة" : "Destination",
+      },
+      isActive: {
+        type: "select",
+        col: 1,
+        options: [
+          { value: "true", labelAr: "نشط", labelEn: "Active" },
+          { value: "false", labelAr: "غير نشط", labelEn: "Inactive" },
+        ],
+      },
+      sort: {
+        type: "select",
+        col: 1,
+        options: [
+          {
+            value: "createdAt_desc",
+            labelAr: "الأحدث أولاً",
+            labelEn: "Newest First",
+          },
+          {
+            value: "createdAt_asc",
+            labelAr: "الأقدم أولاً",
+            labelEn: "Oldest First",
+          },
+          {
+            value: "pricing.basePrice_asc",
+            labelAr: "السعر من الأقل للأعلى",
+            labelEn: "Price Low to High",
+          },
+          {
+            value: "pricing.basePrice_desc",
+            labelAr: "السعر من الأعلى للأقل",
+            labelEn: "Price High to Low",
+          },
+        ],
+      },
+    }),
+    [activeType, lang],
+  );
 
-  useEffect(() => { dispatch(fetchTrips(listQuery)); }, [dispatch, listQuery]);
+  const formConfig = useMemo(() => tripFormConfig(transports), [transports]);
+  const listQuery = useMemo(
+    () =>
+      buildQuery(
+        { ...filters, type: activeType || undefined },
+        { page: pagination.page, limit: pagination.limit },
+      ),
+    [activeType, filters, pagination.page, pagination.limit],
+  );
+
+  useEffect(() => {
+    dispatch(fetchTrips(listQuery));
+  }, [dispatch, listQuery]);
 
   const prepareForForm = (trip) => ({
     ...normalizeForForm(trip, formConfig),
-    transportId: typeof trip.transportId === "object" ? trip.transportId?._id || "" : trip.transportId || "",
+    transportId:
+      typeof trip.transportId === "object"
+        ? trip.transportId?._id || ""
+        : trip.transportId || "",
   });
   const crud = useAdminEntityCrudState({
     prepareForForm,
-    prepareClone: (trip, normalized) => ({ ...normalized, _id: null, nameAr: `${trip.nameAr} (نسخة)`, nameEn: `${trip.nameEn} (Copy)` }),
+    prepareClone: (trip, normalized) => ({
+      ...normalized,
+      _id: null,
+      nameAr: `${trip.nameAr} (نسخة)`,
+      nameEn: `${trip.nameEn} (Copy)`,
+    }),
   });
 
   const ensureTransportLookup = useCallback(async () => {
-    if (!loadedTransport) { await loadLookup("transport"); setLoadedTransport(true); }
+    if (!loadedTransport) {
+      await loadLookup("transport");
+      setLoadedTransport(true);
+    }
   }, [loadLookup, loadedTransport]);
-  const openCreate = () => { setTripFormState({}); crud.openCreate(); };
-  const openEdit = async (trip) => { if (trip.type === "LAND") await ensureTransportLookup(); crud.openEdit(trip); };
-  const openClone = async (trip) => { if (trip.type === "LAND") await ensureTransportLookup(); crud.openClone(trip); };
+  const openCreate = () => {
+    setTripFormState({});
+    crud.openCreate();
+  };
+  const openEdit = async (trip) => {
+    if (trip.type === "LAND") await ensureTransportLookup();
+    crud.openEdit(trip);
+  };
+  const openClone = async (trip) => {
+    if (trip.type === "LAND") await ensureTransportLookup();
+    crud.openClone(trip);
+  };
 
   const handleSave = createHandleSave({
-    dispatch, createAction: createNewTrip, updateAction: updateExistingTrip,
-    fetchAction: () => fetchTrips(listQuery), getId: (item) => item._id,
-    formConfig, toast, lang, closeModal: crud.closeForm, resetItem: crud.resetForm,
-    setLoading: crud.setLoadingSave, setFormErrors: crud.setFormErrors,
+    dispatch,
+    createAction: createNewTrip,
+    updateAction: updateExistingTrip,
+    fetchAction: () => fetchTrips(listQuery),
+    getId: (item) => item._id,
+    formConfig,
+    toast,
+    lang,
+    closeModal: crud.closeForm,
+    resetItem: crud.resetForm,
+    setLoading: crud.setLoadingSave,
+    setFormErrors: crud.setFormErrors,
   });
 
   const confirmDelete = async () => {
@@ -93,13 +220,18 @@ export default function TransportTrips() {
       dispatch(fetchTrips(listQuery));
     } catch (requestError) {
       toast.error(handleApiError(requestError, (message) => message, lang));
-    } finally { crud.closeDelete(); }
+    } finally {
+      crud.closeDelete();
+    }
   };
 
-  const handleTripFormStateChange = useCallback((state) => {
-    setTripFormState(state);
-    if (state.type === "LAND") ensureTransportLookup();
-  }, [ensureTransportLookup]);
+  const handleTripFormStateChange = useCallback(
+    (state) => {
+      setTripFormState(state);
+      if (state.type === "LAND") ensureTransportLookup();
+    },
+    [ensureTransportLookup],
+  );
 
   const handleExternalFlightImported = useCallback(() => {
     dispatch(fetchTrips(listQuery));
@@ -109,65 +241,207 @@ export default function TransportTrips() {
     tripFormState.type === "AIR" && tripFormState.source === "API";
 
   const columns = [
-    { header: lang === "ar" ? "الصورة" : "Image", render: (row) => <ImagePreviewCell images={row.images} />, exportable: false },
-    { header: lang === "ar" ? "الاسم" : "Name", render: (row) => lang === "ar" ? row.nameAr : row.nameEn },
-    { header: lang === "ar" ? "النوع" : "Type", render: (row) => getTripLabel(row.type, lang) },
-    { header: lang === "ar" ? "النطاق" : "Scope", render: (row) => getTripLabel(row.scope, lang) },
-    { header: lang === "ar" ? "التصنيف" : "Subtype", render: (row) => getTripLabel(row.subtype, lang) },
+    {
+      header: lang === "ar" ? "الصورة" : "Image",
+      render: (row) => <ImagePreviewCell images={row.images} />,
+      exportable: false,
+    },
+    {
+      header: lang === "ar" ? "الاسم" : "Name",
+      render: (row) => (lang === "ar" ? row.nameAr : row.nameEn),
+    },
+    {
+      header: lang === "ar" ? "النوع" : "Type",
+      render: (row) => getTripLabel(row.type, lang),
+    },
+    {
+      header: lang === "ar" ? "النطاق" : "Scope",
+      render: (row) => getTripLabel(row.scope, lang),
+    },
+    {
+      header: lang === "ar" ? "التصنيف" : "Subtype",
+      render: (row) => getTripLabel(row.subtype, lang),
+    },
     { header: lang === "ar" ? "المسار" : "Route", render: formatTripRoute },
-    { header: lang === "ar" ? "المصدر" : "Source", render: (row) => getTripLabel(row.source, lang) },
-    { header: lang === "ar" ? "السعر" : "Base Price", render: (row) => formatPrice(row.pricing?.basePrice, row.pricing?.currency || "SAR") },
-    { header: lang === "ar" ? "المغادرات" : "Departures", align: "center", render: (row) => row.departuresCount ?? 0 },
-    { header: lang === "ar" ? "الحالة" : "Active", render: (row) => <StatusBadge value={row.isActive ? "active" : "inactive"} type="user" isArabic={lang === "ar"} /> },
-    { header: lang === "ar" ? "الإجراءات" : "Actions", exportable: false, render: (row) => (
-      <div className="d-flex gap-1 flex-wrap">
-        <ActionButton action="departures" onClick={() => navigate(`/admin/trips/${row._id}/departures`)} />
-        <ActionButton action="edit" onClick={() => openEdit(row)} />
-        <ActionButton action="clone" onClick={() => openClone(row)} />
-        <ActionButton action="view" onClick={() => crud.openDetails(row)} />
-        <ActionButton action="delete" onClick={() => crud.openDelete(row, lang === "ar" ? row.nameAr : row.nameEn)} />
-      </div>
-    ) },
+    {
+      header: lang === "ar" ? "المصدر" : "Source",
+      render: (row) => getTripLabel(row.source, lang),
+    },
+    {
+      header: lang === "ar" ? "السعر" : "Base Price",
+      render: (row) =>
+        formatPrice(row.pricing?.basePrice, row.pricing?.currency || "SAR"),
+    },
+    {
+      header: lang === "ar" ? "المغادرات" : "Departures",
+      align: "center",
+      render: (row) => row.departuresCount ?? 0,
+    },
+    {
+      header: lang === "ar" ? "الحالة" : "Active",
+      render: (row) => (
+        <StatusBadge
+          value={row.isActive ? "active" : "inactive"}
+          type="user"
+          isArabic={lang === "ar"}
+        />
+      ),
+    },
+    {
+      header: lang === "ar" ? "الإجراءات" : "Actions",
+      exportable: false,
+      render: (row) => (
+        <div className="d-flex gap-1 flex-wrap">
+          <ActionButton
+            action="departures"
+            onClick={() => navigate(`/admin/trips/${row._id}/departures`)}
+          />
+          <ActionButton action="edit" onClick={() => openEdit(row)} />
+          <ActionButton action="clone" onClick={() => openClone(row)} />
+          <ActionButton action="view" onClick={() => crud.openDetails(row)} />
+          <ActionButton
+            action="delete"
+            onClick={() =>
+              crud.openDelete(row, lang === "ar" ? row.nameAr : row.nameEn)
+            }
+          />
+        </div>
+      ),
+    },
   ];
 
   const details = crud.currentItem;
-  return <div className="container py-3">
-    <PageHeader titleAr="إدارة الرحلات" titleEn="Trips Management" subtitleAr="تعريف الرحلات الجوية والبرية والبحرية" subtitleEn="Manage air, land and sea trip definitions" actions={<AdminPageActions>
-      <ActionButton action="add" size="md" label={lang === "ar" ? "إضافة رحلة" : "Add Trip"} onClick={openCreate} />
-      <ExportTableButtons data={trips} columns={columns} fileName="trips" lang={lang} title={lang === "ar" ? "الرحلات" : "Trips"} />
-    </AdminPageActions>} />
+  return (
+    <div className="container-fluid py-3">
+      <PageHeader
+        titleAr="إدارة الرحلات"
+        titleEn="Trips Management"
+        subtitleAr="تعريف الرحلات الجوية والبرية والبحرية"
+        subtitleEn="Manage air, land and sea trip definitions"
+        actions={
+          <AdminPageActions>
+            <ActionButton
+              action="add"
+              size="md"
+              label={lang === "ar" ? "إضافة رحلة" : "Add Trip"}
+              onClick={openCreate}
+            />
+            <ExportTableButtons
+              data={trips}
+              columns={columns}
+              fileName="trips"
+              lang={lang}
+              title={lang === "ar" ? "الرحلات" : "Trips"}
+            />
+          </AdminPageActions>
+        }
+      />
 
-    <ButtonGroup className="mb-3">
-      {[{ value: "", labelAr: "الكل", labelEn: "All" }, ...TRIP_TYPE_OPTIONS].map((option) =>
-        <Button key={option.value || "all"} variant={activeType === option.value ? "primary" : "outline-primary"} onClick={() => { setActiveType(option.value); dispatch(setPage(1)); }}>
-          {lang === "ar" ? option.labelAr : option.labelEn}
-        </Button>)}
-    </ButtonGroup>
+      <ButtonGroup className="mb-3">
+        {[
+          { value: "", labelAr: "الكل", labelEn: "All" },
+          ...TRIP_TYPE_OPTIONS,
+        ].map((option) => (
+          <Button
+            key={option.value || "all"}
+            variant={
+              activeType === option.value ? "primary" : "outline-primary"
+            }
+            onClick={() => {
+              setActiveType(option.value);
+              dispatch(setPage(1));
+            }}
+          >
+            {lang === "ar" ? option.labelAr : option.labelEn}
+          </Button>
+        ))}
+      </ButtonGroup>
 
-    <EntityFilter filters={filters} setFilters={setFilters} config={{
-      search: { type: "text", col: 3, placeholder: lang === "ar" ? "بحث بالاسم" : "Search" },
-      scope: { type: "select", options: TRIP_SCOPE_OPTIONS },
-      subtype: { type: "select", options: activeType ? getTripSubtypeOptions(activeType) : [] },
-      source: { type: "select", options: TRIP_SOURCE_OPTIONS },
-      origin: { type: "text", placeholder: lang === "ar" ? "نقطة الانطلاق" : "Origin" },
-      destination: { type: "text", placeholder: lang === "ar" ? "الوجهة" : "Destination" },
-      isActive: { type: "select", options: [{ value: "true", labelAr: "نشط", labelEn: "Active" }, { value: "false", labelAr: "غير نشط", labelEn: "Inactive" }] },
-    }} />
-    <LoadingOverlay show={loading} /><ErrorOverlay show={Boolean(error)} message={error} />
-    <UniversalTable columns={columns} data={trips} lang={lang} emptyMessage={lang === "ar" ? "لا توجد رحلات" : "No trips"} />
-    <PaginationComponent {...pagination} onPageChange={(page) => dispatch(setPage(page))} onLimitChange={(limit) => dispatch(setLimit(limit))} />
+      <EntityFilter
+        filters={filters}
+        setFilters={setFilters}
+        config={filterConfig}
+  
+      />
+      <LoadingOverlay show={loading} />
+      <ErrorOverlay show={Boolean(error)} message={error} />
+      <UniversalTable
+        columns={columns}
+        data={trips}
+        lang={lang}
+        emptyMessage={lang === "ar" ? "لا توجد رحلات" : "No trips"}
+      />
+      <PaginationComponent
+        {...pagination}
+        onPageChange={(page) => dispatch(setPage(page))}
+        onLimitChange={(limit) => dispatch(setLimit(limit))}
+      />
 
-    <UniversalFormModal show={crud.showModal} onHide={crud.closeForm} onSave={(data) => handleSave(data, { formMode: crud.formMode, currentItem: crud.currentItem })} config={formConfig} initialData={crud.currentItem} errors={crud.formErrors} loading={crud.loadingSave}
-      onFormStateChange={handleTripFormStateChange}
-      afterFormContent={isExternalFlightSearch ? <DuffelFlightSearchPanel onImported={handleExternalFlightImported} /> : null}
-      hideSaveAction={isExternalFlightSearch}
-      titleAr={crud.formMode === "edit" ? "تعديل الرحلة" : "إضافة رحلة"} titleEn={crud.formMode === "edit" ? "Edit Trip" : "Add Trip"} />
-    <EntityDetailsModal show={crud.showDetails} onHide={crud.closeDetails} title={lang === "ar" ? "تفاصيل الرحلة" : "Trip Details"} images={details?.images || []} entity={details} fields={[
-      { label: lang === "ar" ? "الاسم" : "Name", value: lang === "ar" ? details?.nameAr : details?.nameEn },
-      { label: lang === "ar" ? "النوع" : "Type", value: getTripLabel(details?.type, lang) },
-      { label: lang === "ar" ? "المسار" : "Route", value: formatTripRoute(details) },
-      { label: lang === "ar" ? "السعر" : "Price", value: formatPrice(details?.pricing?.basePrice, details?.pricing?.currency || "SAR") },
-    ]} />
-    <ConfirmDialog show={crud.deleteModal.show} onHide={crud.closeDelete} onConfirm={confirmDelete} title={lang === "ar" ? "حذف الرحلة" : "Delete Trip"} message={lang === "ar" ? `هل تريد حذف ${crud.deleteModal.name}؟` : `Delete ${crud.deleteModal.name}?`} variant="delete" />
-  </div>;
+      <UniversalFormModal
+        show={crud.showModal}
+        onHide={crud.closeForm}
+        onSave={(data) =>
+          handleSave(data, {
+            formMode: crud.formMode,
+            currentItem: crud.currentItem,
+          })
+        }
+        config={formConfig}
+        initialData={crud.currentItem}
+        errors={crud.formErrors}
+        loading={crud.loadingSave}
+        onFormStateChange={handleTripFormStateChange}
+        afterFormContent={
+          isExternalFlightSearch ? (
+            <DuffelFlightSearchPanel
+              onImported={handleExternalFlightImported}
+            />
+          ) : null
+        }
+        hideSaveAction={isExternalFlightSearch}
+        titleAr={crud.formMode === "edit" ? "تعديل الرحلة" : "إضافة رحلة"}
+        titleEn={crud.formMode === "edit" ? "Edit Trip" : "Add Trip"}
+      />
+      <EntityDetailsModal
+        show={crud.showDetails}
+        onHide={crud.closeDetails}
+        title={lang === "ar" ? "تفاصيل الرحلة" : "Trip Details"}
+        images={details?.images || []}
+        entity={details}
+        fields={[
+          {
+            label: lang === "ar" ? "الاسم" : "Name",
+            value: lang === "ar" ? details?.nameAr : details?.nameEn,
+          },
+          {
+            label: lang === "ar" ? "النوع" : "Type",
+            value: getTripLabel(details?.type, lang),
+          },
+          {
+            label: lang === "ar" ? "المسار" : "Route",
+            value: formatTripRoute(details),
+          },
+          {
+            label: lang === "ar" ? "السعر" : "Price",
+            value: formatPrice(
+              details?.pricing?.basePrice,
+              details?.pricing?.currency || "SAR",
+            ),
+          },
+        ]}
+      />
+      <ConfirmDialog
+        show={crud.deleteModal.show}
+        onHide={crud.closeDelete}
+        onConfirm={confirmDelete}
+        title={lang === "ar" ? "حذف الرحلة" : "Delete Trip"}
+        message={
+          lang === "ar"
+            ? `هل تريد حذف ${crud.deleteModal.name}؟`
+            : `Delete ${crud.deleteModal.name}?`
+        }
+        variant="delete"
+      />
+    </div>
+  );
 }

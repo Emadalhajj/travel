@@ -30,7 +30,7 @@ export const deleteDocument = (Model, entityName = "العنصر") => {
         message: `تم حذف ${entityName} بنجاح`,
       });
     } catch (error) {
-      console.error(`Error deleting ${entityName}:`, error);
+      console.error(`Error deleting ${entityName}:`, error?.message || String(error));
       
       return res.status(500).json({
         success: false,

@@ -10,6 +10,7 @@ import {
   DEFAULT_CURRENCY,
   SUPPORTED_CURRENCIES,
 } from "../../constants/currencies.js";
+import { productPricingPolicyValidation } from "../../services/validators/pricing/product-pricing-policy-validation.js";
 
 const objectIdSchema = Joi.string().pattern(/^[0-9a-fA-F]{24}$/);
 
@@ -85,6 +86,7 @@ export const createTripDepartureSchema = Joi.object({
   providerSnapshot: providerSnapshotSchema.optional(),
   serviceNumber: Joi.string().trim().allow("").default(""),
   pricing: pricingSchema.optional(),
+  pricingPolicy: productPricingPolicyValidation.optional(),
   capacity: capacitySchema.optional(),
   segments: Joi.array().items(segmentSchema).default([]),
   notesAr: Joi.string().trim().allow("").default(""),

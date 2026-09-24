@@ -260,7 +260,7 @@ export default function AdminRoomTypeList() {
   ];
 
   return (
-    <div className="container py-2">
+    <div className="container-fluid py-2">
       <PageHeader
         titleAr="إدارة أنواع الغرف"
         titleEn="Room Types Management"
@@ -277,7 +277,7 @@ export default function AdminRoomTypeList() {
             <Link to="/admin/hotels">
               <ActionButton
                 size="md"
-                action="edit"
+                action="manage"
                 label={lang === "ar" ? "إدارة الفنادق" : "Manage Hotels"}
               />
             </Link>
@@ -327,6 +327,7 @@ export default function AdminRoomTypeList() {
           sort: {
             type: "select",
             col: 3,
+            showAllOption: false,
             placeholder: lang === "ar" ? "ترتيب حسب السعر" : "Sort by price",
             customOnChange: (value, setFilters, currentFilters) => {
               setFilters({

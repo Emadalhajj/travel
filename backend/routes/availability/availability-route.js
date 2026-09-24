@@ -22,9 +22,16 @@ import {
 
 import {
   getAvailablePackageProducts,
+  searchPublicAccommodationsController,
 } from "../../controllers/availability/availability-controller.js";
 
 const AvailabilityRoute = express.Router();
+
+// Public, projection-limited accommodation catalogue. Mutations remain protected.
+AvailabilityRoute.get(
+  "/public/accommodations/search",
+  searchPublicAccommodationsController,
+);
 
 /*
 =====================================================

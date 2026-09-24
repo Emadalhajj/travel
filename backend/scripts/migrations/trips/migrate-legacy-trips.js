@@ -1,10 +1,12 @@
 import { migrateLegacyTrips } from "./trip-migration-lib.js";
 import { printReport, withMigrationDatabase } from "./migration-runtime.js";
+import { assertExecuteApproved } from "../../operations/database-safety.js";
 
 const execute = process.argv.includes("--execute");
 if (execute && process.argv.includes("--dry-run")) {
   throw new Error("Choose either --dry-run or --execute");
 }
+assertExecuteApproved({ execute, operation: "legacy trip migration" });
 
 await withMigrationDatabase(async (db) => {
   const report = await migrateLegacyTrips(db, { execute });

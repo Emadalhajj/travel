@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { productPricingPolicyValidation } from "./pricing/product-pricing-policy-validation.js";
 
 // ✅ مخطط التحقق عند إنشاء تأشيرة جديدة
 export const createVisaSchema = Joi.object({
@@ -47,6 +48,7 @@ export const createVisaSchema = Joi.object({
 
   isActive: Joi.boolean().default(true),
   isAlwaysAvailable: Joi.boolean().default(true),
+  pricingPolicy: productPricingPolicyValidation.optional(),
 
   // ✅ حقل الصورة (اختياري)
   image: Joi.string().allow("", null).messages({
@@ -73,6 +75,7 @@ export const updateVisaSchema = Joi.object({
   }),
   isActive: Joi.boolean(),
   isAlwaysAvailable: Joi.boolean(),
+  pricingPolicy: productPricingPolicyValidation.optional(),
   "imagesDeleted[]": Joi.alternatives()
     .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),

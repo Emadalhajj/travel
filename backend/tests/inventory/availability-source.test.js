@@ -97,6 +97,7 @@ test("availability batches all products of one resource type into one inventory 
 test("legacy room availability reads the shared Inventory model", async () => {
   const originalFind = InventoryModel.find;
   let inventoryRead = false;
+  let receivedRoomTypeFilter = null;
   InventoryModel.find = () => {
     inventoryRead = true;
     return queryWith([{ total: 4, reserved: 1, blocked: 0, available: 3 }]);
@@ -108,11 +109,21 @@ test("legacy room availability reads the shared Inventory model", async () => {
       checkIn: "2026-09-01",
       checkOut: "2026-09-02",
       requestedRooms: 2,
-      RoomType: { findById: async () => ({ _id: "room-1", totalRooms: 99 }) },
+      RoomType: {
+        findOne: async (filter) => {
+          receivedRoomTypeFilter = filter;
+          return { _id: "room-1", totalRooms: 99 };
+        },
+      },
       Booking: { find: () => { throw new Error("Legacy booking overlap must not run"); } },
     });
 
     assert.equal(inventoryRead, true);
+    assert.deepEqual(receivedRoomTypeFilter, {
+      _id: "room-1",
+      isActive: true,
+      isDeleted: { $ne: true },
+    });
     assert.equal(result.canBook, true);
     assert.equal(result.available, 3);
     assert.equal(result.availabilityReason, "AVAILABLE");

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { FileText, Image as ImageIcon } from "lucide-react";
 import { formatImagePath } from "../../../Utils/imageUtils";
-import api from "../../../services/api/api";
+import { fetchPrivateFileObjectUrl, isPrivateFileUrl, openPrivateFile } from "../../../Utils/privateFile";
 
 export default function AttachmentPreviewCard({ label, value, isArabic = true }) {
   const attachment = getAttachmentValue(value);
@@ -9,7 +9,7 @@ export default function AttachmentPreviewCard({ label, value, isArabic = true })
   const privatePath = legacyMatch
     ? `/api/private-files/legacy/${legacyMatch[1]}/${legacyMatch[2]}`
     : String(attachment);
-  const isPrivate = privatePath.startsWith("/api/private-files/");
+  const isPrivate = isPrivateFileUrl(privatePath);
   const url = attachment ? (isPrivate ? privatePath : formatImagePath(attachment)) : "";
   const isImage = /\.(jpe?g|png|gif|webp)(?:\?.*)?$/i.test(url);
   const [authorizedUrl, setAuthorizedUrl] = useState("");
@@ -18,8 +18,8 @@ export default function AttachmentPreviewCard({ label, value, isArabic = true })
     if (!isPrivate || !isImage) return undefined;
     let active = true;
     let objectUrl = "";
-    api.get(url.replace(/^\/api/, ""), { responseType: "blob" }).then((response) => {
-      objectUrl = URL.createObjectURL(response.data);
+    fetchPrivateFileObjectUrl(url).then((createdUrl) => {
+      objectUrl = createdUrl;
       if (active) setAuthorizedUrl(objectUrl);
     }).catch(() => {});
     return () => {
@@ -31,10 +31,7 @@ export default function AttachmentPreviewCard({ label, value, isArabic = true })
   const openAttachment = async (event) => {
     if (!isPrivate) return;
     event.preventDefault();
-    const response = await api.get(url.replace(/^\/api/, ""), { responseType: "blob" });
-    const objectUrl = URL.createObjectURL(response.data);
-    window.open(objectUrl, "_blank", "noopener,noreferrer");
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    await openPrivateFile(url);
   };
 
   return (

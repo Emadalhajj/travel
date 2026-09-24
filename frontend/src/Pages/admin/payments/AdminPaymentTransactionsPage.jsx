@@ -106,7 +106,24 @@ export default function AdminPaymentTransactionsPage() {
   const columns = useMemo(() => [
     {
       header: isArabic ? "المرجع" : "Reference",
-      accessor: ["paymentReference", "paymentReference"],
+      render: (item) =>
+        item.displayReference ||
+        item.paymentReference ||
+        item.providerReference ||
+        item.transferReference ||
+        "—",
+      excelValue: (item) =>
+        item.displayReference ||
+        item.paymentReference ||
+        item.providerReference ||
+        item.transferReference ||
+        "",
+      pdfValue: (item) =>
+        item.displayReference ||
+        item.paymentReference ||
+        item.providerReference ||
+        item.transferReference ||
+        "—",
       pdfRepeat: true,
     },
     {

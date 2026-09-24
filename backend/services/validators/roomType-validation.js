@@ -1,6 +1,8 @@
 // services/hotel-validation.js
 import Joi from "joi";
+import { arabicTextSchema, englishTextSchema } from "../../utils/validation/text-language.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
+import { productPricingPolicyValidation } from "./pricing/product-pricing-policy-validation.js";
 // ==================== Helpers ====================
 
 const normalizeDate = (d) => {
@@ -113,7 +115,7 @@ export const createRoomTypeSchema = ({ req, isArabic } = {}) => {
         "any.required": useArabic ? "الفندق مطلوب" : "Hotel is required",
       }),
 
-    nameEn: Joi.string()
+    nameEn: englishTextSchema()
       .min(3)
       .max(100)
       .required()
@@ -126,7 +128,7 @@ export const createRoomTypeSchema = ({ req, isArabic } = {}) => {
           : "Name in English is required",
       }),
 
-    nameAr: Joi.string()
+    nameAr: arabicTextSchema()
       .min(3)
       .max(100)
       .required()
@@ -139,8 +141,8 @@ export const createRoomTypeSchema = ({ req, isArabic } = {}) => {
           : "Name in Arabic is required",
       }),
 
-    descriptionEn: Joi.string().max(500).allow("", null).optional(),
-    descriptionAr: Joi.string().max(500).allow("", null).optional(),
+    descriptionEn: englishTextSchema().max(500).allow("", null).optional(),
+    descriptionAr: arabicTextSchema().max(500).allow("", null).optional(),
 
     // السعة
     capacity: Joi.object({
@@ -248,6 +250,8 @@ export const createRoomTypeSchema = ({ req, isArabic } = {}) => {
       .empty("")
       .allow(null),
 
+    pricingPolicy: productPricingPolicyValidation.optional(),
+
     // نظام الوجبات
     mealPlan: Joi.string()
       .valid(
@@ -261,6 +265,8 @@ export const createRoomTypeSchema = ({ req, isArabic } = {}) => {
 
     // حالة التفعيل
     isActive: Joi.boolean().default(true),
+    existingImages: Joi.array().items(Joi.string()).optional(),
+    deleteImages: Joi.array().items(Joi.string()).optional(),
     // توافر الغرفة
     availability: Joi.object({
   availablePeriods: Joi.array()

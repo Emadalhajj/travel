@@ -28,6 +28,8 @@ import { buildNotDeletedFilter } from "../../utils/buildNotDeletedFilter.js";
 import { buildPagination } from "../../utils/Builders/buildPagination.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 import AppError from "../../utils/AppError.js";
+import { deleteLocalUpload } from "../../utils/deleteLocalUpload.js";
+import { submitCustomerFulfillmentActionService } from "../../services/operations/booking-fulfillment-service.js";
 
 
 import {
@@ -37,6 +39,25 @@ import {
   getCompleteBookingData,
   validateBookingStatusChange,
 } from "../../services/booking/booking-status.js";
+
+export const submitFulfillmentAction = asyncHandler(async (req, res) => {
+  try {
+    const fulfillment = await submitCustomerFulfillmentActionService({
+      bookingId: req.params.id,
+      userId: req.user?._id,
+      note: req.body?.note,
+      files: req.files || [],
+      req,
+    });
+    res.status(200).json({ success: true, data: { fulfillment } });
+  } catch (error) {
+    await Promise.all((req.files || []).map((file) => deleteLocalUpload({
+      filePath: String(file.path || "").replace(/\\/g, "/"),
+      allowedFolder: "private-uploads/booking-actions",
+    })));
+    throw error;
+  }
+});
 
 import BookingLog from "../../models/bookingLog-model.js";
 
@@ -88,6 +109,7 @@ export const BOOKING_LIST_PROJECTION = {
   totalPilgrims: 1,
   bookingContext: 1,
   serviceType: 1,
+  fulfillment: 1,
   "bookingItems.trip.external.bookingReference": 1,
   "bookingItems.trip.external.route": 1,
   "bookingItems.trip.external.slices.origin": 1,
@@ -134,6 +156,7 @@ export const serializeBookingListItem = (booking = {}) => ({
   totalPilgrims: Number(booking.totalPilgrims) || 0,
   bookingContext: booking.bookingContext || "CUSTOM_PACKAGE",
   serviceType: booking.serviceType || "",
+  fulfillment: booking.fulfillment || null,
   flight: booking.serviceType === "FLIGHT" ? {
     bookingReference: booking.bookingItems?.trip?.external?.bookingReference || "",
     route: booking.bookingItems?.trip?.external?.route || {
@@ -238,6 +261,19 @@ export const getBookingById = asyncHandler(async (req, res) => {
   }
 
   const bookingData = booking.toObject();
+
+  bookingData.serviceDocuments = (bookingData.serviceDocuments || []).map((document) => ({
+    id: document._id,
+    documentType: document.documentType,
+    titleAr: document.titleAr || "",
+    titleEn: document.titleEn || "",
+    note: document.note || "",
+    originalName: document.originalName,
+    url: document.url,
+    mimeType: document.mimeType,
+    size: document.size,
+    uploadedAt: document.uploadedAt,
+  }));
 
   const needsDraftSnapshot =
     !bookingData.customer?.name ||
@@ -532,7 +568,7 @@ const booking = await Booking.findById(req.params.id);
 
   booking.remainingAmount = Math.max(
     0,
-    (booking.pricing?.totalPrice || 0) - booking.paidAmount,
+    (booking.pricing?.total ?? booking.pricing?.totalPrice ?? 0) - booking.paidAmount,
   );
 
   booking.updatedBy = req.user?._id;

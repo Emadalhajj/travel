@@ -10,14 +10,32 @@ import path from "path";
 import fs from "fs";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 
+const SAFE_UPLOAD_SEGMENT = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
+
+export const resolveUploadDirectory = ({
+  storageRoot = "uploads",
+  folder,
+} = {}) => {
+  if (
+    typeof storageRoot !== "string" ||
+    typeof folder !== "string" ||
+    !SAFE_UPLOAD_SEGMENT.test(storageRoot) ||
+    !SAFE_UPLOAD_SEGMENT.test(folder) ||
+    ["undefined", "null", "[object Object]"].includes(folder)
+  ) {
+    throw new TypeError("Invalid upload destination");
+  }
+
+  return path.join(storageRoot, folder);
+};
+
 export const createUploader = ({
   folder,
   fieldRules = {},
   maxSizeMB = 10,
   storageRoot = "uploads",
 }) => {
-  const uploadDir = `${storageRoot}/${folder}`;
-  
+  const uploadDir = resolveUploadDirectory({ storageRoot, folder });
 
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, {
@@ -27,7 +45,17 @@ export const createUploader = ({
 
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, uploadDir);
+      try {
+        const rules = fieldRules[file.fieldname] || {};
+        const targetDir = resolveUploadDirectory({
+          storageRoot: rules.storageRoot || storageRoot,
+          folder: rules.folder || folder,
+        });
+        fs.mkdirSync(targetDir, { recursive: true });
+        cb(null, targetDir);
+      } catch (error) {
+        cb(error);
+      }
     },
 
     filename: (req, file, cb) => {

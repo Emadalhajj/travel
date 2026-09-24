@@ -1,5 +1,12 @@
 {
   "home": "Home",
+  "release": {
+    "notFound": {
+      "title": "Page not found",
+      "description": "The page may have moved or the address may be incorrect.",
+      "home": "Back to home"
+    }
+  },
   "favorites": "Favorites",
   "ourTeam": "Our Team",
   "SignIn": "SignIn",

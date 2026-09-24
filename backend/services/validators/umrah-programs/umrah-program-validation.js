@@ -17,6 +17,8 @@ Umrah Program Validation
 */
 
 import Joi from "joi";
+import { arabicTextSchema, englishTextSchema } from "../../../utils/validation/text-language.js";
+import { productPricingPolicyValidation } from "../pricing/product-pricing-policy-validation.js";
 
 import {
   UMRAH_PROGRAM_STATUS_LIST,
@@ -47,11 +49,11 @@ createUmrahProgramValidation
 */
 
 export const createUmrahProgramValidation = Joi.object({
-  nameAr: Joi.string().required(),
-  nameEn: Joi.string().required(),
+  nameAr: arabicTextSchema().required(),
+  nameEn: englishTextSchema().required(),
 
-  descriptionAr: Joi.string().allow("", null),
-  descriptionEn: Joi.string().allow("", null),
+  descriptionAr: arabicTextSchema().allow("", null),
+  descriptionEn: englishTextSchema().allow("", null),
   shortDescriptionAr: Joi.string().allow("", null),
   shortDescriptionEn: Joi.string().allow("", null),
   serviceLevel: Joi.string()
@@ -87,6 +89,8 @@ export const createUmrahProgramValidation = Joi.object({
     discountExpiresAt: Joi.date().allow(null).optional(),
     currency: Joi.string().default("SAR"),
   }).required(),
+
+  pricingPolicy: productPricingPolicyValidation.optional(),
 
   capacity: Joi.object({
     totalSeats: Joi.number().min(1).required(),

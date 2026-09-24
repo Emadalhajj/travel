@@ -6,6 +6,7 @@ import {
   getTravelAvailableSeats,
   isTravelCategory,
 } from "../../../Utils/products/productSelection";
+import TruncatedText from "../../common/TruncatedText";
 
 export default function ProductCard({
   product,
@@ -70,10 +71,7 @@ export default function ProductCard({
     product.pricing?.price ||
     0;
 
-  const currency =
-    product.currency ||
-    product.pricing?.currency ||
-    "SAR";
+  const currency = product.currency || product.pricing?.currency || "SAR";
 
   const normalizedItem = {
     ...product,
@@ -98,7 +96,9 @@ export default function ProductCard({
   const isTravel = isTravelCategory(category.key);
   const availableSeats = isTravel ? getTravelAvailableSeats(product) : null;
   const insufficientAvailability =
-    isTravel && availableSeats !== null && availableSeats < Number(travelersCount || 1);
+    isTravel &&
+    availableSeats !== null &&
+    availableSeats < Number(travelersCount || 1);
 
   const handleAdd = () => {
     onAddItem?.(normalizedItem);
@@ -127,60 +127,121 @@ export default function ProductCard({
         <h6 className="fw-bold mb-2">{name}</h6>
 
         {description && (
-          <p className="text-muted small mb-3">
-            {description.length > 120
-              ? `${description.slice(0, 120)}...`
-              : description}
-          </p>
+          <div className="text-muted small mb-3">
+            <TruncatedText text={description} maxLines={3} />
+          </div>
         )}
 
         {isTravel && (
           <div className="small text-muted mb-3 d-flex flex-column gap-1">
-            <span><strong>{formatTravelRoute(product)}</strong></span>
+            <span>
+              <strong>{formatTravelRoute(product)}</strong>
+            </span>
             <span>{product.tripType || product.subtype || "-"}</span>
-            {product.departureAt && <span>{isArabic ? "المغادرة" : "Departure"}: {new Date(product.departureAt).toLocaleString(isArabic ? "ar-SA" : "en-GB")}</span>}
-            {product.arrivalAt && <span>{isArabic ? "الوصول" : "Arrival"}: {new Date(product.arrivalAt).toLocaleString(isArabic ? "ar-SA" : "en-GB")}</span>}
-            {product.airline && <span>{product.airline} {product.flightNumber || ""}</span>}
-            {product.cabinClass && <span>{isArabic ? "الدرجة" : "Cabin"}: {product.cabinClass}</span>}
-            {product.baggage && <span>{isArabic ? "الأمتعة" : "Baggage"}: {product.baggage}</span>}
-            {product.transport && <span>{isArabic ? "وسيلة النقل" : "Transport"}: {getLocalizedText(product.transport.name) || product.transport.vehicleType || product.transport.plateNumber || "-"}</span>}
+            {product.departureAt && (
+              <span>
+                {isArabic ? "المغادرة" : "Departure"}:{" "}
+                {new Date(product.departureAt).toLocaleString(
+                  isArabic ? "ar-SA" : "en-GB",
+                )}
+              </span>
+            )}
+            {product.arrivalAt && (
+              <span>
+                {isArabic ? "الوصول" : "Arrival"}:{" "}
+                {new Date(product.arrivalAt).toLocaleString(
+                  isArabic ? "ar-SA" : "en-GB",
+                )}
+              </span>
+            )}
+            {product.airline && (
+              <span>
+                {product.airline} {product.flightNumber || ""}
+              </span>
+            )}
+            {product.cabinClass && (
+              <span>
+                {isArabic ? "الدرجة" : "Cabin"}: {product.cabinClass}
+              </span>
+            )}
+            {product.baggage && (
+              <span>
+                {isArabic ? "الأمتعة" : "Baggage"}: {product.baggage}
+              </span>
+            )}
+            {product.transport && (
+              <span>
+                {isArabic ? "وسيلة النقل" : "Transport"}:{" "}
+                {getLocalizedText(product.transport.name) ||
+                  product.transport.vehicleType ||
+                  product.transport.plateNumber ||
+                  "-"}
+              </span>
+            )}
             {product.vesselName && <span>{product.vesselName}</span>}
-            {product.cabinTypes && <span>{isArabic ? "المقصورة" : "Cabin"}: {getLocalizedText(product.cabinTypes)}</span>}
-            {product.mealsIncluded !== undefined && <span>{isArabic ? "الوجبات" : "Meals"}: {product.mealsIncluded ? (isArabic ? "مشمولة" : "Included") : (isArabic ? "غير مشمولة" : "Not included")}</span>}
-            {availableSeats !== null && <span className={insufficientAvailability ? "text-danger" : "text-success"}>{isArabic ? "المقاعد المتاحة" : "Available seats"}: {availableSeats}</span>}
+            {product.cabinTypes && (
+              <span>
+                {isArabic ? "المقصورة" : "Cabin"}:{" "}
+                {getLocalizedText(product.cabinTypes)}
+              </span>
+            )}
+            {product.mealsIncluded !== undefined && (
+              <span>
+                {isArabic ? "الوجبات" : "Meals"}:{" "}
+                {product.mealsIncluded
+                  ? isArabic
+                    ? "مشمولة"
+                    : "Included"
+                  : isArabic
+                    ? "غير مشمولة"
+                    : "Not included"}
+              </span>
+            )}
+            {availableSeats !== null && (
+              <span
+                className={
+                  insufficientAvailability ? "text-danger" : "text-success"
+                }
+              >
+                {isArabic ? "المقاعد المتاحة" : "Available seats"}:{" "}
+                {availableSeats}
+              </span>
+            )}
           </div>
         )}
 
         <div className="mt-auto">
           <div className="fw-bold text-success mb-3">
-            {Number(price || 0).toLocaleString(
-              isArabic ? "en-US" : "en-US",
-            )}{" "}
-            {currency}
+            {Number(price || 0).toLocaleString("en-US")} {currency}
           </div>
 
-          {isSelected ? (
-            <Button
-              variant="outline-danger"
-              className="w-100 d-flex align-items-center justify-content-center gap-2"
-              onClick={handleRemove}
-            >
-              <Trash2 size={16} />
-              {isArabic ? "إزالة" : "Remove"}
-            </Button>
-          ) : (
-            <Button
-              variant="success"
-              className="w-100 d-flex align-items-center justify-content-center gap-2"
-              onClick={handleAdd}
-              disabled={insufficientAvailability}
-            >
-              <Plus size={16} />
-              {insufficientAvailability
-                ? (isArabic ? `المتاح ${availableSeats} فقط` : `Only ${availableSeats} available`)
-                : (isArabic ? "إضافة" : "Add")}
-            </Button>
-          )}
+          {mode !== "catalog" &&
+            (isSelected ? (
+              <Button
+                variant="outline-danger"
+                className="w-100 d-flex align-items-center justify-content-center gap-2"
+                onClick={handleRemove}
+              >
+                <Trash2 size={16} />
+                {isArabic ? "إزالة" : "Remove"}
+              </Button>
+            ) : (
+              <Button
+                variant="success"
+                className="w-100 d-flex align-items-center justify-content-center gap-2"
+                onClick={handleAdd}
+                disabled={insufficientAvailability}
+              >
+                <Plus size={16} />
+                {insufficientAvailability
+                  ? isArabic
+                    ? `المتاح ${availableSeats} فقط`
+                    : `Only ${availableSeats} available`
+                  : isArabic
+                    ? "إضافة"
+                    : "Add"}
+              </Button>
+            ))}
         </div>
       </Card.Body>
     </Card>

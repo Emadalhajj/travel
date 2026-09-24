@@ -22,8 +22,13 @@ const draft = {
   travelers: [],
 };
 
-const createFixture = ({ orderStatus = "CONFIRMED", createError = null } = {}) => {
+const createFixture = ({
+  orderStatus = "CONFIRMED",
+  awaitingPayment = false,
+  createError = null,
+} = {}) => {
   let createCalls = 0;
+  let lastCreateInput = null;
   let state = {
     _id: "pay_1",
     draftBooking: "draft_1",
@@ -47,14 +52,16 @@ const createFixture = ({ orderStatus = "CONFIRMED", createError = null } = {}) =
       ? update({ status: EXTERNAL_FULFILLMENT_STATUSES.PROCESSING })
       : null,
     update,
-    createOrder: async () => {
+    createOrder: async (input) => {
       createCalls += 1;
+      lastCreateInput = input;
       if (createError) throw createError;
       return {
         provider: "DUFFEL",
         orderId: "ord_1",
         offerId: "off_1",
         status: orderStatus,
+        awaitingPayment,
         total: { amount: 100, currency: "SAR" },
         slices: [],
         passengers: [],
@@ -66,7 +73,13 @@ const createFixture = ({ orderStatus = "CONFIRMED", createError = null } = {}) =
     }),
     findOrders: async () => [],
   });
-  return { layer, transaction: state, getState: () => state, getCreateCalls: () => createCalls };
+  return {
+    layer,
+    transaction: state,
+    getState: () => state,
+    getCreateCalls: () => createCalls,
+    getLastCreateInput: () => lastCreateInput,
+  };
 };
 
 test("external fulfillment creates one order and reuses the confirmed result", async () => {
@@ -80,7 +93,25 @@ test("external fulfillment creates one order and reuses the confirmed result", a
   assert.equal(first.confirmed, true);
   assert.equal(second.confirmed, true);
   assert.equal(fixture.getCreateCalls(), 1);
+  assert.equal(fixture.getLastCreateInput().payment.orderType, "instant");
   assert.equal(fixture.getState().externalFulfillment.orderSnapshot.orderId, "ord_1");
+});
+
+test("an unpaid hold order is never considered fulfilled", async () => {
+  const fixture = createFixture({ awaitingPayment: true });
+  const result = await fixture.layer.fulfillExternalFlight({
+    transaction: fixture.transaction,
+  });
+
+  assert.equal(result.confirmed, false);
+  assert.equal(
+    fixture.getState().externalFulfillment.status,
+    EXTERNAL_FULFILLMENT_STATUSES.AWAITING_PROVIDER,
+  );
+  assert.equal(
+    fixture.getState().externalFulfillment.orderSnapshot.awaitingPayment,
+    true,
+  );
 });
 
 test("202/pending order is reconciled without a second POST", async () => {
@@ -198,6 +229,62 @@ test("concurrent fulfillment calls can acquire only one create attempt", async (
     layer.fulfillExternalFlight({ transaction: state, draft }),
   ]);
   assert.equal(createCalls, 1);
+});
+
+test("a late provider failure cannot overwrite confirmed fulfillment", async () => {
+  let state = {
+    _id: "pay_1",
+    draftBooking: "draft_1",
+    externalFulfillment: {
+      required: true,
+      provider: "DUFFEL",
+      offerId: "off_1",
+      status: EXTERNAL_FULFILLMENT_STATUSES.PENDING,
+    },
+  };
+  const unavailable = new Error("offer unavailable");
+  unavailable.code = "EXTERNAL_FLIGHT_UNAVAILABLE";
+  const layer = createExternalFlightFulfillmentLayer({
+    loadDraft: async () => draft,
+    findTransaction: async () => state,
+    acquire: async () => {
+      state.externalFulfillment.status = EXTERNAL_FULFILLMENT_STATUSES.PROCESSING;
+      return state;
+    },
+    createOrder: async () => {
+      state = {
+        ...state,
+        externalFulfillment: {
+          ...state.externalFulfillment,
+          status: EXTERNAL_FULFILLMENT_STATUSES.CONFIRMED,
+          providerOrderId: "ord_1",
+        },
+      };
+      throw unavailable;
+    },
+    update: async ({ status, updates, expectedStatuses }) => {
+      if (
+        expectedStatuses?.length &&
+        !expectedStatuses.includes(state.externalFulfillment.status)
+      ) {
+        return null;
+      }
+      state = {
+        ...state,
+        externalFulfillment: { ...state.externalFulfillment, ...updates, status },
+      };
+      return state;
+    },
+  });
+
+  const result = await layer.fulfillExternalFlight({ transaction: state, draft });
+
+  assert.equal(result.confirmed, true);
+  assert.equal(
+    state.externalFulfillment.status,
+    EXTERNAL_FULFILLMENT_STATUSES.CONFIRMED,
+  );
+  assert.equal(state.externalFulfillment.providerOrderId, "ord_1");
 });
 
 test("Booking stores only the normalized historical external order snapshot", () => {

@@ -16,7 +16,7 @@ import DraftBookingCard from "../../../Components/shared/draft-bookings/DraftBoo
 import PaginationComponent from "../../../Components/common/Pagination";
 import PageHeader from "../../../Components/layout/PageHeader";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
-import Loader from "../../../Components/common/Loader";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PublicButton from "../../../Components/shared/buttons/PublicButton";
 
@@ -68,7 +68,7 @@ export default function PublicMyDraftBookingsPage() {
         }
       />
 
-      {loading && <Loader />}
+      {loading && <LoadingOverlay show overlay={false} size="sm" />}
 
       <ErrorOverlay show={!loading && Boolean(error)} message={error} />
 

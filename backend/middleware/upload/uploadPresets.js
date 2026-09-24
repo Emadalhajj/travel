@@ -72,7 +72,11 @@ export const uploadHotel =
     fieldRules: {
       images: legacyImageRule,
 
-      attachments: legacyDocumentRule,
+      attachments: {
+        ...legacyDocumentRule,
+        folder: "hotel-attachments",
+        storageRoot: "private-uploads",
+      },
     },
   });
 
@@ -169,3 +173,27 @@ export const uploadDraftDocument =
       },
     },
   });
+
+export const uploadBookingActionDocuments = createUploader({
+  folder: "booking-actions",
+  storageRoot: "private-uploads",
+  maxSizeMB: 10,
+  fieldRules: {
+    documents: {
+      extensions: BOOKING_DOCUMENT_EXTENSIONS,
+      mimeTypes: DOCUMENT_MIME_TYPES,
+    },
+  },
+});
+
+export const uploadBookingServiceDocuments = createUploader({
+  folder: "service-documents",
+  storageRoot: "private-uploads",
+  maxSizeMB: 10,
+  fieldRules: {
+    documents: {
+      extensions: BOOKING_DOCUMENT_EXTENSIONS,
+      mimeTypes: DOCUMENT_MIME_TYPES,
+    },
+  },
+});

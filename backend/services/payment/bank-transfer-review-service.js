@@ -37,6 +37,13 @@ import {
   sendPaidPendingBookingNotification,
 } from "../notifications/payment-notification-service.js";
 import { fulfillExternalFlight } from "../trips/external-flight-fulfillment-service.js";
+import { EXTERNAL_FULFILLMENT_STATUSES } from
+  "../../constants/payments/external-fulfillment-statuses.js";
+import {
+  findInventoryHoldByPaymentTransactionService,
+  getInventoryHoldForCommitService,
+  releaseInventoryHoldService,
+} from "../booking/inventory-hold-service.js";
 
 const REVIEWABLE_STATUSES = new Set([
   PAYMENT_TRANSACTION_STATUSES.PENDING_VERIFICATION,
@@ -90,10 +97,31 @@ export const approveBankTransferService =
     }
 
     if (
-      !REVIEWABLE_STATUSES.has(
-        transaction.status,
-      )
+      [
+        PAYMENT_TRANSACTION_STATUSES.CAPTURED,
+        PAYMENT_TRANSACTION_STATUSES.PAID_PENDING_BOOKING,
+      ].includes(transaction.status) &&
+      transaction.externalFulfillment?.required
     ) {
+      const fulfillment = transaction.externalFulfillment;
+      if (
+        fulfillment.status ===
+        EXTERNAL_FULFILLMENT_STATUSES.FAILED_FINAL
+      ) {
+        throw new AppError(
+          "EXTERNAL_FLIGHT_ORDER_FAILED",
+          409,
+          "externalFulfillment",
+          { providerErrorCode: fulfillment.lastErrorCode || null },
+        );
+      }
+    }
+
+    const isBookingConversionRetry =
+      transaction.status ===
+      PAYMENT_TRANSACTION_STATUSES.PAID_PENDING_BOOKING;
+
+    if (!REVIEWABLE_STATUSES.has(transaction.status) && !isBookingConversionRetry) {
       throw new AppError(
         "PAYMENT_APPROVAL_NOT_ALLOWED",
         409,
@@ -109,8 +137,9 @@ export const approveBankTransferService =
       );
     }
 
-    transaction =
-      await updatePaymentTransactionStatusService({
+    if (!isBookingConversionRetry) {
+      transaction =
+        await updatePaymentTransactionStatusService({
         transactionId:
           transaction._id,
         toStatus:
@@ -132,12 +161,33 @@ export const approveBankTransferService =
         req,
         auditAction:
           AUDIT_ACTIONS.BANK_TRANSFER_APPROVE,
-      });
+        failIfAlreadyTransitioned: true,
+        });
+    }
 
     if (transaction.externalFulfillment?.required) {
-      const fulfillment = await fulfillExternalFlight({ transaction });
+      let fulfillment;
+      try {
+        fulfillment = await fulfillExternalFlight({ transaction });
+      } catch (error) {
+        transaction = await recordBookingConversionFailureService({
+          transactionId: transaction._id,
+          reason: error?.code || error?.message || "External flight order failed",
+          source: PAYMENT_TRANSACTION_EVENT_SOURCES.ADMIN,
+          updatedBy: adminUserId,
+        });
+        await sendPaidPendingBookingNotification({ transaction, req });
+        throw error;
+      }
       transaction = fulfillment.transaction || transaction;
-      if (!fulfillment.confirmed) {
+      const externalFulfillment = transaction.externalFulfillment;
+      const hasConfirmedProviderOrder =
+        fulfillment.confirmed &&
+        externalFulfillment?.status ===
+          EXTERNAL_FULFILLMENT_STATUSES.CONFIRMED &&
+        Boolean(externalFulfillment.providerOrderId) &&
+        Boolean(externalFulfillment.orderSnapshot);
+      if (!hasConfirmedProviderOrder) {
         transaction = await recordBookingConversionFailureService({
           transactionId: transaction._id,
           reason: "External flight fulfillment is pending provider confirmation",
@@ -152,6 +202,18 @@ export const approveBankTransferService =
     let conversionResult;
 
     try {
+      const linkedHold =
+        await findInventoryHoldByPaymentTransactionService({
+          paymentTransaction: transaction._id,
+        });
+      const holdForConversion = linkedHold?._id
+        ? await getInventoryHoldForCommitService({
+            holdId: linkedHold._id,
+            draftBooking: transaction.draftBooking,
+            paymentTransaction: transaction._id,
+          })
+        : null;
+
       conversionResult =
         await convertDraftToBooking({
           draftId:
@@ -173,6 +235,8 @@ export const approveBankTransferService =
             paymentTransactionId:
               transaction._id,
           },
+          inventoryHoldId:
+            holdForConversion?._id || null,
           externalFlightOrderSnapshot:
             transaction.externalFulfillment?.orderSnapshot || null,
         });
@@ -268,10 +332,15 @@ export const rejectBankTransferService =
         transactionId,
       );
 
+    const alreadyRejected =
+      transaction.status ===
+      PAYMENT_TRANSACTION_STATUSES.REJECTED;
+
     if (
       !REVIEWABLE_STATUSES.has(
         transaction.status,
-      )
+      ) &&
+      !alreadyRejected
     ) {
       throw new AppError(
         "PAYMENT_REJECTION_NOT_ALLOWED",
@@ -280,33 +349,35 @@ export const rejectBankTransferService =
       );
     }
 
-    const rejectedTransaction = await updatePaymentTransactionStatusService({
-      transactionId:
-        transaction._id,
-      toStatus:
-        PAYMENT_TRANSACTION_STATUSES.REJECTED,
-      source:
-        PAYMENT_TRANSACTION_EVENT_SOURCES.ADMIN,
-      eventCode:
-        PAYMENT_TRANSACTION_EVENT_CODES.BANK_TRANSFER_REJECTED,
-      message:
-        normalizedReason,
-      failureReason:
-        normalizedReason,
-      updatedBy:
-        adminUserId,
-      extraUpdates: {
-        verifiedBy:
-          adminUserId,
-        verifiedAt:
-          new Date(),
-        rejectionReason:
-          normalizedReason,
-      },
-      req,
-      auditAction:
-        AUDIT_ACTIONS.BANK_TRANSFER_REJECT,
-    });
+    const rejectedTransaction = alreadyRejected
+      ? transaction
+      : await updatePaymentTransactionStatusService({
+          transactionId:
+            transaction._id,
+          toStatus:
+            PAYMENT_TRANSACTION_STATUSES.REJECTED,
+          source:
+            PAYMENT_TRANSACTION_EVENT_SOURCES.ADMIN,
+          eventCode:
+            PAYMENT_TRANSACTION_EVENT_CODES.BANK_TRANSFER_REJECTED,
+          message:
+            normalizedReason,
+          failureReason:
+            normalizedReason,
+          updatedBy:
+            adminUserId,
+          extraUpdates: {
+            verifiedBy:
+              adminUserId,
+            verifiedAt:
+              new Date(),
+            rejectionReason:
+              normalizedReason,
+          },
+          req,
+          auditAction:
+            AUDIT_ACTIONS.BANK_TRANSFER_REJECT,
+        });
 
     if (rejectedTransaction.draftBooking) {
       await restoreDraftAfterPaymentRejectionService({
@@ -314,10 +385,25 @@ export const rejectBankTransferService =
       });
     }
 
-    await sendBankTransferRejectedNotification({
-      transaction: rejectedTransaction,
-      req,
-    });
+    const linkedHold =
+      await findInventoryHoldByPaymentTransactionService({
+        paymentTransaction: rejectedTransaction._id,
+      });
+
+    if (linkedHold?._id) {
+      await releaseInventoryHoldService({
+        holdId: linkedHold._id,
+        reason: "bank_transfer_rejected",
+        req,
+      });
+    }
+
+    if (!alreadyRejected) {
+      await sendBankTransferRejectedNotification({
+        transaction: rejectedTransaction,
+        req,
+      });
+    }
 
     return rejectedTransaction;
   };

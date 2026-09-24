@@ -3,6 +3,9 @@ import fs from "fs";
 
 import DraftBooking from "../models/draft-bookings/draft-booking-model.js";
 import PaymentTransaction from "../models/payments/paymentTransaction-model.js";
+import Booking from "../models/booking/booking-model.js";
+import Voucher from "../models/voucher-model.js";
+import Hotel from "../models/hotels/hotel-model.js";
 import AppError from "../utils/AppError.js";
 
 const ADMIN_ROLES = new Set(["admin", "superAdmin"]);
@@ -67,6 +70,110 @@ export const downloadPaymentProof = async (req, res, next) => {
       folder: "payment-proofs",
       filename,
       downloadName: attachment?.name,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const downloadHotelAttachment = async (req, res, next) => {
+  try {
+    const hotel = await Hotel.findOne({
+      _id: req.params.hotelId,
+      isDeleted: false,
+      "attachments._id": req.params.attachmentId,
+    }).select("attachments").lean();
+    if (!hotel) throw new AppError("DOCUMENT_NOT_FOUND", 404);
+
+    const attachment = hotel.attachments?.find(
+      (item) => String(item._id) === String(req.params.attachmentId),
+    );
+    if (!attachment) throw new AppError("DOCUMENT_NOT_FOUND", 404);
+
+    return sendPrivateFile({
+      res,
+      folder: "hotel-attachments",
+      filename: safeFilename(attachment.fileName),
+      downloadName: attachment.originalName,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const downloadBookingActionDocument = async (req, res, next) => {
+  try {
+    const filename = safeFilename(req.params.filename);
+    const accessFilter = ADMIN_ROLES.has(req.user.role) ? {} : { user: req.user._id };
+    const booking = await Booking.findOne({
+      _id: req.params.bookingId,
+      isDeleted: false,
+      ...accessFilter,
+      "fulfillment.customerAction.documents.url": {
+        $regex: `${filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+      },
+    }).select("fulfillment.customerAction.documents").lean();
+    if (!booking) throw new AppError("DOCUMENT_NOT_FOUND", 404);
+    const document = booking.fulfillment?.customerAction?.documents?.find((item) =>
+      String(item.url || "").endsWith(`/${filename}`),
+    );
+    return sendPrivateFile({
+      res,
+      folder: "booking-actions",
+      filename,
+      downloadName: document?.name,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const downloadServiceDocument = async (req, res, next) => {
+  try {
+    const accessFilter = ADMIN_ROLES.has(req.user.role) ? {} : { user: req.user._id };
+    const booking = await Booking.findOne({
+      _id: req.params.bookingId,
+      isDeleted: false,
+      ...accessFilter,
+      "serviceDocuments._id": req.params.documentId,
+    }).select("serviceDocuments").lean();
+    if (!booking) throw new AppError("DOCUMENT_NOT_FOUND", 404);
+    const document = booking.serviceDocuments?.find((item) =>
+      String(item._id) === String(req.params.documentId),
+    );
+    if (!document) throw new AppError("DOCUMENT_NOT_FOUND", 404);
+    const filename = safeFilename(document.storageName);
+    return sendPrivateFile({
+      res,
+      folder: "service-documents",
+      filename,
+      downloadName: document.originalName,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const downloadLegacyVoucher = async (req, res, next) => {
+  try {
+    const accessFilter = ADMIN_ROLES.has(req.user.role) ? {} : { user: req.user._id };
+    const voucher = await Voucher.findOne({
+      _id: req.params.voucherId,
+      isDeleted: false,
+    }).lean();
+    if (!voucher) throw new AppError("DOCUMENT_NOT_FOUND", 404);
+    const booking = await Booking.findOne({
+      _id: voucher.booking,
+      isDeleted: false,
+      ...accessFilter,
+    }).select("_id").lean();
+    if (!booking) throw new AppError("DOCUMENT_NOT_FOUND", 404);
+    const filename = safeFilename(path.basename(String(voucher.pdfUrl || "")));
+    return sendPrivateFile({
+      res,
+      folder: "vouchers",
+      filename,
+      downloadName: `${voucher.voucherNumber}.pdf`,
     });
   } catch (error) {
     return next(error);

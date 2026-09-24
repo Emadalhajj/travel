@@ -89,6 +89,8 @@ Get Program By ID
 
 UmrahProgramRoute.get(
   "/umrah-programs/:id",
+  protect,
+  authorize("admin", "superAdmin"),
   getProgramById,
 );
 

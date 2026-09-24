@@ -24,6 +24,8 @@ import { buildPagination } from "../../utils/Builders/buildPagination.js";
 import AppError from "../../utils/AppError.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 
+const ADMIN_ROLES = new Set(["admin", "superAdmin"]);
+
 import {
   createPaymentTransactionService,
   applyPaymentSummaryToBooking,
@@ -96,7 +98,7 @@ export const createPaymentTransaction = asyncHandler(async (req, res) => {
   } catch (notificationError) {
     console.error(
       "Payment notification failed:",
-      notificationError,
+      notificationError?.message || String(notificationError),
     );
   }
 
@@ -118,7 +120,11 @@ GET BOOKING PAYMENTS
 export const getBookingPayments = asyncHandler(async (req, res) => {
   const isArabic = isArabicRequest(req);
 
-  const booking = await Booking.findById(req.params.bookingId);
+  const booking = await Booking.findOne({
+    _id: req.params.bookingId,
+    isDeleted: false,
+    ...(ADMIN_ROLES.has(req.user.role) ? {} : { user: req.user._id }),
+  });
 
   if (!booking) {
     throw new AppError(

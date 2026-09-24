@@ -61,6 +61,62 @@ test("room reservation preserves its unit quantity", () => {
   assert.equal(room.reservationMode, INVENTORY_RESERVATION_MODES.PERIOD);
 });
 
+test("standalone accommodation reserves rooms for the full stay as one period", () => {
+  const result = buildInventoryRequirementsFromDraft({
+    draft: {
+      _id: "draft-id",
+      bookingContext: "SERVICE",
+      serviceType: "ACCOMMODATION",
+      travelers: travelers(4),
+      program: null,
+      hotel: {
+        hotelId: "hotel-id",
+        roomTypeId: "room-type-id",
+        checkIn: "2026-10-01",
+        checkOut: "2026-10-06",
+        roomsCount: 2,
+      },
+      data: { packageType: "CUSTOM_PACKAGE", selectedProducts: [] },
+    },
+  });
+
+  assert.equal(result.programReservation, null);
+  assert.deepEqual(result.inventoryReservations, [{
+    inventoryType: INVENTORY_TYPES.ROOM_TYPE,
+    reservationMode: INVENTORY_RESERVATION_MODES.PERIOD,
+    itemId: "room-type-id",
+    startDate: "2026-10-01",
+    endDate: "2026-10-06",
+    quantity: 2,
+    defaultTotal: 0,
+  }]);
+});
+
+test("legacy HOTEL draft uses the same accommodation inventory contract", () => {
+  const accommodation = {
+    bookingContext: "SERVICE",
+    serviceType: "HOTEL",
+    travelers: travelers(2),
+    program: null,
+    hotel: {
+      hotelId: "hotel-id",
+      roomTypeId: "room-type-id",
+      checkIn: "2026-10-01",
+      checkOut: "2026-10-03",
+      roomsCount: 1,
+    },
+    data: { selectedProducts: [] },
+  };
+
+  const result = buildInventoryRequirementsFromDraft({ draft: accommodation });
+  const room = reservationOf(result, INVENTORY_TYPES.ROOM_TYPE);
+
+  assert.equal(room.itemId, "room-type-id");
+  assert.equal(room.quantity, 1);
+  assert.equal(room.startDate, "2026-10-01");
+  assert.equal(room.endDate, "2026-10-03");
+});
+
 test("TripDeparture produces one SINGLE inventory reservation", () => {
   const result = buildInventoryRequirementsFromDraft({
     draft: buildDraft({
@@ -114,6 +170,24 @@ test("external flight has no local inventory while mixed local resources remain"
   assert.equal(reservationOf(result, INVENTORY_TYPES.TRIP_DEPARTURE), undefined);
   assert.equal(reservationOf(result, INVENTORY_TYPES.ROOM_TYPE)?.quantity, 1);
   assert.equal(result.programReservation?.seats, 2);
+});
+
+test("standalone Duffel draft needs no local trip or departure identity", () => {
+  const result = buildInventoryRequirementsFromDraft({
+    draft: {
+      ...buildDraft({ travelersCount: 3, products: [], program: null }),
+      trip: {
+        source: "API",
+        tripId: null,
+        departureId: null,
+        departureAt: "2026-10-02T08:00:00.000Z",
+        external: { provider: "DUFFEL", offerId: "off-1" },
+      },
+    },
+  });
+
+  assert.equal(result.programReservation, null);
+  assert.deepEqual(result.inventoryReservations, []);
 });
 
 test("new Draft with tripId but no departureId is rejected", () => {

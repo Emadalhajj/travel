@@ -1,4 +1,5 @@
-import BookingStatusBadge from "./BookingStatusBadge";
+import StatusBadge from "../common/StatusBadge";
+// import BookingStatusBadge from "./BookingStatusBadge";
 
 export default function DraftBookingCard({
   draft,
@@ -23,16 +24,16 @@ export default function DraftBookingCard({
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h3 className="font-semibold text-gray-800">
-              {title}
-            </h3>
+            <h3 className="font-semibold text-gray-800">{title}</h3>
 
-            <BookingStatusBadge status={draft?.status} />
+            <StatusBadge
+              value={booking.status}
+              type="booking"
+              isArabic={isArabic}
+            />
           </div>
 
-          <p className="text-sm text-gray-500 mt-2">
-            العميل: {customerName}
-          </p>
+          <p className="text-sm text-gray-500 mt-2">العميل: {customerName}</p>
 
           <p className="text-sm text-gray-500 mt-1">
             الخطوة الحالية: {draft?.currentStep || "-"}

@@ -47,7 +47,7 @@ export const sendBookingCreatedNotification = async ({
 
     metadata: {
       bookingNumber: booking.bookingNumber,
-      totalPrice: booking.pricing?.totalPrice,
+      totalPrice: booking.pricing?.total ?? booking.pricing?.totalPrice,
       bookingStatus: booking.bookingStatus,
     },
 

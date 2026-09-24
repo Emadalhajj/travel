@@ -16,13 +16,20 @@ export const buildExternalFlightOrderInput = async ({
     { trip: draft.trip },
     dependencies.revalidation,
   );
+  const lastSlice = snapshot.slices?.at(-1);
+  const travelStartsAt = snapshot.slices?.[0]?.segments?.[0]?.departureAt || null;
+  const travelEndsAt = lastSlice?.segments?.at(-1)?.arrivalAt ||
+    snapshot.slices?.[0]?.segments?.[0]?.departureAt ||
+    null;
   const passengers = buildExternalFlightPassengers({
     travelers: draft.travelers || [],
     providerPassengers: snapshot.passengers.items || [],
-    requiredIdentityDocumentTypes:
-      dependencies.requiredIdentityDocumentTypes ||
+    supportedIdentityDocumentTypes:
+      dependencies.supportedIdentityDocumentTypes ||
       snapshot.supportedIdentityDocumentTypes ||
       [],
+    travelEndsAt,
+    travelStartsAt,
   });
   const orderType = String(payment?.orderType || "").toLowerCase();
   if (snapshot.paymentRequirements.requiresInstantPayment && orderType !== "instant") {

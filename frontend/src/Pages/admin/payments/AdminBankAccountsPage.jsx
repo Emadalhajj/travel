@@ -176,7 +176,7 @@ export default function AdminBankAccountsPage() {
   ];
 
   return (
-    <div className="container py-3">
+    <div className="container-fluid py-3">
       <PageHeader titleAr="إدارة الحسابات البنكية" titleEn="Bank Accounts Management" subtitleAr="إدارة الحسابات البنكية الخاصة بطرق الدفع" subtitleEn="Manage payment bank accounts" actions={<AdminPageActions><ActionButton action="add" size="md" label={isArabic ? "إضافة حساب بنكي" : "Add Bank Account"} onClick={openCreate} /><ExportTableButtons data={bankAccountsList} columns={columns} fileName="bank-accounts" lang={lang} title={isArabic ? "الحسابات البنكية" : "Bank Accounts"} /></AdminPageActions>} />
       <EntityFilter filters={filters} setFilters={setFilters} config={{
         search: { type: "text", col: 3, placeholder: isArabic ? "بحث بالبنك أو الآيبان" : "Search bank or IBAN" },

@@ -9,6 +9,7 @@ import {
 import { sendEmail } from "./email-service.js";
 import { sendSMS } from "./sms-service.js";
 import { sendWhatsApp } from "./whatsapp-service.js";
+import { sanitizeFailureReason } from "../../utils/operational-logger.js";
 
 const normalizeDeduplicationKey = (value) => {
   const key = String(value || "").trim();
@@ -147,7 +148,10 @@ export const createNotificationServiceLayer = ({
       await notification.save();
     } catch (error) {
       notification.status = NOTIFICATION_STATUS.FAILED;
-      notification.failedReason = String(error?.message || "Notification delivery failed");
+      notification.failedReason = sanitizeFailureReason(
+        error?.message,
+        "Notification delivery failed",
+      );
       await notification.save();
     }
 
@@ -196,7 +200,10 @@ export const createNotificationServiceLayer = ({
       notification.failedReason = "";
     } catch (error) {
       notification.status = NOTIFICATION_STATUS.FAILED;
-      notification.failedReason = String(error?.message || "Notification delivery failed");
+      notification.failedReason = sanitizeFailureReason(
+        error?.message,
+        "Notification delivery failed",
+      );
     }
     await notification.save();
     return notification;

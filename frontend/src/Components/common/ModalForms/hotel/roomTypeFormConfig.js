@@ -7,6 +7,7 @@ import {
   getNestedValue,
 } from "../../../../Utils/formHelpers";
 import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "../../../../constants/currencies";
+import { createPricingPolicyFields } from "../shared/pricingPolicyFields";
 
 export const roomTypeFormConfig = (hotels = [] ) => ({
 
@@ -25,6 +26,7 @@ export const roomTypeFormConfig = (hotels = [] ) => ({
       labelAr: "اسم نوع الغرفة (عربي)",
       labelEn: "Room Type Name (Arabic)",
       type: "text",
+      language: "ar",
       col: 6,
       required: true,
       order: 1,
@@ -34,6 +36,7 @@ export const roomTypeFormConfig = (hotels = [] ) => ({
       labelAr: "اسم نوع الغرفة (إنجليزي)",
       labelEn: "Room Type Name (English)",
       type: "text",
+      language: "en",
       col: 6,
       required: true,
       order: 1,
@@ -45,6 +48,7 @@ export const roomTypeFormConfig = (hotels = [] ) => ({
       labelAr: "الوصف (عربي)",
       labelEn: "Description (Arabic)",
       type: "textarea",
+      language: "ar",
       rows: 3,
       col: 6,
       order: 2,
@@ -54,6 +58,7 @@ export const roomTypeFormConfig = (hotels = [] ) => ({
       labelAr: "الوصف (إنجليزي)",
       labelEn: "Description (English)",
       type: "textarea",
+      language: "en",
       rows: 3,
       col: 6,
       order: 2,
@@ -229,6 +234,7 @@ export const roomTypeFormConfig = (hotels = [] ) => ({
       max: 100,
       helperText: "يُطبق على السعر الأساسي فقط",
     },
+    ...createPricingPolicyFields({ order: 7 }),
     // ==================== فترات التسعير الخاصة ====================
     {
       name: "pricing.pricingPeriods",

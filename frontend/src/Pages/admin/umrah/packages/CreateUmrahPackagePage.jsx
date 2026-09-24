@@ -35,7 +35,6 @@ import {
   fetchOneUmrahProgram,
 } from "../../../../redux/umrah/umrahProgramSlice";
 import PackageBasicInfoForm from "./PackageBasicInfoForm";
-import DiscountSection from "./DiscountSection";
 import PageHeader from "../../../../Components/layout/PageHeader";
 
 export default function CreateUmrahPackagePage() {
@@ -59,7 +58,6 @@ export default function CreateUmrahPackagePage() {
     setBasicInfo,
     selectedItems,
     discount,
-    setDiscount,
     totals,
     loadingSave,
     setLoadingSave,
@@ -221,9 +219,6 @@ export default function CreateUmrahPackagePage() {
               onRemoveItem={removeItem}
               mode="admin"
             />
-          </div>
-          <div className="mt-4">
-            <DiscountSection discount={discount} setDiscount={setDiscount} />
           </div>
         </Col>
 

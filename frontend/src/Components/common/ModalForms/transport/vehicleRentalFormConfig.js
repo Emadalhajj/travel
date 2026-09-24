@@ -1,4 +1,5 @@
 import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "../../../../constants/currencies";
+import { createPricingPolicyFields } from "../shared/pricingPolicyFields";
 
 export const vehicleRentalFormConfig = (transports = []) => ({
   commonFields: [
@@ -70,6 +71,7 @@ export const vehicleRentalFormConfig = (transports = []) => ({
       order: 5,
       options: CURRENCY_OPTIONS,
     },
+    ...createPricingPolicyFields({ order: 6 }),
     {
       name: "isAlwaysAvailable",
       labelAr: "دائم التوفر",

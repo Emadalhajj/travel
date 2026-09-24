@@ -7,11 +7,15 @@ const getProviderDetails = (payload = {}) => {
     provider: "DUFFEL",
     providerCode: error?.code || null,
     providerType: error?.type || null,
+    providerField:
+      error?.source?.field ||
+      error?.source?.pointer ||
+      null,
     requestId: payload?.meta?.request_id || null,
   };
 };
 
-const createProviderError = ({ status, payload, headers }) => {
+const createProviderError = ({ status, payload, headers, path }) => {
   const params = {
     ...getProviderDetails(payload),
     retryAt: headers?.get?.("ratelimit-reset") || null,
@@ -24,6 +28,14 @@ const createProviderError = ({ status, payload, headers }) => {
     return new AppError("FLIGHT_PROVIDER_RATE_LIMITED", 503, "provider", params);
   }
   if (status === 400 || status === 422) {
+    if (String(path || "").startsWith("/air/orders")) {
+      return new AppError(
+        "EXTERNAL_FLIGHT_ORDER_CREATION_FAILED",
+        400,
+        "order",
+        params,
+      );
+    }
     return new AppError("FLIGHT_SEARCH_INVALID", 400, "search", params);
   }
   return new AppError("FLIGHT_PROVIDER_UNAVAILABLE", 503, "provider", params);
@@ -76,6 +88,7 @@ export const createDuffelClient = ({
           status: response.status,
           payload,
           headers: response.headers,
+          path,
         });
       }
 

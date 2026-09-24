@@ -36,9 +36,7 @@ function FieldRenderer(props) {
   const fieldError = directError || nestedError;
 
   const errorMessage =
-    typeof fieldError === "object"
-      ? fieldError?.message
-      : fieldError;
+    typeof fieldError === "object" ? fieldError?.message : fieldError;
 
   const renderField = () => {
     switch (field.type) {
@@ -77,9 +75,7 @@ function FieldRenderer(props) {
       {renderField()}
 
       {errorMessage && (
-        <div className="text-danger small mt-1">
-          {errorMessage}
-        </div>
+        <div className="text-danger small mt-1">{errorMessage}</div>
       )}
 
       {!errorMessage && (isArabic ? field.helpTextAr : field.helpTextEn) && (
@@ -100,89 +96,27 @@ function areFieldRendererPropsEqual(previous, next) {
     previous.loading !== next.loading ||
     alwaysRenderTypes.has(next.field?.type) ||
     typeof next.field?.options === "function"
-  ) return false;
+  )
+    return false;
 
-  const fieldName = next.field?.path || (next.field?.isSpec
-    ? `specs.${next.field.name}`
-    : next.field?.name);
+  const fieldName =
+    next.field?.path ||
+    (next.field?.isSpec ? `specs.${next.field.name}` : next.field?.name);
   if (!fieldName) return false;
 
   return (
-    getNestedValue(previous.formState, fieldName) === getNestedValue(next.formState, fieldName) &&
-    getNestedValue(previous.fieldErrors, fieldName) === getNestedValue(next.fieldErrors, fieldName) &&
+    getNestedValue(previous.formState, fieldName) ===
+      getNestedValue(next.formState, fieldName) &&
+    getNestedValue(previous.fieldErrors, fieldName) ===
+      getNestedValue(next.fieldErrors, fieldName) &&
     previous.fieldErrors?.[fieldName] === next.fieldErrors?.[fieldName] &&
-    previous.fieldErrors?.[next.field.name] === next.fieldErrors?.[next.field.name] &&
+    previous.fieldErrors?.[next.field.name] ===
+      next.fieldErrors?.[next.field.name] &&
     previous.imageState?.[fieldName] === next.imageState?.[fieldName] &&
-    previous.imageState?.[next.field.name] === next.imageState?.[next.field.name] &&
+    previous.imageState?.[next.field.name] ===
+      next.imageState?.[next.field.name] &&
     previous.initialData === next.initialData
   );
 }
 
 export default memo(FieldRenderer, areFieldRendererPropsEqual);
-
-
-/*
-
-
-import { Form } from "react-bootstrap";
-
-import ArrayField from "./ArrayField";
-import ComputedField from "./ComputedField";
-import SearchableSelectField from "./SearchableSelectField";
-import CheckboxGroupField from "./CheckboxGroupField";
-import FileField from "./FileField";
-import DefaultField from "./DefaultField";
-
-
-export default function FieldRenderer(props) {
-  const { field, isArabic } = props;
-
-  if (!field) return null;
-
-  const renderField = () => {
-    switch (field.type) {
-      case "array":
-        return <ArrayField {...props} />;
-
-      case "computed":
-        return <ComputedField {...props} />;
-
-      case "searchable-select":
-        return <SearchableSelectField {...props} />;
-
-      case "checkbox-group":
-        return <CheckboxGroupField {...props} />;
-
-      case "file":
-      case "file-attachment":
-        return <FileField {...props} />;
-
-      default:
-        return <DefaultField {...props} />;
-    }
-  };
-
-  return (
-    <Form.Group className="h-100">
-*/
-// /*
-//       {/* label */}
-//       {field.type !== "checkbox" && (
-//         <Form.Label className="fw-semibold text-secondary small mb-2 d-block">
-
-//           {isArabic
-//             ? field.labelAr
-//             : field.labelEn}
-
-//           {field.required && (
-//             <span className="text-danger ms-1">*</span>
-//           )}
-
-//         </Form.Label>
-//       )}
-
-//       {renderField()}
-
-//     </Form.Group>
-//   );
-//   */

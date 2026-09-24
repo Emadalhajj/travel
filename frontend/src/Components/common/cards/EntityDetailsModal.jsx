@@ -1,5 +1,6 @@
 import { Modal, Image, Carousel } from "react-bootstrap";
 import { formatImagePath } from "../../../Utils/imageUtils";
+import { isPrivateFileUrl, openPrivateFile } from "../../../Utils/privateFile";
 
 export default function EntityDetailsModal({
   show,
@@ -69,7 +70,15 @@ export default function EntityDetailsModal({
                         {field.value.map((file, index) => (
                           <a
                             key={index}
-                            href={formatImagePath(file.url || file)}
+                            href={isPrivateFileUrl(file.url || file)
+                              ? file.url
+                              : formatImagePath(file.url || file)}
+                            onClick={(event) => {
+                              const url = file.url || file;
+                              if (!isPrivateFileUrl(url)) return;
+                              event.preventDefault();
+                              openPrivateFile(url);
+                            }}
                             target="_blank"
                             rel="noopener noreferrer"
                             download={file.originalName}

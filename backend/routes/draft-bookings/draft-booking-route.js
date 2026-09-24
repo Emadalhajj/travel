@@ -44,6 +44,8 @@ import {
   expireDrafts,
   deleteDraft,
   uploadDraftDocument,
+  applyDraftCoupon,
+  removeDraftCoupon,
 } from "../../controllers/draft-bookings/draft-booking-controller.js";
 import {
   uploadDraftDocument as uploadDraftDocumentMiddleware,
@@ -155,6 +157,9 @@ DraftBookingRoute.patch(
   protect,
   updateDraft,
 );
+
+DraftBookingRoute.post("/draft-bookings/:id/coupon", protect, applyDraftCoupon);
+DraftBookingRoute.delete("/draft-bookings/:id/coupon", protect, removeDraftCoupon);
 
 /*
 =====================================================

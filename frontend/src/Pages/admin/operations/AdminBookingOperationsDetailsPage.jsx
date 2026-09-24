@@ -11,7 +11,16 @@ import ActionButton from "../../../Components/common/buttons/ActionButton";
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import EmptyState from "../../../Components/shared/common/EmptyState";
 import CustomerBookingTimeline from "../../../Components/shared/booking/CustomerBookingTimeline";
-import { apiGetBookingOperationsDetails } from "../../../services/api/admin/operations";
+import BookingFulfillmentTimeline from "../../../Components/shared/booking/BookingFulfillmentTimeline";
+import { getFulfillmentStepLabel, getFulfillmentWorkflow } from "../../../config/bookingFulfillment";
+import {
+  apiDeliverBookingServiceDocuments,
+  apiGetBookingOperationsDetails,
+  apiUpdateBookingFulfillment,
+  apiUploadBookingServiceDocuments,
+} from "../../../services/api/admin/operations";
+import FileAttachmentUploader from "../../../Components/common/FileAttachmentUploader";
+import AttachmentPreviewCard from "../../../Components/shared/attachments/AttachmentPreviewCard";
 
 const formatDate = (value, lang) => value ? new Date(value).toLocaleString(lang === "ar" ? "en-US" : "en-US") : "—";
 const actorName = (actor) => actor ? [actor.firstName, actor.lastName].filter(Boolean).join(" ") || actor.username || actor.email || "—" : "—";
@@ -25,6 +34,14 @@ export default function AdminBookingOperationsDetailsPage() {
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [fulfillmentSaving, setFulfillmentSaving] = useState(false);
+  const [fulfillmentReason, setFulfillmentReason] = useState("");
+  const [serviceDocumentForm, setServiceDocumentForm] = useState({
+    documents: [], documentType: "ticket", titleAr: "", titleEn: "", note: "",
+    sendEmail: true, sendWhatsapp: false,
+  });
+  const [documentSaving, setDocumentSaving] = useState(false);
+  const [deliveryMessage, setDeliveryMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -62,6 +79,67 @@ export default function AdminBookingOperationsDetailsPage() {
 
   const booking = details?.booking;
   const latestPayment = details?.payments?.at(-1);
+  const fulfillmentSteps = getFulfillmentWorkflow(booking?.fulfillment?.serviceType || booking?.serviceType);
+  const fulfillmentIndex = fulfillmentSteps.indexOf(booking?.fulfillment?.currentStep);
+  const nextFulfillmentStep = fulfillmentSteps[Math.min(Math.max(fulfillmentIndex + 1, 0), fulfillmentSteps.length - 1)];
+  const updateFulfillment = async ({ currentStep, status = "in_progress" }) => {
+    setFulfillmentSaving(true);
+    setError("");
+    try {
+      await apiUpdateBookingFulfillment(bookingId, {
+        currentStep,
+        status,
+        actionRequiredReason: fulfillmentReason,
+      });
+      const response = await apiGetBookingOperationsDetails(bookingId);
+      setDetails(response.data?.data || null);
+      if (status !== "action_required") setFulfillmentReason("");
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || requestError.message || (isArabic ? "تعذر تحديث تنفيذ الخدمة" : "Unable to update fulfillment"));
+    } finally {
+      setFulfillmentSaving(false);
+    }
+  };
+  const reloadDetails = async () => {
+    const response = await apiGetBookingOperationsDetails(bookingId);
+    setDetails(response.data?.data || null);
+  };
+  const uploadServiceDocuments = async () => {
+    if (!serviceDocumentForm.documents.length) return;
+    setDocumentSaving(true);
+    setError("");
+    setDeliveryMessage("");
+    try {
+      const response = await apiUploadBookingServiceDocuments(bookingId, serviceDocumentForm);
+      const delivery = response.data?.data?.delivery || {};
+      const failed = Object.entries(delivery).filter(([, value]) => value?.status === "failed");
+      setDeliveryMessage(failed.length
+        ? (isArabic ? `تم حفظ المستند، وتعذر الإرسال عبر: ${failed.map(([key]) => key).join("، ")}` : `Document saved; delivery failed via: ${failed.map(([key]) => key).join(", ")}`)
+        : (isArabic ? "تم حفظ المستند وإرساله عبر القنوات المحددة." : "Document saved and delivered through the selected channels."));
+      setServiceDocumentForm((current) => ({ ...current, documents: [], titleAr: "", titleEn: "", note: "" }));
+      await reloadDetails();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || requestError.message || (isArabic ? "تعذر رفع مستند الخدمة" : "Unable to upload service document"));
+    } finally {
+      setDocumentSaving(false);
+    }
+  };
+  const redeliverDocument = async (documentId, channel) => {
+    setDocumentSaving(true);
+    setError("");
+    try {
+      const response = await apiDeliverBookingServiceDocuments(bookingId, { documentIds: [documentId], channels: [channel] });
+      const result = response.data?.data?.delivery?.[channel];
+      setDeliveryMessage(result?.status === "sent"
+        ? (isArabic ? "تم إرسال المستند بنجاح." : "Document sent successfully.")
+        : (result?.error || (isArabic ? "تعذر إرسال المستند." : "Document delivery failed.")));
+      await reloadDetails();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || requestError.message);
+    } finally {
+      setDocumentSaving(false);
+    }
+  };
   return (
     <div className="position-relative space-y-6" dir={isArabic ? "rtl" : "ltr"}>
       <PageHeader
@@ -91,6 +169,142 @@ export default function AdminBookingOperationsDetailsPage() {
             latestPaymentStatus={latestPayment?.status}
             isArabic={isArabic}
           />
+        </PublicSectionCard>
+
+        <PublicSectionCard title={isArabic ? "تنفيذ الخدمة" : "Service fulfillment"}>
+          <BookingFulfillmentTimeline
+            fulfillment={booking.fulfillment}
+            serviceType={booking.serviceType}
+            isArabic={isArabic}
+          />
+
+          {booking.fulfillment?.customerAction?.status === "submitted" && (
+            <section className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-emerald-950">
+                    {isArabic ? "استجابة العميل" : "Customer response"}
+                  </h3>
+                  <p className="mt-1 text-xs text-emerald-800">
+                    {isArabic ? "تاريخ الإرسال:" : "Submitted at:"}{" "}
+                    {formatDate(booking.fulfillment.customerAction.submittedAt, lang)}
+                  </p>
+                </div>
+                <StatusBadge
+                  value={booking.fulfillment.customerAction.status}
+                  isArabic={isArabic}
+                />
+              </div>
+
+              <div className="mt-4 rounded-lg border border-emerald-100 bg-white p-3">
+                <p className="text-xs font-semibold text-slate-500">
+                  {isArabic ? "رسالة العميل" : "Customer message"}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                  {booking.fulfillment.customerAction.note ||
+                    (isArabic ? "لم يرفق العميل رسالة." : "The customer did not include a message.")}
+                </p>
+              </div>
+
+              {booking.fulfillment.customerAction.documents?.length > 0 ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {booking.fulfillment.customerAction.documents.map((document, index) => (
+                    <AttachmentPreviewCard
+                      key={document.url || `${document.name}-${index}`}
+                      label={document.name || `${isArabic ? "مرفق العميل" : "Customer attachment"} ${index + 1}`}
+                      value={document.url}
+                      isArabic={isArabic}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-slate-600">
+                  {isArabic ? "لم يرفق العميل ملفات." : "The customer did not attach files."}
+                </p>
+              )}
+            </section>
+          )}
+
+          <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto_auto]">
+            <input
+              className="rounded-lg border border-slate-300 px-3 py-2"
+              value={fulfillmentReason}
+              onChange={(event) => setFulfillmentReason(event.target.value)}
+              placeholder={isArabic ? "سبب الإجراء المطلوب من العميل" : "Reason for customer action"}
+            />
+            <button
+              type="button"
+              disabled={fulfillmentSaving || !fulfillmentReason.trim()}
+              onClick={() => updateFulfillment({ currentStep: booking.fulfillment?.currentStep || fulfillmentSteps[0], status: "action_required" })}
+              className="rounded-lg bg-amber-500 px-4 py-2 font-bold text-white disabled:opacity-50"
+            >{isArabic ? "طلب إجراء" : "Require action"}</button>
+            <button
+              type="button"
+              disabled={fulfillmentSaving || booking.fulfillment?.status === "completed" || !nextFulfillmentStep}
+              onClick={() => updateFulfillment({ currentStep: nextFulfillmentStep })}
+              className="rounded-lg bg-emerald-600 px-4 py-2 font-bold text-white disabled:opacity-50"
+            >{fulfillmentSaving ? (isArabic ? "جارٍ الحفظ..." : "Saving...") : `${isArabic ? "الانتقال إلى" : "Move to"} ${getFulfillmentStepLabel(nextFulfillmentStep, isArabic)}`}</button>
+          </div>
+        </PublicSectionCard>
+
+        <PublicSectionCard title={isArabic ? "مستندات الخدمة والتسليم" : "Service documents and delivery"}>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+              <select className="w-full rounded-lg border p-2" value={serviceDocumentForm.documentType} onChange={(event) => setServiceDocumentForm((current) => ({ ...current, documentType: event.target.value }))}>
+                <option value="ticket">{isArabic ? "تذكرة" : "Ticket"}</option>
+                <option value="visa">{isArabic ? "تأشيرة" : "Visa"}</option>
+                <option value="voucher">Voucher</option>
+                <option value="confirmation">{isArabic ? "تأكيد حجز" : "Confirmation"}</option>
+                <option value="other">{isArabic ? "أخرى" : "Other"}</option>
+              </select>
+              <input className="w-full rounded-lg border p-2" placeholder={isArabic ? "العنوان بالعربية" : "Arabic title"} value={serviceDocumentForm.titleAr} onChange={(event) => setServiceDocumentForm((current) => ({ ...current, titleAr: event.target.value }))} />
+              <input className="w-full rounded-lg border p-2" placeholder={isArabic ? "العنوان بالإنجليزية" : "English title"} value={serviceDocumentForm.titleEn} onChange={(event) => setServiceDocumentForm((current) => ({ ...current, titleEn: event.target.value }))} />
+              <textarea className="w-full rounded-lg border p-2" placeholder={isArabic ? "ملاحظة للعميل" : "Customer note"} value={serviceDocumentForm.note} onChange={(event) => setServiceDocumentForm((current) => ({ ...current, note: event.target.value }))} />
+              <FileAttachmentUploader
+                labelAr="المستندات المنجزة"
+                labelEn="Completed documents"
+                name="documents"
+                maxFiles={5}
+                maxSizeMB={10}
+                acceptedTypes=".jpg,.jpeg,.png,.webp,.pdf"
+                initialFiles={serviceDocumentForm.documents}
+                onChange={(documents) => setServiceDocumentForm((current) => ({ ...current, documents: documents.filter((item) => item instanceof File) }))}
+              />
+              <div className="flex flex-wrap gap-4 text-sm">
+                <label><input type="checkbox" className="me-2" checked={serviceDocumentForm.sendEmail} onChange={(event) => setServiceDocumentForm((current) => ({ ...current, sendEmail: event.target.checked }))} />{isArabic ? "إرسال بالبريد" : "Send by email"}</label>
+                <label><input type="checkbox" className="me-2" checked={serviceDocumentForm.sendWhatsapp} onChange={(event) => setServiceDocumentForm((current) => ({ ...current, sendWhatsapp: event.target.checked }))} />{isArabic ? "إرسال بواتساب" : "Send by WhatsApp"}</label>
+              </div>
+              <button type="button" disabled={documentSaving || !serviceDocumentForm.documents.length} onClick={uploadServiceDocuments} className="rounded-lg bg-sky-600 px-5 py-2 font-bold text-white disabled:opacity-50">
+                {documentSaving ? (isArabic ? "جارٍ الحفظ والإرسال..." : "Saving and sending...") : (isArabic ? "حفظ وإرسال" : "Save and deliver")}
+              </button>
+              {deliveryMessage && <p className="text-sm font-semibold text-slate-700">{deliveryMessage}</p>}
+            </div>
+            <div className="space-y-3">
+              {(booking.serviceDocuments || []).map((document) => <div key={document.id} className="rounded-xl border border-slate-200 p-3">
+                <AttachmentPreviewCard label={(isArabic ? document.titleAr : document.titleEn) || document.originalName} value={document.url} isArabic={isArabic} />
+                {document.note && <p className="mt-2 text-sm text-slate-600">{document.note}</p>}
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <span>Email: {document.delivery?.email?.status || "not_requested"}</span>
+                  <span>WhatsApp: {document.delivery?.whatsapp?.status || "not_requested"}</span>
+                </div>
+                {document.delivery?.email?.status === "failed" && document.delivery.email.error && (
+                  <p className="mt-2 rounded bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">
+                    Email: {document.delivery.email.error}
+                  </p>
+                )}
+                {document.delivery?.whatsapp?.status === "failed" && document.delivery.whatsapp.error && (
+                  <p className="mt-2 rounded bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">
+                    WhatsApp: {document.delivery.whatsapp.error}
+                  </p>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <button type="button" disabled={documentSaving} onClick={() => redeliverDocument(document.id, "email")} className="rounded bg-slate-700 px-3 py-1 text-xs font-bold text-white">Email</button>
+                  <button type="button" disabled={documentSaving} onClick={() => redeliverDocument(document.id, "whatsapp")} className="rounded bg-emerald-600 px-3 py-1 text-xs font-bold text-white">WhatsApp</button>
+                </div>
+              </div>)}
+              {!booking.serviceDocuments?.length && <p className="text-sm text-slate-400">{isArabic ? "لم تُرفع مستندات نهائية بعد." : "No final documents uploaded yet."}</p>}
+            </div>
+          </div>
         </PublicSectionCard>
 
         <div className="grid gap-6 xl:grid-cols-2">

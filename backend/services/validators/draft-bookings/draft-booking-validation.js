@@ -11,6 +11,15 @@ const travelerSchema = Joi.object({
   fullName: Joi.string().allow("", null),
   givenName: Joi.string().allow("", null),
   familyName: Joi.string().allow("", null),
+  title: Joi.string().valid("MR", "MRS", "MS", "CHILD", "OTHER", "").allow(null),
+  firstName: Joi.string().allow("", null),
+  middleName: Joi.string().allow("", null),
+  lastName: Joi.string().allow("", null),
+  documentType: Joi.string()
+    .valid("PASSPORT", "NATIONAL_ID", "RESIDENCY_ID", "GCC_ID")
+    .default("PASSPORT"),
+  documentNumber: Joi.string().allow("", null),
+  documentIssuingCountry: Joi.string().allow("", null),
   email: Joi.string().email().allow("", null),
   phoneNumber: Joi.string().allow("", null),
   passengerCategory: Joi.string()
@@ -53,9 +62,18 @@ const programSchema = Joi.object({
 
 const hotelSchema = Joi.object({
   hotelId: Joi.string().allow(null, ""),
+  roomTypeId: Joi.string().hex().length(24).allow(null, ""),
   nameAr: Joi.string().allow("", null),
   nameEn: Joi.string().allow("", null),
   roomType: Joi.string().allow("", null),
+  roomTypeNameAr: Joi.string().allow("", null),
+  roomTypeNameEn: Joi.string().allow("", null),
+  checkIn: Joi.date().allow(null),
+  checkOut: Joi.date().allow(null),
+  roomsCount: Joi.number().integer().min(1),
+  adults: Joi.number().integer().min(1),
+  children: Joi.number().integer().min(0).default(0),
+  mealPlan: Joi.string().allow("", null),
   nights: Joi.number().min(0).optional(),
 });
 
@@ -76,6 +94,15 @@ const pricingSchema = Joi.object({
 });
 
 const draftPayloadSchema = Joi.object({
+  bookingContext: Joi.string()
+    .valid("READY_PACKAGE", "CUSTOM_PACKAGE", "SERVICE")
+    .optional(),
+
+  serviceType: Joi.string()
+    .valid("", "FLIGHT", "TRIP", "HOTEL", "ACCOMMODATION", "TRANSPORT", "VISA", "ZIYARAT", "EXTRA_SERVICE")
+    .allow(null)
+    .optional(),
+
   customer: customerSchema.optional(),
 
   travelers: Joi.array().items(travelerSchema).optional(),
@@ -104,7 +131,27 @@ const draftPayloadSchema = Joi.object({
     .optional(),
 
   data: Joi.object().unknown(true).default({}),
-}).options({
+}).custom((value, helpers) => {
+  const serviceType = String(value.serviceType || "").toUpperCase();
+  if (
+    value.bookingContext !== "SERVICE" ||
+    !["HOTEL", "ACCOMMODATION"].includes(serviceType)
+  ) {
+    return value;
+  }
+
+  const accommodation = value.hotel || {};
+  const required = ["roomTypeId", "checkIn", "checkOut", "roomsCount", "adults"];
+  for (const field of required) {
+    if (accommodation[field] === undefined || accommodation[field] === null || accommodation[field] === "") {
+      return helpers.error("any.custom", { message: `hotel.${field} is required` });
+    }
+  }
+  if (new Date(accommodation.checkOut) <= new Date(accommodation.checkIn)) {
+    return helpers.error("any.custom", { message: "hotel.checkOut must be after hotel.checkIn" });
+  }
+  return value;
+}, "standalone accommodation contract").options({
   stripUnknown: true,
 });
 

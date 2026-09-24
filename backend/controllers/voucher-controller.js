@@ -67,7 +67,10 @@ getBookingVoucher
 
 export const getBookingVoucher = async (req, res, next) => {
   try {
-    const voucher = await getVoucherByBooking(req.params.bookingId);
+    const voucher = await getVoucherByBooking(req.params.bookingId, {
+      userId: req.user?._id,
+      role: req.user?.role,
+    });
 
     res.status(200).json({
       success: true,

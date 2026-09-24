@@ -11,6 +11,7 @@ import Trip from "../models/transportition/trip-model.js";
 import { buildSearchQuery } from "../utils/Builders/buildSearchQuery.js";
 import { buildSort } from "../utils/Builders/buildSort.js";
 import { buildPagination } from "../utils/Builders/buildPagination.js";
+import { assertTransportCapacityCanBeReduced } from "../services/transports/transport-capacity-service.js";
 
 //get all transportations
 export const getAllTransports = asyncHandler(async (req, res) => {
@@ -189,6 +190,17 @@ export const updateTransport = asyncHandler(async (req, res) => {
     }
 
     updateTransport.specs = specsData;
+  }
+
+  /* 4️⃣ الصور الجديدة */
+  if (
+    updateTransport.capacity !== undefined &&
+    Number(updateTransport.capacity) < Number(transport.capacity || 0)
+  ) {
+    await assertTransportCapacityCanBeReduced({
+      transportId: transport._id,
+      nextCapacity: updateTransport.capacity,
+    });
   }
 
   /* 4️⃣ الصور الجديدة */

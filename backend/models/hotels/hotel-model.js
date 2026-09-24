@@ -103,7 +103,12 @@ const HotelSchema = new mongoose.Schema(
     isDeleted: {
       type: Boolean,
       default: false,
+      index: true,
     },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     // === إحصائيات ===
     totalBookings: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
@@ -123,7 +128,7 @@ HotelSchema.pre("save", async function (next) {
   let slug = baseSlug;
   let counter = 1;
 
-  while (await this.constructor.findOne({ slug })) {
+  while (await this.constructor.findOne({ slug, _id: { $ne: this._id } })) {
     slug = `${baseSlug}-${counter++}`;
   }
 

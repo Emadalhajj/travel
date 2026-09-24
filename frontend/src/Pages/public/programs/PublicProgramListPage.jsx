@@ -8,7 +8,7 @@ import {
 } from "../../../redux/public/programSlice";
 import ProgramCard from "../../../Components/shared/programs/ProgramCard";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
-import Loader from "../../../Components/common/Loader";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import PageHeader from "../../../Components/layout/PageHeader";
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PublicButton from "../../../Components/shared/buttons/PublicButton";
@@ -71,7 +71,7 @@ export default function PublicProgramListPage() {
           }
         />
 
-        {loading && <Loader />}
+        {loading && <LoadingOverlay show overlay={false} size="sm" />}
 
         <ErrorOverlay show={!loading && Boolean(error)} message={error} />
 

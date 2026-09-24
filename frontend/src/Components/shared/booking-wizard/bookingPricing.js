@@ -1,5 +1,3 @@
-const TAX_RATE = 15;
-
 const getPositiveNumber = (...values) => {
   for (const value of values) {
     const number = Number(value);
@@ -64,13 +62,17 @@ export const calculateBookingPricing = ({
       : getPositiveNumber(fallbackPricing?.subtotal, fallbackPricing?.total);
 
   const discount = Number(fallbackPricing?.discount || 0);
-  const tax = Number((subtotal * (TAX_RATE / 100)).toFixed(2));
+  const taxRate = Number(fallbackPricing?.taxRate || 0);
+  const storedTax = fallbackPricing?.taxAmount ?? fallbackPricing?.tax;
+  const tax = storedTax !== undefined && storedTax !== null
+    ? Number(storedTax || 0)
+    : Number((subtotal * (taxRate / 100)).toFixed(2));
   const total = Math.max(0, Number((subtotal + tax - discount).toFixed(2)));
 
   return {
     subtotal,
     tax,
-    taxRate: TAX_RATE,
+    taxRate,
     discount,
     total,
     currency: fallbackPricing?.currency || selectedPackage?.pricing?.currency || "SAR",

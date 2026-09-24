@@ -310,7 +310,7 @@ export default function AdminHotelRooms() {
   ];
 
   return (
-    <div className="container py-2">
+    <div className="container-fluid py-2">
       <PageHeader
         titleAr="أنواع الغرف"
         titleEn="Room Types"
@@ -378,6 +378,7 @@ export default function AdminHotelRooms() {
           sort: {
             type: "select",
             col: 3,
+            showAllOption: false,
             placeholder: lang === "ar" ? "ترتيب حسب السعر" : "Sort by price",
             customOnChange: (value, setFilters, currentFilters) => {
               setFilters({

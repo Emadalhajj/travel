@@ -19,7 +19,6 @@ export const history = createBrowserHistory(); // to use history outside compone
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );
-console.log('Store:', store); // يجب أن يطبع الكائن وليس null
 root.render(
   <React.StrictMode>
     <Router>

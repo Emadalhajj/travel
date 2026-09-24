@@ -53,7 +53,6 @@ const voucherSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Booking",
       required: true,
-      index: true,
     },
 
     /*
@@ -137,6 +136,15 @@ const voucherSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+  },
+);
+
+voucherSchema.index(
+  { booking: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isDeleted: false },
+    name: "unique_active_voucher_per_booking",
   },
 );
 

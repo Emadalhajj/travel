@@ -5,6 +5,7 @@ import {
   buildExternalFlightSnapshot,
   revalidateExternalFlightOffer,
 } from "./external-flight-revalidation-service.js";
+import { calculatePricingQuote } from "../pricing/pricing-calculator.js";
 
 const getPublicProvider = () =>
   String(process.env.PUBLIC_FLIGHT_PROVIDER || "DUFFEL").trim().toUpperCase();
@@ -64,14 +65,17 @@ export const createPublicExternalFlightDraft = async ({
       currency: snapshot.pricing.currency,
       external: snapshot,
     },
-    pricing: {
-      subtotal: snapshot.pricing.total,
-      tax: 0,
-      taxRate: 0,
-      discount: 0,
-      total: snapshot.pricing.total,
+    pricing: calculatePricingQuote([{
+      sourceType: "EXTERNAL_FLIGHT",
+      sourceId: snapshot.offerId,
+      chargeType: "PER_BOOKING",
+      unitPrice: snapshot.pricing.total,
+      quantity: 1,
       currency: snapshot.pricing.currency,
-    },
+      tax: { enabled: false, rate: 0, inclusive: false },
+      adminDiscount: { enabled: false, type: "PERCENTAGE", value: 0 },
+      couponEligible: false,
+    }]),
     data: {
       bookingContext: "SERVICE",
       serviceType: "FLIGHT",

@@ -1,4 +1,5 @@
 import { get } from "./objectPath";
+import { isArabicText, isEnglishText } from "../../../Utils/validation/textLanguage";
 
 const isEmpty = (value) =>
   value === undefined ||
@@ -6,7 +7,16 @@ const isEmpty = (value) =>
   value === "" ||
   (Array.isArray(value) && value.length === 0);
 
-export const validateFormField = (field, value, isArabic) => {
+const resolveFieldLanguage = (field = {}) => {
+  if (field.language === "ar" || field.language === "en") return field.language;
+
+  const name = String(field.path || field.name || "");
+  if (/(?:^|\.)(?:[^.]*Ar|ar)$/.test(name)) return "ar";
+  if (/(?:^|\.)(?:[^.]*En|en)$/.test(name)) return "en";
+  return "";
+};
+
+export const validateFormField = (field, value, isArabic, formState = {}) => {
   if (field.required && isEmpty(value)) {
     return isArabic ? "هذا الحقل مطلوب" : "This field is required";
   }
@@ -35,8 +45,22 @@ export const validateFormField = (field, value, isArabic) => {
       : `Must be at least ${field.minLength} characters`;
   }
 
+  const fieldLanguage = resolveFieldLanguage(field);
+
+  if (fieldLanguage === "ar" && !isArabicText(value)) {
+    return isArabic
+      ? "يرجى إدخال النص باللغة العربية"
+      : "Please enter this text in Arabic";
+  }
+
+  if (fieldLanguage === "en" && !isEnglishText(value)) {
+    return isArabic
+      ? "يرجى إدخال النص باللغة الإنجليزية"
+      : "Please enter this text in English";
+  }
+
   if (typeof field.validate === "function") {
-    const result = field.validate(value);
+    const result = field.validate(value, formState, isArabic);
     if (result !== true && result) return String(result);
   }
 
@@ -47,7 +71,7 @@ export const validateFormFields = (fields, formState, isArabic) =>
   fields.reduce((errors, field) => {
     if (!field?.name || field.type === "hidden") return errors;
     const path = field.path || (field.isSpec ? `specs.${field.name}` : field.name);
-    const message = validateFormField(field, get(formState, path), isArabic);
+    const message = validateFormField(field, get(formState, path), isArabic, formState);
     if (message) errors[path] = message;
     return errors;
   }, {});

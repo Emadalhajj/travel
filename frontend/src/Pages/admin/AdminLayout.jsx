@@ -268,6 +268,11 @@ export default function AdminLayout() {
 
               icon: ReceiptText,
             },
+            {
+              path: "/admin/pricing/coupons",
+              label: isArabic ? "كوبونات الخصم" : "Discount Coupons",
+              icon: CreditCard,
+            },
           ],
         },
 
@@ -845,7 +850,7 @@ export default function AdminLayout() {
 
         {/* Page Content */}
 
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+        <main className="container-fluid min-w-0 flex-1 overflow-y-auto bg-gray-50 p-6">
           <Outlet />
         </main>
       </div>

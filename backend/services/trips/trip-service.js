@@ -11,6 +11,16 @@ import {
   restoreDeletedDocument,
 } from "../../utils/softDelete.js";
 
+const TRIP_SORTS = Object.freeze({
+  createdAt_asc: { createdAt: 1 },
+  createdAt_desc: { createdAt: -1 },
+  "pricing.basePrice_asc": { "pricing.basePrice": 1 },
+  "pricing.basePrice_desc": { "pricing.basePrice": -1 },
+});
+
+export const buildTripSort = (value) =>
+  TRIP_SORTS[value] || TRIP_SORTS.createdAt_desc;
+
 /*
 =====================================================
 TRIP SERVICE
@@ -307,6 +317,8 @@ export const getAllTripsService = async ({ query = {} } = {}) => {
 
   const skip = (page - 1) * limit;
 
+  const sort = buildTripSort(query.sort);
+
   const filter = {
     isDeleted: false,
   };
@@ -400,9 +412,7 @@ export const getAllTripsService = async ({ query = {} } = {}) => {
       .populate("vehicleType", "nameEn nameAr")
       .populate("transportId", "nameEn nameAr")
       .populate("departuresCount")
-      .sort({
-        createdAt: -1,
-      })
+      .sort(sort)
       .skip(skip)
       .limit(limit),
 

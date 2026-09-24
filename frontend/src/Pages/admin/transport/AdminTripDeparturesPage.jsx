@@ -167,7 +167,7 @@ export default function AdminTripDeparturesPage() {
     delete: ["حذف مسودة المغادرة؟", "Delete this departure draft?"],
   };
 
-  return <div className="container py-3">
+  return <div className="container-fluid py-3">
     <PageHeader
       titleAr={parentTripName ? `إدارة مغادرات الرحلة: ${parentTripName}` : "إدارة مغادرات الرحلة"}
       titleEn={parentTripName ? `Trip Departures: ${parentTripName}` : "Trip Departures"}

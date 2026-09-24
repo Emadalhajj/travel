@@ -10,7 +10,7 @@
 متوافق مع buildSearchQuery, buildPagination, populate, و Joi validation التي تستخدمها حالياً.
  */
 import mongoose from "mongoose";
-import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
+import { pricingQuoteSchema } from "../shared/pricing-quote-schema.js";
 
 import {
   BOOKING_STATUS_LIST,
@@ -28,9 +28,21 @@ import {
   BOOKING_STEPS_LIST,
   BOOKING_STEPS,
 } from "../../constants/booking/booking-steps.js";
+import {
+  FULFILLMENT_STATUS,
+  FULFILLMENT_STATUS_VALUES,
+} from "../../constants/booking/booking-fulfillment.js";
 
 const pilgrimSchema = new mongoose.Schema(
   {
+    title: { type: String, trim: true, default: "" },
+    firstName: { type: String, trim: true, default: "" },
+    middleName: { type: String, trim: true, default: "" },
+    lastName: { type: String, trim: true, default: "" },
+    documentType: { type: String, trim: true, default: "PASSPORT" },
+    documentNumber: { type: String, trim: true, default: "" },
+    documentIssuingCountry: { type: String, trim: true, default: "" },
+    passengerCategory: { type: String, trim: true, default: "adult" },
     passportNumber: {
       type: String,
       required: true,
@@ -258,6 +270,10 @@ const bookingItemSchema = new mongoose.Schema(
 
       checkIn: Date,
       checkOut: Date,
+      nights: { type: Number, default: 0, min: 0 },
+      adults: { type: Number, default: 1, min: 1 },
+      children: { type: Number, default: 0, min: 0 },
+      mealPlan: { type: String, default: "" },
 
       quantity: {
         type: Number,
@@ -282,6 +298,11 @@ const bookingItemSchema = new mongoose.Schema(
         default: 0,
         min: 0,
       },
+    },
+    whatsapp: {
+      type: String,
+      trim: true,
+      default: "",
     },
 
     visa: {
@@ -426,6 +447,36 @@ const bookingItemSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const serviceDocumentSchema = new mongoose.Schema({
+  documentType: {
+    type: String,
+    enum: ["ticket", "visa", "voucher", "confirmation", "other"],
+    default: "other",
+  },
+  titleAr: { type: String, trim: true, default: "" },
+  titleEn: { type: String, trim: true, default: "" },
+  note: { type: String, trim: true, default: "" },
+  originalName: { type: String, trim: true, required: true },
+  storageName: { type: String, trim: true, required: true },
+  url: { type: String, trim: true, required: true },
+  mimeType: { type: String, trim: true, default: "" },
+  size: { type: Number, default: 0 },
+  uploadedAt: { type: Date, default: Date.now },
+  uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  delivery: {
+    email: {
+      status: { type: String, enum: ["not_requested", "sent", "failed"], default: "not_requested" },
+      sentAt: { type: Date, default: null },
+      error: { type: String, default: "" },
+    },
+    whatsapp: {
+      status: { type: String, enum: ["not_requested", "sent", "failed"], default: "not_requested" },
+      sentAt: { type: Date, default: null },
+      error: { type: String, default: "" },
+    },
+  },
+}, { timestamps: false });
+
 const bookingSchema = new mongoose.Schema(
   {
     bookingNumber: {
@@ -530,54 +581,7 @@ Soft Delete Fields
      * --------------------
      */
 
-    pricing: {
-      roomPrice: {
-        type: Number,
-        default: 0,
-      },
-
-      visaPrice: {
-        type: Number,
-        default: 0,
-      },
-
-      tripPrice: {
-        type: Number,
-        default: 0,
-      },
-
-      transportPrice: {
-        type: Number,
-        default: 0,
-      },
-
-      subtotal: {
-        type: Number,
-        default: 0,
-      },
-      
-
-      taxRate: {
-        type: Number,
-        default: 15,
-      },
-
-      taxAmount: {
-        type: Number,
-        default: 0,
-      },
-
-      totalPrice: {
-        type: Number,
-        default: 0,
-      },
-
-      currency: {
-        type: String,
-        enum: SUPPORTED_CURRENCIES,
-        default: DEFAULT_CURRENCY,
-      },
-    },
+    pricing: { type: pricingQuoteSchema, default: () => ({}) },
 
     /*
      * payment
@@ -625,7 +629,17 @@ Soft Delete Fields
 
     serviceType: {
       type: String,
-      enum: ["", "FLIGHT"],
+      enum: [
+        "",
+        "FLIGHT",
+        "TRIP",
+        "HOTEL",
+        "ACCOMMODATION",
+        "TRANSPORT",
+        "VISA",
+        "ZIYARAT",
+        "EXTRA_SERVICE",
+      ],
       default: "",
     },
 
@@ -640,6 +654,36 @@ Soft Delete Fields
       enum: BOOKING_STATUS_LIST,
       default: BOOKING_STATUS.DRAFT,
     },
+    fulfillment: {
+      serviceType: { type: String, trim: true, uppercase: true, default: "PACKAGE" },
+      status: {
+        type: String,
+        enum: FULFILLMENT_STATUS_VALUES,
+        default: FULFILLMENT_STATUS.PENDING,
+      },
+      currentStep: { type: String, trim: true, uppercase: true, default: "" },
+      startedAt: { type: Date, default: null },
+      completedAt: { type: Date, default: null },
+      lastUpdatedAt: { type: Date, default: null },
+      actionRequiredReason: { type: String, trim: true, default: "" },
+      customerAction: {
+        status: {
+          type: String,
+          enum: ["", "requested", "submitted"],
+          default: "",
+        },
+        requestedAt: { type: Date, default: null },
+        submittedAt: { type: Date, default: null },
+        note: { type: String, trim: true, default: "" },
+        documents: [{
+          name: { type: String, trim: true, default: "" },
+          url: { type: String, trim: true, default: "" },
+          mimeType: { type: String, trim: true, default: "" },
+          size: { type: Number, default: 0 },
+          uploadedAt: { type: Date, default: Date.now },
+        }],
+      },
+    },
     notes: {
       type: String,
       trim: true,
@@ -647,6 +691,9 @@ Soft Delete Fields
     },
 
     attachments: [attachmentSchema],
+
+    // مخرجات الخدمة النهائية التي ترفعها الإدارة للعميل، وليست مستندات العميل الداخلة.
+    serviceDocuments: { type: [serviceDocumentSchema], default: [] },
 
     data: {
       type: mongoose.Schema.Types.Mixed,

@@ -1,25 +1,123 @@
-*{
-  padding: 0;
-  margin: 0;
+* {
   box-sizing: border-box;
-  }
+}
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
- 
+
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+table button[data-action="edit"],
+table button[data-action="clone"],
+table button[data-action="view"],
+table button[data-action="resetPassword"],
+table button[data-action="activate"],
+table button[data-action="deactivate"],
+table button[data-action="schedule"],
+table button[data-action="departures"],
+table button[data-action="complete"],
+table button[data-action="cancel"],
+table button[data-action="delete"] {
+  border-radius: 0.5rem;
+}
+
+/* =========================================================
+   TRAVEL DESIGN SYSTEM — FOUNDATIONS
+   ========================================================= */
+
+:root {
+  /* Brand */
+  --color-primary: 5 150 105;
+  --color-primary-hover: 4 120 87;
+  --color-primary-soft: 209 250 229;
+
+  /* Surfaces */
+  --color-surface: 255 255 255;
+  --color-surface-muted: 248 250 252;
+
+  /* Text */
+  --color-text: 15 23 42;
+  --color-text-muted: 100 116 139;
+  --color-text-subtle: 148 163 184;
+
+  /* Borders */
+  --color-border: 226 232 240;
+  --color-border-strong: 203 213 225;
+
+  /* Radius */
+  --radius-app: 0.75rem;
+  --radius-app-lg: 1rem;
+
+  /* Shadows */
+  --shadow-app: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.08);
+
+  --shadow-app-md:
+    0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.05);
+
+  /* Layout */
+  --layout-max-width: 1440px;
+  /* Radius */
+  --radius-button: 9999px;
+  --radius-app: 0.75rem;
+  --radius-app-lg: 1rem;
+}
+
+/* =========================================================
+   GLOBAL RESET
+   ========================================================= */
+
+/* * {
+  box-sizing: border-box;
+} */
+
+html {
+  min-width: 320px;
+}
+
+body {
+  margin: 0;
+
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+
+  color: rgb(var(--color-text));
+  background-color: rgb(var(--color-surface-muted));
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+code {
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
 
 /* إزالة أي مسافات أو هوامش يضيفها Zoom */
 .react-medium-image-zoom,
@@ -67,8 +165,41 @@ code {
   text-align: right !important;
 }
 
+/* One visual contract for text inputs and selects inside admin filters. */
+.form-control.entity-filter-control,
+button.entity-filter-control {
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  padding: 0.5rem 1rem !important;
+  border: 1px solid #d1d5db;
+  border-radius: 0.75rem;
+  background-color: #fff;
+  color: #374151;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  box-shadow: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-control.entity-filter-control::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
+.form-control.entity-filter-control:hover:not(:disabled),
+button.entity-filter-control:hover:not(:disabled) {
+  border-color: #9ca3af;
+}
+
+.form-control.entity-filter-control:focus,
+button.entity-filter-control:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgb(59 130 246 / 25%);
+  outline: 0;
+}
+
 [dir="rtl"] .btn {
   margin-left: 0 !important;
   margin-right: auto !important;
 }
-

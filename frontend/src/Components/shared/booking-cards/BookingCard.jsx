@@ -1,6 +1,8 @@
-import BookingStatusBadge from "./BookingStatusBadge";
+// import BookingStatusBadge from "./BookingStatusBadge";
 import ActionButton from "../../common/buttons/ActionButton";
 import { formatDate } from "../../../Utils/dateUtils";
+import BookingFulfillmentTimeline from "../booking/BookingFulfillmentTimeline";
+import StatusBadge from "../common/StatusBadge";
 
 export default function BookingCard({ booking, onView, isArabic = true, t }) {
   const bookingNumber =
@@ -21,7 +23,8 @@ export default function BookingCard({ booking, onView, isArabic = true, t }) {
     0;
 
   const currency = booking?.pricing?.currency || "SAR";
-  const isFlight = booking?.bookingContext === "SERVICE" && booking?.serviceType === "FLIGHT";
+  const isFlight =
+    booking?.bookingContext === "SERVICE" && booking?.serviceType === "FLIGHT";
   const flightRoute = booking?.flight?.route;
 
   return (
@@ -33,7 +36,11 @@ export default function BookingCard({ booking, onView, isArabic = true, t }) {
               {t?.("bookingNumber", "رقم الحجز") || "رقم الحجز"} {bookingNumber}
             </h3>
 
-            <BookingStatusBadge status={status} />
+            <StatusBadge
+              value={booking.status}
+              type="booking"
+              isArabic={isArabic}
+            />
           </div>
 
           <p className="text-sm text-gray-500 mt-2">
@@ -46,8 +53,10 @@ export default function BookingCard({ booking, onView, isArabic = true, t }) {
           </p>
           {isFlight && (
             <p className="text-sm font-semibold text-emerald-700 mt-1">
-              {(flightRoute?.origin || "-")} → {(flightRoute?.destination || "-")}
-              {booking?.flight?.bookingReference ? ` · ${booking.flight.bookingReference}` : ""}
+              {flightRoute?.origin || "-"} → {flightRoute?.destination || "-"}
+              {booking?.flight?.bookingReference
+                ? ` · ${booking.flight.bookingReference}`
+                : ""}
             </p>
           )}
         </div>
@@ -67,6 +76,18 @@ export default function BookingCard({ booking, onView, isArabic = true, t }) {
             />
           )}
         </div>
+      </div>
+
+      <div className="mt-5 border-t border-gray-100 pt-4">
+        <h4 className="mb-3 text-sm font-bold text-gray-700">
+          {t?.("serviceFulfillment", "حالة تنفيذ الخدمة") ||
+            "حالة تنفيذ الخدمة"}
+        </h4>
+        <BookingFulfillmentTimeline
+          fulfillment={booking?.fulfillment}
+          serviceType={booking?.serviceType}
+          isArabic={isArabic}
+        />
       </div>
     </div>
   );

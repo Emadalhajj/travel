@@ -17,7 +17,7 @@ import { customPackageFormConfig } from "../../../config/public-booking/customPa
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
 import PageHeader from "../../../Components/layout/PageHeader";
-import Loader from "../../../Components/common/Loader";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import PublicButton from "../../../Components/shared/buttons/PublicButton";
 import ConfigFieldsRenderer from "../../../Components/shared/forms/ConfigFieldsRenderer";
@@ -240,7 +240,9 @@ export default function PublicCustomPackageBuilderPage() {
             </Alert>
           )}
 
-          {canShowProducts && productsLoading && <Loader />}
+          {canShowProducts && productsLoading && (
+            <LoadingOverlay show overlay={false} size="sm" />
+          )}
           {canShowProducts && !productsLoading && !productsError && (
             <ProductTabs
               startDate={formData.startDate}

@@ -179,31 +179,19 @@ const paymentMethods = [
   },
 ];
 
-export const seedPaymentMethods = async () => {
+export const seedPaymentMethods = async ({ execute = false, PaymentMethodModel = PaymentMethod } = {}) => {
+  const summary = { mode: execute ? "execute" : "dry-run", scanned: paymentMethods.length, created: 0, unchanged: 0, drifted: 0, failed: 0 };
   for (const method of paymentMethods) {
-    await PaymentMethod.findOneAndUpdate(
-      {
-        code: method.code,
-      },
-
-      {
-        $set: method,
-
-        $setOnInsert: {
-          isActive: true,
-          isDeleted: false,
-        },
-      },
-
-      {
-        upsert: true,
-        new: true,
-        runValidators: true,
-      },
-    );
+    const existing = await PaymentMethodModel.findOne({ code: method.code }).lean();
+    if (existing) {
+      const drifted = Object.entries(method).some(([key, value]) => existing[key] !== value);
+      summary[drifted ? "drifted" : "unchanged"] += 1;
+      continue;
+    }
+    if (execute) {
+      await PaymentMethodModel.create({ ...method, isActive: true, isDeleted: false });
+      summary.created += 1;
+    }
   }
-
-  console.log(
-    "Payment methods seeded successfully",
-  );
+  return summary;
 };

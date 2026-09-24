@@ -1,5 +1,8 @@
 import { render } from "@testing-library/react";
-import { TravelerFormSection } from "./BookingPartyDetailsForm";
+import {
+  getTravelerTypeLabel,
+  TravelerFormSection,
+} from "./BookingPartyDetailsForm";
 
 let mockUploaderRenders = 0;
 
@@ -47,4 +50,17 @@ test("an unrelated traveler error does not render this traveler row", () => {
   );
 
   expect(mockUploaderRenders).toBe(4);
+});
+
+test("traveler type labels use a sequence inside each provider category", () => {
+  expect(getTravelerTypeLabel({
+    passengerType: "adult",
+    sequence: 2,
+    isArabic: true,
+  })).toBe("البالغ 2");
+  expect(getTravelerTypeLabel({
+    passengerType: "infant_without_seat",
+    sequence: 1,
+    isArabic: false,
+  })).toBe("Infant 1");
 });

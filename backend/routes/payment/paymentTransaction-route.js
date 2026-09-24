@@ -30,27 +30,12 @@ import {
 } from "../../controllers/payment/payment-transaction-admin-controller.js";
 
 import {
-  getPublicPaymentTransactionStatus,
-} from "../../controllers/payment/public-payment-transaction-controller.js";
-
-import {
   approveBankTransfer,
   rejectBankTransfer,
 } from "../../controllers/payment/bank-transfer-review-controller.js";
 
 const PaymentTransactionRoute =
   express.Router();
-
-/*
-=====================================================
-Public Transaction Status
-=====================================================
-*/
-
-PaymentTransactionRoute.get(
-  "/public/payments/:transactionId/status",
-  getPublicPaymentTransactionStatus,
-);
 
 /*
 =====================================================

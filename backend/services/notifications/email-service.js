@@ -89,7 +89,7 @@ export const createEmailService = ({
     return cachedTransporter;
   };
 
-  return async ({ to, subject, text, html }) => {
+  return async ({ to, subject, text, html, attachments = [] }) => {
     const recipient = String(to || "").trim();
     if (!recipient) throw new Error("Email recipient is missing");
 
@@ -106,6 +106,7 @@ export const createEmailService = ({
       subject: safeSubject,
       text: message,
       html: buildEmailHtml({ title: safeSubject, message }),
+      attachments,
     });
   };
 };

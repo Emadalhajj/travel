@@ -1,5 +1,9 @@
 import Joi from "joi";
 import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../../constants/currencies.js";
+import {
+  arabicTextSchema,
+  englishTextSchema,
+} from "../../../utils/validation/text-language.js";
 
 import {
   TRIP_TYPE_VALUES,
@@ -56,24 +60,24 @@ export const createTripSchema = Joi.object({
    * BASIC INFO
    * ====================== */
 
-  nameEn: Joi.string()
+  nameEn: englishTextSchema()
     .trim()
     .min(3)
     .max(70)
     .required(),
 
-  nameAr: Joi.string()
+  nameAr: arabicTextSchema()
     .trim()
     .min(3)
     .max(70)
     .required(),
 
-  descriptionEn: Joi.string()
+  descriptionEn: englishTextSchema()
     .trim()
     .allow("")
     .default(""),
 
-  descriptionAr: Joi.string()
+  descriptionAr: arabicTextSchema()
     .trim()
     .allow("")
     .default(""),

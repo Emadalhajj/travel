@@ -19,10 +19,10 @@ const showForManualAir = (state = {}) => state.source !== "API";
 export const tripFormConfig = (transports = []) => ({
   conditionKey: "type",
   commonFields: [
-    { name: "nameAr", labelAr: "الاسم بالعربية", labelEn: "Arabic Name", type: "text", col: 6, required: true, order: 1, visibleWhen: hideForExternalAir },
-    { name: "nameEn", labelAr: "الاسم بالإنجليزية", labelEn: "English Name", type: "text", col: 6, required: true, order: 1, visibleWhen: hideForExternalAir },
-    { name: "descriptionAr", labelAr: "الوصف بالعربية", labelEn: "Arabic Description", type: "textarea", col: 6, order: 2, visibleWhen: hideForExternalAir },
-    { name: "descriptionEn", labelAr: "الوصف بالإنجليزية", labelEn: "English Description", type: "textarea", col: 6, order: 2, visibleWhen: hideForExternalAir },
+    { name: "nameAr", labelAr: "الاسم بالعربية", labelEn: "Arabic Name", type: "text", language: "ar", col: 6, required: true, order: 1, visibleWhen: hideForExternalAir },
+    { name: "nameEn", labelAr: "الاسم بالإنجليزية", labelEn: "English Name", type: "text", language: "en", col: 6, required: true, order: 1, visibleWhen: hideForExternalAir },
+    { name: "descriptionAr", labelAr: "الوصف بالعربية", labelEn: "Arabic Description", type: "textarea", language: "ar", col: 6, order: 2, visibleWhen: hideForExternalAir },
+    { name: "descriptionEn", labelAr: "الوصف بالإنجليزية", labelEn: "English Description", type: "textarea", language: "en", col: 6, order: 2, visibleWhen: hideForExternalAir },
     {
       name: "type", labelAr: "نوع الرحلة", labelEn: "Trip Type", type: "select", col: 4,
       options: TRIP_TYPE_OPTIONS, required: true, order: 3,
@@ -56,7 +56,7 @@ export const tripFormConfig = (transports = []) => ({
       { name: "aircraft", labelAr: "الطائرة", labelEn: "Aircraft", type: "text", col: 2, order: 6, visibleWhen: showForManualAir },
     ],
     LAND: [
-      { name: "transportId", labelAr: "وسيلة النقل", labelEn: "Transport", type: "select", required: true, col: 6, options: transports.map((item) => ({ value: item._id, labelAr: item.nameAr || item.nameEn, labelEn: item.nameEn || item.nameAr })), order: 4 },
+      { name: "transportId", labelAr: "وسيلة النقل", labelEn: "Transport", type: "select", required: true, col: 6, options: transports.map((item) => ({ value: item._id, labelAr: `${item.nameAr || item.nameEn} (${item.capacity || 0})`, labelEn: `${item.nameEn || item.nameAr} (${item.capacity || 0})`, capacity: Number(item.capacity || 0) })), order: 4 },
       { name: "routeStops", labelAr: "محطات المسار", labelEn: "Route Stops", type: "array", itemLabelAr: "محطة", itemLabelEn: "Stop", fields: routeFields, col: 12, order: 5 },
     ],
     SEA: [

@@ -75,7 +75,7 @@ export default function DashboardOverview() {
   ];
 
   return (
-    <div className="container position-relative py-3" dir={isArabic ? "rtl" : "ltr"}>
+    <div className="container-fluid position-relative py-3" dir={isArabic ? "rtl" : "ltr"}>
       <LoadingOverlay
         show={loading}
         text={isArabic ? "جاري تحميل الملخص..." : "Loading overview..."}

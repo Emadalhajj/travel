@@ -167,12 +167,7 @@ export default function AdminPaymentMethodsPage() {
     {
       header: isArabic ? "الحالة" : "Status",
       align: "center",
-      render: (row) => (
-        <div className="d-flex align-items-center justify-content-center gap-2">
-          <StatusBadge value={row.isActive ? "active" : "inactive"} type="user" isArabic={isArabic} />
-          <ActionButton action={row.isActive ? "deactivate" : "activate"} onClick={() => handleStatusChange(row)} />
-        </div>
-      ),
+      render: (row) => <StatusBadge value={row.isActive ? "active" : "inactive"} type="user" isArabic={isArabic} />,
     },
     {
       header: isArabic ? "الإجراءات" : "Actions",
@@ -183,6 +178,7 @@ export default function AdminPaymentMethodsPage() {
           <ActionButton action="edit" onClick={() => openEdit(row)} />
           <ActionButton action="clone" onClick={() => openClone(row)} />
           <ActionButton action="view" onClick={() => openDetails(row)} />
+          <ActionButton action={row.isActive ? "deactivate" : "activate"} onClick={() => handleStatusChange(row)} />
           <ActionButton action="delete" onClick={() => openDelete(row, isArabic ? row.nameAr : row.nameEn || row.nameAr)} />
         </div>
       ),
@@ -190,7 +186,7 @@ export default function AdminPaymentMethodsPage() {
   ];
 
   return (
-    <div className="container py-3">
+    <div className="container-fluid py-3">
       <PageHeader titleAr="إدارة طرق الدفع" titleEn="Payment Methods Management" subtitleAr="إدارة طرق الدفع ومتطلبات كل طريقة وحالة تفعيلها" subtitleEn="Manage payment methods, requirements, status, and display order" actions={<AdminPageActions><ActionButton action="add" size="md" label={isArabic ? "إضافة طريقة دفع" : "Add Payment Method"} onClick={openCreate} /><ExportTableButtons data={paymentMethodsList} columns={columns} fileName="payment-methods" lang={lang} title={isArabic ? "طرق الدفع" : "Payment Methods"} /></AdminPageActions>} />
       <EntityFilter filters={filters} setFilters={setFilters} config={{
         search: { type: "text", col: 4, placeholder: isArabic ? "بحث بالاسم أو الكود" : "Search by name or code" },

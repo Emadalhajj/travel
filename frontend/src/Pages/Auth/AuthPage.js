@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { loginUser } from "../../redux/auth/authSlice";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,12 @@ import PublicButton from "../../Components/shared/buttons/PublicButton";
 export default function AuthPage() {
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
+  const location = useLocation();
+  const returnTo = typeof location.state?.from === "string"
+    && location.state.from.startsWith("/")
+    && !location.state.from.startsWith("//")
+    ? location.state.from
+    : "/";
 
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -86,7 +92,7 @@ export default function AuthPage() {
     try {
       await dispatch(loginUser(loginForm)).unwrap();
       toast.success("تم تسجيل الدخول بنجاح ✅");
-      navigate("/");
+      navigate(returnTo, { replace: true });
     } catch (loginFailure) {
       setLoginError(
         typeof loginFailure === "string"
@@ -141,12 +147,15 @@ export default function AuthPage() {
           )}
           <form onSubmit={handleSubmitRegiter} className="space-y-5">
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">
+              <label htmlFor="register-username" className="block text-gray-700 mb-1 font-medium">
                 {t("auth.username")}
               </label>
               <input
                 type="text"
+                id="register-username"
                 name="username"
+                autoComplete="username"
+                required
                 value={registerForm.username}
                 onChange={handleResiterChange}
                 placeholder={t("auth.usernamePlaceholder")}
@@ -155,12 +164,15 @@ export default function AuthPage() {
             </div>
 
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">
+              <label htmlFor="register-email" className="block text-gray-700 mb-1 font-medium">
                 {t("auth.email")}
               </label>
               <input
                 type="email"
+                id="register-email"
                 name="email"
+                autoComplete="email"
+                required
                 value={registerForm.email}
                 onChange={handleResiterChange}
                 placeholder={t("auth.emailPlaceholder")}
@@ -169,12 +181,16 @@ export default function AuthPage() {
             </div>
 
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">
+              <label htmlFor="register-password" className="block text-gray-700 mb-1 font-medium">
                 {t("auth.password")}
               </label>
               <input
                 type="password"
+                id="register-password"
                 name="password"
+                autoComplete="new-password"
+                minLength={6}
+                required
                 value={registerForm.password}
                 onChange={handleResiterChange}
                 placeholder={t("auth.passwordPlaceholder")}
@@ -183,12 +199,16 @@ export default function AuthPage() {
             </div>
 
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">
+              <label htmlFor="register-confirm-password" className="block text-gray-700 mb-1 font-medium">
                 {t("auth.confirmPassword")}
               </label>
               <input
                 type="password"
+                id="register-confirm-password"
                 name="confirmPassword"
+                autoComplete="new-password"
+                minLength={6}
+                required
                 value={registerForm.confirmPassword}
                 onChange={handleResiterChange}
                 placeholder={t("auth.confirmPasswordPlaceholder")}
@@ -196,12 +216,15 @@ export default function AuthPage() {
               />
             </div>
 
-            <button
+            <PublicButton
               type="submit"
-              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+              loading={loading && TypeAction !== "login"}
+              disabled={loading}
+              fullWidth
+              className="bg-blue-600 hover:bg-blue-700"
             >
               {t("auth.register")}
-            </button>
+            </PublicButton>
           </form>
         </div>
 
@@ -222,12 +245,15 @@ export default function AuthPage() {
 
           <form onSubmit={handleSubmitLogin} className="space-y-5">
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">
+              <label htmlFor="login-email" className="block text-gray-700 mb-1 font-medium">
                 {t("auth.email")}
               </label>
               <input
                 type="email"
+                id="login-email"
                 name="email"
+                autoComplete="email"
+                required
                 value={loginForm.email}
                 onChange={handleLoginChange}
                 placeholder={t("auth.emailPlaceholder")}
@@ -236,12 +262,15 @@ export default function AuthPage() {
             </div>
 
             <div>
-              <label className="block text-gray-700 mb-1 font-medium">
+              <label htmlFor="login-password" className="block text-gray-700 mb-1 font-medium">
                 {t("auth.password")}
               </label>
               <input
                 type="password"
+                id="login-password"
                 name="password"
+                autoComplete="current-password"
+                required
                 value={loginForm.password}
                 onChange={handleLoginChange}
                 placeholder={t("auth.passwordPlaceholder")}
@@ -249,18 +278,22 @@ export default function AuthPage() {
               />
             </div>
 
-            <button
+            <PublicButton
               type="submit"
-              className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition"
+              loading={loading && TypeAction !== "register"}
+              disabled={loading}
+              fullWidth
+              className="bg-green-600 hover:bg-green-700"
             >
               {t("auth.login")}
-            </button>
+            </PublicButton>
           </form>
 
           {/* زر Google */}
           <PublicButton
             type="button"
             onClick={loginWithGoogle}
+            disabled={loading}
             fullWidth
             className="mt-4 bg-red-500 hover:bg-red-600"
           >

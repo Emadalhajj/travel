@@ -40,5 +40,13 @@ export const validateStartupEnvironment = () => {
     throw new Error("DUFFEL_WEBHOOK_SECRET is required when Duffel is enabled in production");
   }
 
+  const whatsappValues = ["WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID"];
+  const configuredWhatsAppValues = whatsappValues.filter((key) =>
+    String(process.env[key] || "").trim(),
+  );
+  if (configuredWhatsAppValues.length > 0 && configuredWhatsAppValues.length < whatsappValues.length) {
+    throw new Error("WhatsApp Cloud API configuration is incomplete");
+  }
+
   getAllowedOrigins();
 };

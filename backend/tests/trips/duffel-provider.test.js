@@ -125,6 +125,28 @@ test("Duffel client aborts requests that exceed the configured timeout", async (
   );
 });
 
+test("Duffel client classifies order validation separately from search validation", async () => {
+  const client = createDuffelClient({
+    configFactory: () => config,
+    fetchImpl: async () => response(422, {
+      errors: [{
+        code: "validation_error",
+        type: "validation_error",
+        source: { field: "passengers.0.identity_documents.0.expires_on" },
+      }],
+    }),
+  });
+
+  await assert.rejects(
+    client.request("/air/orders", { method: "POST", body: { data: {} } }),
+    ({ code, field, params }) =>
+      code === "EXTERNAL_FLIGHT_ORDER_CREATION_FAILED" &&
+      field === "order" &&
+      params.providerField ===
+        "passengers.0.identity_documents.0.expires_on",
+  );
+});
+
 test("offer normalizer preserves multi-segment operational and pricing data", () => {
   const normalized = normalizeDuffelOffer({
     id: "off_1",

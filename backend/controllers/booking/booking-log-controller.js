@@ -23,6 +23,8 @@ import AppError from "../../utils/AppError.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
 import { buildPagination } from "../../utils/Builders/buildPagination.js";
 
+const ADMIN_ROLES = new Set(["admin", "superAdmin"]);
+
 /*
 =====================================================
 GET BOOKING LOGS
@@ -32,7 +34,11 @@ GET BOOKING LOGS
 export const getBookingLogs = asyncHandler(async (req, res) => {
   const isArabic = isArabicRequest(req);
 
-  const booking = await Booking.findById(req.params.bookingId);
+  const booking = await Booking.findOne({
+    _id: req.params.bookingId,
+    isDeleted: false,
+    ...(ADMIN_ROLES.has(req.user.role) ? {} : { user: req.user._id }),
+  });
 
   if (!booking) {
     throw new AppError(

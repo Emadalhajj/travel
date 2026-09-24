@@ -28,6 +28,7 @@ import {
 } from "../../services/availability/inventory-availability-service.js";
 import { TRIP_SOURCES, TRIP_TYPES } from "../../constants/trips/trip.constants.js";
 import { TRIP_DEPARTURE_STATUS } from "../../constants/trips/trip-departure.constants.js";
+import { evaluateRoomSellablePeriod } from "./room-sellability-policy.js";
 import { INVENTORY_TYPES } from "../../constants/inventory/inventory-types.js";
 import { revalidateExternalFlightOffer } from "../trips/external-flight-revalidation-service.js";
 
@@ -156,21 +157,6 @@ Room Types Availability
 - السعر العام أو فترات التسعير لا تعني توفر الغرفة
 =====================================================
 */
-const isRoomSellableInPeriod = ({ roomType, startDate, endDate }) => {
-  const programStart = new Date(startDate);
-  const programEnd = new Date(endDate);
-
-  const periods = roomType.availability?.availablePeriods || [];
-
-  return periods.find((period) => {
-    if (!period.isActive) return false;
-
-    const periodStart = new Date(period.startDate);
-    const periodEnd = new Date(period.endDate);
-
-    return programStart >= periodStart && programEnd <= periodEnd;
-  });
-};
 const getAvailableRoomTypes = async ({
   startDate,
   endDate,
@@ -180,17 +166,21 @@ const getAvailableRoomTypes = async ({
     isActive: true,
     isDeleted: { $ne: true },
   })
-    .populate("hotel")
+    .populate({ path: "hotel", match: { isActive: true, isDeleted: { $ne: true } } })
     .lean();
 
-  const sellableRoomTypes = roomTypes.map((roomType) => ({
-    roomType,
-    matchedSellablePeriod: isRoomSellableInPeriod({
+  const sellableRoomTypes = roomTypes.map((roomType) => {
+    const sellability = evaluateRoomSellablePeriod({
       roomType,
       startDate,
       endDate,
-    }),
-  })).filter(({ matchedSellablePeriod }) => matchedSellablePeriod);
+    });
+    return {
+      roomType,
+      matchedSellablePeriod: sellability.matchedPeriod,
+      sellability,
+    };
+  }).filter(({ sellability }) => sellability.isSellable);
   const availabilityByRoomTypeId = await getInventoryAvailabilityByProduct({
     products: sellableRoomTypes.map(({ roomType }) => roomType),
     Inventory,
@@ -629,8 +619,91 @@ export const getAvailablePackageProductsService = async ({
   startDate,
   endDate,
   pilgrimsCount = 1,
+  category = "",
+  mode = "availability",
 }) => {
   const requestedCount = getNumber(pilgrimsCount, 1);
+
+  const emptyResult = {
+    roomTypes: [], visas: [], trips: [], transports: [], extraServices: [],
+    vehicleRentals: [], hotels: [], flights: [], ziyarats: [], services: [],
+  };
+
+  if (mode === "browse") {
+    if (category === "roomTypes") {
+      const roomTypes = await RoomType.find({
+        isActive: true,
+        isDeleted: { $ne: true },
+      })
+        .populate({ path: "hotel", match: { isActive: true, isDeleted: { $ne: true } } })
+        .lean();
+      const products = roomTypes
+        .filter(({ hotel }) => Boolean(hotel) && hotel.isActive !== false)
+        .map((roomType) => mapRoomTypeProduct({
+          roomType,
+          availableCount: null,
+          extra: { availabilityReason: "BROWSE_ONLY" },
+        }));
+
+      return {
+        ...emptyResult,
+        roomTypes: products,
+        hotels: getHotelsFromAvailableRooms(products),
+      };
+    }
+
+    const browseModels = {
+      visas: { Model: Visa, type: "visa" },
+      transports: { Model: Transport, type: "transport" },
+      extraServices: { Model: ExtraService, type: "extraService" },
+    };
+    const browseConfig = browseModels[category];
+
+    if (browseConfig) {
+      const documents = await browseConfig.Model.find({
+        isActive: true,
+        isDeleted: { $ne: true },
+      }).lean();
+      const products = documents.map((doc) => mapProduct({
+        doc,
+        type: browseConfig.type,
+        availableCount: null,
+        extra: { availabilityReason: "BROWSE_ONLY" },
+      }));
+
+      if (category === "extraServices") {
+        return { ...emptyResult, extraServices: products, services: products };
+      }
+
+      return { ...emptyResult, [category]: products };
+    }
+
+    if (category === "ziyarats") return emptyResult;
+  }
+
+  if (category === "roomTypes") {
+    const roomTypes = await getAvailableRoomTypes({ startDate, endDate, requestedRooms: 1 });
+    return { ...emptyResult, roomTypes, hotels: getHotelsFromAvailableRooms(roomTypes) };
+  }
+  if (category === "visas") {
+    return { ...emptyResult, visas: await getAvailableVisas({ startDate, endDate, pilgrimsCount: requestedCount }) };
+  }
+  if (category === "transports") {
+    return { ...emptyResult, transports: await getAvailableTransports({ startDate, endDate, pilgrimsCount: requestedCount }) };
+  }
+  if (category === "extraServices") {
+    const extraServices = await getAvailableExtraServices({ startDate, endDate, pilgrimsCount: requestedCount });
+    return { ...emptyResult, extraServices, services: extraServices };
+  }
+  if (category === "ziyarats") return emptyResult;
+  if (category === "flights" || category === "trips") {
+    const tripProducts = await getAvailableTrips({ startDate, endDate, pilgrimsCount: requestedCount });
+    return {
+      ...emptyResult,
+      flights: category === "flights" ? tripProducts.filter(({ tripType }) => tripType === TRIP_TYPES.AIR) : [],
+      trips: category === "trips" ? tripProducts.filter(({ tripType }) => tripType !== TRIP_TYPES.AIR) : [],
+    };
+  }
 
   const [roomTypes, visas, trips, transports, extraServices, vehicleRentals] =
     await Promise.all([

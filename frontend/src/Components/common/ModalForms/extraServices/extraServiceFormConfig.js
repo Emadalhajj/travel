@@ -1,4 +1,5 @@
 import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "../../../../constants/currencies";
+import { createPricingPolicyFields } from "../shared/pricingPolicyFields";
 
 export const extraServiceFormConfig = () => ({
   commonFields: [
@@ -7,6 +8,7 @@ export const extraServiceFormConfig = () => ({
       labelAr: "اسم الخدمة بالعربية",
       labelEn: "Arabic Service Name",
       type: "text",
+      language: "ar",
       col: 6,
       required: true,
       order: 1,
@@ -16,6 +18,7 @@ export const extraServiceFormConfig = () => ({
       labelAr: "اسم الخدمة بالإنجليزية",
       labelEn: "English Service Name",
       type: "text",
+      language: "en",
       col: 6,
       required: true,
       order: 1,
@@ -25,6 +28,7 @@ export const extraServiceFormConfig = () => ({
       labelAr: "الوصف بالعربية",
       labelEn: "Arabic Description",
       type: "textarea",
+      language: "ar",
       rows: 3,
       col: 6,
       order: 2,
@@ -34,6 +38,7 @@ export const extraServiceFormConfig = () => ({
       labelAr: "الوصف بالإنجليزية",
       labelEn: "English Description",
       type: "textarea",
+      language: "en",
       rows: 3,
       col: 6,
       order: 2,
@@ -78,6 +83,7 @@ export const extraServiceFormConfig = () => ({
       order: 4,
       options: CURRENCY_OPTIONS,
     },
+    ...createPricingPolicyFields({ order: 5 }),
     {
       name: "isAlwaysAvailable",
       labelAr: "متاحة دائمًا بدون مخزون",

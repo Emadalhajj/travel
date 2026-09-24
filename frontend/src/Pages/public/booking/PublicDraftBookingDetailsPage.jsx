@@ -19,7 +19,7 @@ import PublicButton from "../../../Components/shared/buttons/PublicButton";
 import ConfirmDialog from "../../../Components/common/ConfirmModal";
 import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
 
-import Loader from "../../../Components/common/Loader";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 
 import BookingProgressTimeline, {
@@ -44,6 +44,11 @@ import {
   calculateBookingPricing,
   getProgramUnitPrice,
 } from "../../../Components/shared/booking-wizard/bookingPricing";
+import {
+  getBookingRequirements,
+  isRequirementRequired,
+  isRequirementVisible,
+} from "../../../config/public-booking/bookingRequirements";
 
 export default function PublicDraftBookingDetailsPage() {
   const { draftId } = useParams();
@@ -53,6 +58,16 @@ export default function PublicDraftBookingDetailsPage() {
 
   const { t, i18n } = useTranslation();
   const isArabic = i18n.language === "ar";
+
+  const serviceLabels = {
+    FLIGHT: { ar: "الرحلة", en: "Flight" },
+    HOTEL: { ar: "السكن", en: "Accommodation" },
+    ACCOMMODATION: { ar: "السكن", en: "Accommodation" },
+    TRANSPORT: { ar: "النقل", en: "Transport" },
+    VISA: { ar: "التأشيرة", en: "Visa" },
+    ZIYARAT: { ar: "الزيارة", en: "Ziyarat" },
+    EXTRA_SERVICE: { ar: "الخدمة الإضافية", en: "Extra Service" },
+  };
 
   const draftBooking = useSelector(selectPublicDraftBooking);
   const loading = useSelector(selectPublicDraftLoading);
@@ -166,8 +181,10 @@ export default function PublicDraftBookingDetailsPage() {
 
   const pricingSummary = useMemo(() => {
     const savedPricing = draftBooking?.pricing || {};
+    const isV2 = Number(savedPricing.version) === 2;
 
     return {
+      version: Number(savedPricing.version || 0),
       subtotal: getNumberWithZeroSupport(
         savedPricing.subtotal,
         calculatedPricing?.subtotal,
@@ -176,7 +193,7 @@ export default function PublicDraftBookingDetailsPage() {
       taxRate: getNumberWithZeroSupport(
         savedPricing.taxRate,
         calculatedPricing?.taxRate,
-        15,
+        0,
       ),
 
       taxAmount: getNumberWithZeroSupport(
@@ -187,13 +204,17 @@ export default function PublicDraftBookingDetailsPage() {
       ),
 
       discount: getNumberWithZeroSupport(
-        savedPricing.discount,
+        isV2 ? savedPricing.adminDiscountAmount : savedPricing.discount,
         calculatedPricing?.discount,
       ),
 
+      couponDiscount: getNumberWithZeroSupport(
+        savedPricing.couponDiscountAmount,
+      ),
+
       total: getNumberWithZeroSupport(
-        savedPricing.totalPrice,
         savedPricing.total,
+        savedPricing.totalPrice,
         savedPricing.totalAmount,
         calculatedPricing?.totalPrice,
         calculatedPricing?.total,
@@ -233,6 +254,29 @@ export default function PublicDraftBookingDetailsPage() {
       ),
     },
   ];
+
+  const isExternalFlight = draftBooking?.bookingContext === "SERVICE" &&
+    draftBooking?.serviceType === "FLIGHT";
+  const isStandaloneService = draftBooking?.bookingContext === "SERVICE";
+  const serviceType = draftBooking?.serviceType || "";
+  const isAccommodation = isStandaloneService && serviceType === "ACCOMMODATION";
+  const accommodationPricingPending = Boolean(
+    isAccommodation && draftBooking?.data?.accommodationPricingPending,
+  );
+  const serviceLabel = serviceLabels[serviceType]?.[isArabic ? "ar" : "en"] ||
+    (isArabic ? "الخدمة" : "Service");
+  const travelerLabel = isStandaloneService
+    ? (isArabic ? "المسافرون / المستفيدون" : "Travelers / Beneficiaries")
+    : t("travelers", "المعتمرون");
+  const serviceEditRoutes = {
+    FLIGHT: "/services/flights",
+    HOTEL: "/services/hotels",
+    ACCOMMODATION: "/services/hotels",
+    TRANSPORT: "/services/transports",
+    VISA: "/services/visas",
+    ZIYARAT: "/services/ziyarats",
+    EXTRA_SERVICE: "/services/extras",
+  };
 
   /*
   =====================================================
@@ -283,7 +327,9 @@ export default function PublicDraftBookingDetailsPage() {
       ),
     },
     {
-      label: t("travelersCount", "عدد المعتمرين"),
+      label: isStandaloneService
+        ? (isArabic ? "عدد المسافرين / المستفيدين" : "Travelers / beneficiaries")
+        : t("travelersCount", "عدد المعتمرين"),
       value: travelers.length,
     },
     {
@@ -298,10 +344,9 @@ export default function PublicDraftBookingDetailsPage() {
       ),
     },
     {
-      label: t(
-        "vat",
-        `ضريبة القيمة المضافة ${pricingSummary.taxRate}%`,
-      ),
+      label: pricingSummary.version === 2
+        ? (isArabic ? "الضريبة" : "Tax")
+        : t("vat", `ضريبة القيمة المضافة ${pricingSummary.taxRate}%`),
       value: formatPrice(
         pricingSummary.taxAmount,
         pricingSummary.currency,
@@ -314,6 +359,10 @@ export default function PublicDraftBookingDetailsPage() {
         pricingSummary.currency,
       ),
     },
+    ...(pricingSummary.couponDiscount > 0 ? [{
+      label: isArabic ? "خصم الكوبون" : "Coupon discount",
+      value: formatPrice(pricingSummary.couponDiscount, pricingSummary.currency),
+    }] : []),
     {
       label: t("totalWithVat", "الإجمالي شامل الضريبة"),
       value: formatPrice(
@@ -329,16 +378,18 @@ export default function PublicDraftBookingDetailsPage() {
   =====================================================
   */
 
-  const hasCustomerData = Boolean(
+  const hasStoredCustomerData = Boolean(
     draftBooking?.customer?.name?.trim() &&
       draftBooking?.customer?.phone?.trim() &&
       draftBooking?.customer?.email?.trim(),
   );
 
-  const hasTravelers = travelers.length > 0;
+  const bookingRequirements = getBookingRequirements(draftBooking);
+  const hasCustomerData = !isRequirementRequired(bookingRequirements.customer) ||
+    hasStoredCustomerData;
+  const hasTravelers = !isRequirementRequired(bookingRequirements.travelers) ||
+    travelers.length > 0;
   const hasSelectedProducts = selectedProductsList.length > 0;
-  const isExternalFlight = draftBooking?.bookingContext === "SERVICE" &&
-    draftBooking?.serviceType === "FLIGHT";
 
   /*
   الباقة الجاهزة تحتوي خدمات مشمولة في سعر البرنامج،
@@ -379,7 +430,8 @@ export default function PublicDraftBookingDetailsPage() {
     isDraft &&
     hasCustomerData &&
     hasTravelers &&
-    hasRequiredServices;
+    hasRequiredServices &&
+    !accommodationPricingPending;
 
   /*
   =====================================================
@@ -406,7 +458,12 @@ export default function PublicDraftBookingDetailsPage() {
     );
 
     if (currentStep === "dates" || currentStep === "services") {
-      navigate(isExternalFlight ? "/services/flights" : "/custom-package-builder");
+      const editRoute = serviceEditRoutes[serviceType] || "/services";
+      navigate(isStandaloneService
+        ? (isAccommodation
+            ? `${editRoute}?draftId=${encodeURIComponent(draftId)}`
+            : editRoute)
+        : "/custom-package-builder");
       return;
     }
 
@@ -425,7 +482,9 @@ export default function PublicDraftBookingDetailsPage() {
         setLocalError(
           t(
             "draftIncomplete",
-            "المسودة غير مكتملة. يرجى استكمال بيانات العميل والمعتمرين والخدمات قبل المتابعة إلى الدفع.",
+            isStandaloneService
+              ? "الحجز غير مكتمل. يرجى استكمال بيانات العميل والمسافرين والخدمة قبل المتابعة إلى الدفع."
+              : "المسودة غير مكتملة. يرجى استكمال بيانات العميل والمعتمرين والخدمات قبل المتابعة إلى الدفع.",
           ),
         );
 
@@ -524,7 +583,7 @@ export default function PublicDraftBookingDetailsPage() {
   if (loading) {
     return (
       <PublicPageLayout>
-        <Loader />
+        <LoadingOverlay show overlay={false} />
       </PublicPageLayout>
     );
   }
@@ -568,10 +627,10 @@ export default function PublicDraftBookingDetailsPage() {
       <PageHeader
         eyebrowAr="مراجعة المسودة"
         eyebrowEn="Draft Review"
-        titleAr={isExternalFlight ? "مراجعة حجز الرحلة" : (programName || "مراجعة مسودة الحجز")}
-        titleEn={isExternalFlight ? "Review Flight Booking" : (programName || "Review Draft Booking")}
-        subtitleAr={isExternalFlight ? "راجع بيانات الرحلة والمسافرين والسعر المحدث قبل الدفع." : "راجع بيانات البرنامج والعميل والمعتمرين والخدمات قبل المتابعة إلى الدفع."}
-        subtitleEn={isExternalFlight ? "Review the flight, passengers, and latest price before payment." : "Review the program, customer, travelers, and selected services before payment."}
+        titleAr={isStandaloneService ? `مراجعة حجز ${serviceLabel}` : (programName || "مراجعة مسودة الحجز")}
+        titleEn={isStandaloneService ? `Review ${serviceLabel} Booking` : (programName || "Review Draft Booking")}
+        subtitleAr={isStandaloneService ? "راجع بيانات العميل والمسافرين والخدمة المختارة قبل الدفع." : "راجع بيانات البرنامج والعميل والمعتمرين والخدمات قبل المتابعة إلى الدفع."}
+        subtitleEn={isStandaloneService ? "Review the customer, travelers, and selected service before payment." : "Review the program, customer, travelers, and selected services before payment."}
         actions={
           <div className="flex flex-wrap gap-3">
             {isDraft && <ActionButton action="back" onClick={handleEditTravelers} showLabel label={t("previousStep", "الخطوة السابقة")} size="lg" />}
@@ -660,7 +719,9 @@ export default function PublicDraftBookingDetailsPage() {
                 •{" "}
                 {t(
                   "travelersDataIncomplete",
-                  "لم تتم إضافة بيانات المعتمرين.",
+                  isStandaloneService
+                    ? "لم تتم إضافة بيانات المسافرين أو المستفيدين."
+                    : "لم تتم إضافة بيانات المعتمرين.",
                 )}
               </p>
             )}
@@ -680,8 +741,17 @@ export default function PublicDraftBookingDetailsPage() {
                 •{" "}
                 {t(
                   "pricingNotCalculated",
-                  "لم يتم احتساب سعر البرنامج.",
+                  isStandaloneService
+                    ? "لم يتم احتساب سعر الخدمة."
+                    : "لم يتم احتساب سعر البرنامج.",
                 )}
+              </p>
+            )}
+            {accommodationPricingPending && (
+              <p>
+                • {isArabic
+                  ? "الدفع متوقف مؤقتًا حتى اكتمال التسعير الليلي للسكن."
+                  : "Payment is temporarily unavailable until nightly accommodation pricing is completed."}
               </p>
             )}
           </div>
@@ -721,12 +791,27 @@ export default function PublicDraftBookingDetailsPage() {
                 { label: t("latestPrice", "السعر الحالي"), value: formatPrice(pricingSummary.total, pricingSummary.currency) },
               ]}
             />
-          ) : (
+          ) : isAccommodation ? (
+            <DraftBookingInfoCard
+              title={t("accommodationInfo", "بيانات السكن")}
+              items={[
+                { label: t("hotel", "الفندق"), value: isArabic ? draftBooking?.hotel?.nameAr : draftBooking?.hotel?.nameEn },
+                { label: t("roomType", "نوع الغرفة"), value: isArabic ? draftBooking?.hotel?.roomTypeNameAr : draftBooking?.hotel?.roomTypeNameEn },
+                { label: t("checkIn", "الوصول"), value: formatDate(draftBooking?.hotel?.checkIn, { isArabic }) },
+                { label: t("checkOut", "المغادرة"), value: formatDate(draftBooking?.hotel?.checkOut, { isArabic }) },
+                { label: t("nights", "عدد الليالي"), value: draftBooking?.hotel?.nights ?? "-" },
+                { label: t("rooms", "الغرف"), value: draftBooking?.hotel?.roomsCount ?? "-" },
+                { label: t("adults", "البالغون"), value: draftBooking?.hotel?.adults ?? "-" },
+                { label: t("children", "الأطفال"), value: draftBooking?.hotel?.children ?? 0 },
+                { label: t("mealPlan", "الوجبة"), value: draftBooking?.hotel?.mealPlan || "-" },
+              ]}
+            />
+          ) : !isStandaloneService ? (
             <DraftBookingInfoCard
               title={t("programInfo", "بيانات البرنامج")}
               items={programItems}
             />
-          )}
+          ) : null}
 
           {isExternalFlight && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
@@ -734,17 +819,19 @@ export default function PublicDraftBookingDetailsPage() {
             </div>
           )}
 
-          <PublicSectionCard>
+          {isRequirementVisible(bookingRequirements.travelers) && <PublicSectionCard>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
-                  {t("travelers", "المعتمرون")}
+                  {travelerLabel}
                 </h2>
 
                 <p className="mt-2 text-sm text-slate-500">
                   {t(
                     "travelersReviewDescription",
-                    "مراجعة بيانات المعتمرين والمستندات المرفقة.",
+                    isStandaloneService
+                      ? "مراجعة بيانات المسافرين أو المستفيدين المطلوبة لهذه الخدمة."
+                      : "مراجعة بيانات المعتمرين والمستندات المرفقة.",
                   )}
                 </p>
               </div>
@@ -754,7 +841,9 @@ export default function PublicDraftBookingDetailsPage() {
                   action="edit"
                   onClick={handleEditTravelers}
                   showLabel
-                  label={t("editTravelers", "تعديل المعتمرين")}
+                  label={isStandaloneService
+                    ? (isArabic ? "تعديل المسافرين" : "Edit travelers")
+                    : t("editTravelers", "تعديل المعتمرين")}
                 />
               )}
             </div>
@@ -763,7 +852,7 @@ export default function PublicDraftBookingDetailsPage() {
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
                 {t(
                   "noTravelersFound",
-                  "لا توجد بيانات معتمرين.",
+                  isStandaloneService ? "لا توجد بيانات مسافرين أو مستفيدين." : "لا توجد بيانات معتمرين.",
                 )}
               </div>
             ) : (
@@ -778,13 +867,19 @@ export default function PublicDraftBookingDetailsPage() {
                     index={index}
                     t={t}
                     isArabic={isArabic}
+                    documentRequirements={bookingRequirements.documents}
+                    isExternalFlight={isExternalFlight}
+                    allTravelers={travelers}
+                    supportedIdentityDocumentTypes={
+                      draftBooking?.trip?.external?.supportedIdentityDocumentTypes || []
+                    }
                   />
                 ))}
               </div>
             )}
 
-            {hosts.length > 0 && <div className="mt-8 space-y-5"><h2 className="text-xl font-bold text-slate-900">{t("hosts", "المستضيفون")}</h2>{hosts.map((host, index) => <HostReviewCard key={host.hostId || index} host={host} index={index} t={t} isArabic={isArabic} />)}</div>}
-          </PublicSectionCard>
+            {!isStandaloneService && hosts.length > 0 && <div className="mt-8 space-y-5"><h2 className="text-xl font-bold text-slate-900">{t("hosts", "المستضيفون")}</h2>{hosts.map((host, index) => <HostReviewCard key={host.hostId || index} host={host} index={index} t={t} isArabic={isArabic} />)}</div>}
+          </PublicSectionCard>}
         </main>
 
         <aside className="space-y-6">
@@ -835,14 +930,16 @@ export default function PublicDraftBookingDetailsPage() {
             )}
           />
 
-          <DraftSelectedProductsCard
-            title={t(
-              "selectedServices",
-              "الخدمات المختارة",
-            )}
-            items={selectedProductsList}
-            isArabic={isArabic}
-          />
+          {!isAccommodation && (
+            <DraftSelectedProductsCard
+              title={t(
+                "selectedServices",
+                "الخدمات المختارة",
+              )}
+              items={selectedProductsList}
+              isArabic={isArabic}
+            />
+          )}
 
           {selectedProductsList.length === 0 && (
             <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">

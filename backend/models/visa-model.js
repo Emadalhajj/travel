@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import { productPricingPolicySchema } from "./shared/product-pricing-policy-schema.js";
 
 const visaSchema = new Schema(
   {
@@ -44,6 +45,10 @@ const visaSchema = new Schema(
     price: {
       type: Number,
       required: [true, "السعر مطلوب"],
+    },
+    pricingPolicy: {
+      type: productPricingPolicySchema,
+      default: undefined,
     },
     // صورة أو أيقونة للتأشيرة
     images: [{ type: String }],   // ← مصفوفة من المسارات

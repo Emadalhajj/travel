@@ -20,16 +20,19 @@ Build Umrah Program Sort Utility
 export const buildUmrahProgramSort = (query = {}) => {
   switch (query.sort) {
     case "price_asc":
+    case "pricing.basePrice_asc":
       return {
-        "pricing.totalPrice": 1,
+        "pricing.basePrice": 1,
       };
 
     case "price_desc":
+    case "pricing.basePrice_desc":
       return {
-        "pricing.totalPrice": -1,
+        "pricing.basePrice": -1,
       };
 
     case "oldest":
+    case "createdAt_asc":
       return {
         createdAt: 1,
       };
@@ -40,6 +43,7 @@ export const buildUmrahProgramSort = (query = {}) => {
       };
 
     case "newest":
+    case "createdAt_desc":
     default:
       return {
         createdAt: -1,

@@ -153,7 +153,7 @@ export default function AdminPaymentManagementPage() {
   ];
 
   return (
-    <div className="container py-4">
+    <div className="container-fluid py-4">
       <PageHeader
         titleAr="إدارة الدفع"
         titleEn="Payment Management"

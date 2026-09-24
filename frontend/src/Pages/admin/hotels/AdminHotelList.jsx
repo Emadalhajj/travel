@@ -54,14 +54,9 @@ export default function AdminHotelList() {
     city: "",
     stars: "",
     search: "",
+     isActive: "",
   });
 
-  const memoizedConfig = useMemo(() => hotelFormConfig(), []);
-  const listQuery = useMemo(
-    () =>
-      buildQuery(filters, { page: pagination.page, limit: pagination.limit }),
-    [filters, pagination.page, pagination.limit],
-  );
   const {
     showModal,
     showDetails,
@@ -90,6 +85,229 @@ export default function AdminHotelList() {
       nameEn: `${hotel.nameEn} (Copy)`,
     }),
   });
+  const cancellationPolicy = (() => {
+    const days = currentHotel?.policies?.cancellationDays;
+    if (days === 0) return lang === "ar" ? "إلغاء مجاني" : "Free Cancellation";
+    if (typeof days === "number")
+      return `${days} ${
+        lang === "ar" ? "أيام قبل الوصول" : "days before arrival"
+      }`;
+    return lang === "ar" ? "غير محددة" : "Not specified";
+  })();
+
+  // إنشاء تكوين النموذج مرة واحدة فقط عند تحميل المكون
+
+  const memoizedConfig = useMemo(() => hotelFormConfig(), []);
+  const listQuery = useMemo(
+    () =>
+      buildQuery(filters, { page: pagination.page, limit: pagination.limit }),
+    [filters, pagination.page, pagination.limit],
+  );
+  // بناءً على الفلاتر الحالية، يتم إنشاء استعلام جديد لجلب البيانات من الخادم.
+  const filterConfig = useMemo(() => {
+    const countriesMap = new Map(); // new Map عبارة عن هيكل بيانات لتخزين أزواج المفتاح والقيمة، حيث المفتاح هو اسم الدولة باللغة الإنجليزية والقيمة هي اسم الدولة باللغة العربية. هذا يسمح بالوصول السريع إلى أسماء الدول باللغتين عند إنشاء خيارات الفلترة.
+    const citiesMap = new Map();
+
+    hotels.forEach((hotel) => {
+      const countryEn = hotel.location?.country?.en;
+      const countryAr = hotel.location?.country?.ar;
+
+      const cityEn = hotel.location?.city?.en;
+      const cityAr = hotel.location?.city?.ar;
+
+      if (countryEn && countryAr) {
+        countriesMap.set(countryEn, countryAr);
+      }
+
+      if (cityEn && cityAr) {
+        citiesMap.set(cityEn, cityAr);
+      }
+    });
+
+    return {
+      search: {
+        type: "text",
+        col: 3,
+        placeholder:
+          lang === "ar" ? "ابحث باسم الفندق" : "Search by hotel name",
+      },
+
+      hotelType: {
+        type: "select",
+        col: 2,
+        placeholder: lang === "ar" ? "اختر النوع" : "Select Type",
+
+        options: [
+          {
+            value: "hotel",
+            labelAr: "فندق",
+            labelEn: "Hotel",
+          },
+          {
+            value: "resort",
+            labelAr: "منتجع",
+            labelEn: "Resort",
+          },
+          {
+            value: "apartment",
+            labelAr: "شقق",
+            labelEn: "Apartment",
+          },
+          {
+            value: "hostel",
+            labelAr: "هوستل",
+            labelEn: "Hostel",
+          },
+          {
+            value: "villa",
+            labelAr: "فيلا",
+            labelEn: "Villa",
+          },
+        ],
+      },
+
+      country: {
+        type: "select",
+        col: 2,
+        placeholder: lang === "ar" ? "اختر الدولة" : "Select Country",
+
+        options: [
+          ...Array.from(countriesMap).map(([en, ar]) => ({
+            value: en,
+            labelAr: ar,
+            labelEn: en,
+          })),
+        ],
+      },
+
+      city: {
+        type: "select",
+        col: 2,
+        placeholder: lang === "ar" ? "اختر المدينة" : "Select City",
+
+        options: [
+          ...Array.from(citiesMap).map(([en, ar]) => ({
+            value: en,
+            labelAr: ar,
+            labelEn: en,
+          })),
+        ],
+      },
+
+      isActive: {
+        type: "select",
+        col: 2,
+        placeholder: lang === "ar" ? "الحالة" : "Status",
+
+        options: [
+          {
+            value: "true",
+            labelAr: "نشط",
+            labelEn: "Active",
+          },
+          {
+            value: "false",
+            labelAr: "غير نشط",
+            labelEn: "Inactive",
+          },
+        ],
+      },
+    };
+  }, [hotels, lang]);
+
+  // عرض تفاصيل الفندق في نافذة منبثقة
+  const detailsFields = useMemo(() => {
+    if (!currentHotel) {
+      return [];
+    }
+
+    const isArabic = lang === "ar";
+
+    return [
+      {
+        label: isArabic ? "الاسم" : "Name",
+        value: isArabic ? currentHotel.nameAr : currentHotel.nameEn,
+      },
+      {
+        label: isArabic ? "الوصف" : "Description",
+        value: isArabic
+          ? currentHotel.descriptionAr
+          : currentHotel.descriptionEn,
+      },
+      {
+        label: isArabic ? "العنوان" : "Address",
+        value: isArabic ? currentHotel.addressAr : currentHotel.addressEn,
+      },
+      {
+        label: isArabic ? "البريد الإلكتروني" : "Email",
+        value: currentHotel.email || "",
+      },
+      {
+        label: isArabic ? "رقم الهاتف" : "Phone Number",
+        value: currentHotel.phone || "",
+      },
+      {
+        label: isArabic ? "سياسة الإلغاء" : "Cancellation Policy",
+        value: cancellationPolicy,
+      },
+      {
+        label: isArabic ? "النوع" : "Type",
+        value: currentHotel.hotelType?.toUpperCase() || "",
+      },
+      {
+        label: isArabic ? "عدد النجوم" : "Stars",
+        value: currentHotel.stars || "",
+      },
+      {
+        label: isArabic ? "الدولة" : "Country",
+        value: isArabic
+          ? currentHotel.location?.country?.ar
+          : currentHotel.location?.country?.en,
+      },
+      {
+        label: isArabic ? "المدينة" : "City",
+        value: isArabic
+          ? currentHotel.location?.city?.ar
+          : currentHotel.location?.city?.en,
+      },
+      {
+        label: isArabic ? "المرافق" : "Facilities",
+        value: Array.isArray(currentHotel.facilities)
+          ? currentHotel.facilities.join(", ")
+          : currentHotel.facilities || "",
+      },
+      {
+        label: isArabic ? "أنواع الغرف" : "Room Types",
+        value: Array.isArray(currentHotel.roomTypes)
+          ? currentHotel.roomTypes
+              .map((roomType) => (isArabic ? roomType.nameAr : roomType.nameEn))
+              .filter(Boolean)
+              .join(", ")
+          : "",
+      },
+      {
+        label: isArabic ? "تاريخ الإنشاء" : "Created At",
+        value: currentHotel.createdAt
+          ? new Date(currentHotel.createdAt).toLocaleDateString(lang)
+          : "",
+      },
+      {
+        label: isArabic ? "تم الإنشاء بواسطة" : "Created By",
+
+        value: currentHotel.createdBy
+          ? isArabic
+            ? currentHotel.createdBy.nameAr
+            : currentHotel.createdBy.nameEn
+          : "",
+      },
+      {
+        label: isArabic ? "المرفقات" : "Attachments",
+        value: currentHotel.attachments,
+        type: "attachments",
+        col: "col-md-12",
+      },
+    ];
+  }, [currentHotel, lang, cancellationPolicy]);
 
   useEffect(() => {
     dispatch(fetchHotels(listQuery));
@@ -125,16 +343,6 @@ export default function AdminHotelList() {
     }
   };
 
-  const cancellationPolicy = (() => {
-    const days = currentHotel?.policies?.cancellationDays;
-    if (days === 0) return lang === "ar" ? "إلغاء مجاني" : "Free Cancellation";
-    if (typeof days === "number")
-      return `${days} ${
-        lang === "ar" ? "أيام قبل الوصول" : "days before arrival"
-      }`;
-    return lang === "ar" ? "غير محددة" : "Not specified";
-  })();
-
   return (
     <div className="container-fluid">
       <PageHeader
@@ -153,7 +361,7 @@ export default function AdminHotelList() {
             <Link to="/admin/room-types">
               <ActionButton
                 size="md"
-                action="edit"
+                action="manage"
                 label={
                   lang === "ar" ? "إدارة أنواع الغرف" : "Manage Room Types"
                 }
@@ -168,81 +376,7 @@ export default function AdminHotelList() {
       <EntityFilter
         filters={filters}
         setFilters={setFilters}
-        config={{
-          search: {
-            type: "text",
-            col: 3,
-            placeholder:
-              lang === "ar" ? "ابحث باسم الفندق" : "Search by hotel name",
-          },
-          hotelType: {
-            type: "select",
-            col: 2,
-            placeholder: lang === "ar" ? "اختر النوع" : "Select Type",
-            options: [
-              { value: "hotel", labelAr: "فندق", labelEn: "Hotel" },
-              { value: "resort", labelAr: "منتجع", labelEn: "Resort" },
-              { value: "apartment", labelAr: "شقق", labelEn: "Apartment" },
-              { value: "hostel", labelAr: "هوستل", labelEn: "Hostel" },
-              { value: "villa", labelAr: "فيلا", labelEn: "Villa" },
-            ],
-          },
-          country: {
-            col: 2,
-            type: "select",
-            placeholder: lang === "ar" ? "اختر الدولة" : "Select Country",
-            options: (() => {
-              const countriesMap = new Map();
-              hotels.forEach((h) => {
-                const en = h.location?.country?.en;
-                const ar = h.location?.country?.ar;
-                if (en && ar) {
-                  countriesMap.set(en, ar);
-                }
-              });
-              return [
-                { value: "", labelAr: "الكل", labelEn: "All" },
-                ...Array.from(countriesMap).map(([en, ar]) => ({
-                  value: en,
-                  labelAr: ar,
-                  labelEn: en,
-                })),
-              ];
-            })(),
-          },
-          city: {
-            type: "select",
-            col: 2,
-            placeholder: lang === "ar" ? "اختر المدينة" : "Select City",
-            options: (() => {
-              const citiesMap = new Map();
-              hotels.forEach((h) => {
-                const en = h.location?.city?.en;
-                const ar = h.location?.city?.ar;
-                if (en && ar) {
-                  citiesMap.set(en, ar);
-                }
-              });
-              return [
-                { value: "", labelAr: "الكل", labelEn: "All" },
-                ...Array.from(citiesMap).map(([en, ar]) => ({
-                  value: en,
-                  labelAr: ar,
-                  labelEn: en,
-                })),
-              ];
-            })(),
-          },
-          isActive: {
-            type: "select",
-            col: 2,
-            placeholder: lang === "ar" ? "الحالة" : "Status",
-            options: [
-              { value: "true", labelAr: "نشط", labelEn: "Active" },
-              { value: "false", labelAr: "غير نشط", labelEn: "Inactive" },
-            ],
-          },
-        }}
+        config={filterConfig}
       />
 
       <UniversalFormModal
@@ -288,125 +422,7 @@ export default function AdminHotelList() {
             : ""
         }
         images={currentHotel?.images || []}
-        fields={[
-          {
-            label: lang === "ar" ? "الاسم" : "Name",
-            value: currentHotel
-              ? lang === "ar"
-                ? currentHotel.nameAr
-                : currentHotel.nameEn
-              : "",
-          },
-          {
-            label: lang === "ar" ? "الوصف" : "Description",
-            value: currentHotel
-              ? lang === "ar"
-                ? currentHotel.descriptionAr
-                : currentHotel.descriptionEn
-              : "",
-          },
-          {
-            label: lang === "ar" ? "العنوان" : "Address",
-            value: currentHotel
-              ? lang === "ar"
-                ? currentHotel.addressAr
-                : currentHotel.addressEn
-              : "",
-          },
-          {
-            label: lang === "ar" ? "البريد الإلكتروني" : "Email",
-            value: currentHotel?.email || "",
-          },
-          {
-            label: lang === "ar" ? "رقم الهاتف" : "Phone Number",
-            value: currentHotel?.phone || "",
-          },
-          {
-            label: lang === "ar" ? "الموقع على الخريطة" : "Location on Map",
-            value: currentHotel?.googleMapsLink ? (
-              <a
-                href={currentHotel.googleMapsLink}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {lang === "ar" ? "عرض على جوجل مابس" : "View on Google Maps"}
-              </a>
-            ) : (
-              ""
-            ),
-          },
-          {
-            label: lang === "ar" ? "سياسة الإلغاء" : "Cancellation Policy",
-            value: cancellationPolicy,
-          },
-          {
-            label: lang === "ar" ? "النوع" : "Type",
-            value: currentHotel?.hotelType
-              ? currentHotel.hotelType.toUpperCase()
-              : "",
-          },
-          {
-            label: lang === "ar" ? "عدد النجوم" : "Stars",
-            value: currentHotel?.stars || "",
-          },
-          {
-            label: lang === "ar" ? "الدولة" : "Country",
-            value: currentHotel?.location?.country
-              ? lang === "ar"
-                ? currentHotel.location.country.ar
-                : currentHotel.location.country.en
-              : "",
-          },
-          {
-            label: lang === "ar" ? "المدينة" : "City",
-            value: currentHotel?.location?.city
-              ? lang === "ar"
-                ? currentHotel.location.city.ar
-                : currentHotel.location.city.en
-              : "",
-          },
-          {
-            label: lang === "ar" ? "المرافق" : "Facilities",
-            value: currentHotel?.facilities
-              ? Array.isArray(currentHotel.facilities)
-                ? currentHotel.facilities.join(", ")
-                : typeof currentHotel.facilities === "string"
-                  ? currentHotel.facilities
-                  : ""
-              : "",
-          },
-          {
-            label: lang === "ar" ? "أنواع الغرف" : "Room Types",
-            value: currentHotel?.roomTypes
-              ? Array.isArray(currentHotel.roomTypes)
-                ? currentHotel.roomTypes
-                    .map((rt) => (lang === "ar" ? rt.nameAr : rt.nameEn))
-                    .join(", ")
-                : ""
-              : "",
-          },
-          {
-            label: lang === "ar" ? "تاريخ الإنشاء" : "Created At",
-            value: currentHotel
-              ? new Date(currentHotel.createdAt).toLocaleDateString(lang)
-              : "",
-          },
-          {
-            label: lang === "ar" ? "تم الإنشاء بواسطة" : "Created By",
-            value: currentHotel?.createdBy
-              ? lang === "ar"
-                ? currentHotel.createdBy.nameAr
-                : currentHotel.createdBy.nameEn
-              : "",
-          },
-
-          {
-            label: lang === "ar" ? "المرفقات" : "Attachments",
-            value: currentHotel?.attachments,
-            type: "attachments",
-            col: "col-md-12",
-          },
-        ]}
+        fields={detailsFields}
       />
 
       <UniversalCardsContainer
@@ -421,21 +437,47 @@ export default function AdminHotelList() {
         getSubtitle={(hotel) =>
           lang === "ar" ? hotel.descriptionAr : hotel.descriptionEn
         }
-        getBadges={(hotel) => [
-          {
-            label: hotel.hotelType?.toUpperCase() || "HOTEL",
-            variant: "primary",
-          },
-        ]}
-        onView={(hotel) => {
-          openDetails(hotel);
-        }}
+        getBadges={(hotel) =>
+          [
+            hotel.hotelType && {
+              key: "type",
+              label: hotel.hotelType.toUpperCase(),
+            },
+
+            hotel.stars && {
+              key: "stars",
+              label: `${hotel.stars} ★`,
+            },
+          ].filter(Boolean)
+        }
+        getMeta={(hotel) =>
+          [
+            {
+              key: "country",
+              label:
+                lang === "ar"
+                  ? hotel.location?.country?.ar
+                  : hotel.location?.country?.en,
+            },
+
+            {
+              key: "city",
+              label:
+                lang === "ar"
+                  ? hotel.location?.city?.ar
+                  : hotel.location?.city?.en,
+            },
+          ].filter((item) => item.label)
+        }
+        getIsActive={(hotel) => hotel.isActive ?? true}
+        onView={openDetails}
         onEdit={openEditModal}
         onDelete={(hotel) =>
           openDelete(hotel, lang === "ar" ? hotel.nameAr : hotel.nameEn)
         }
         onDuplicate={openCloneModal}
         onNavigate={(hotel) => navigate(`/admin/hotel/${hotel._id}/rooms`)}
+        clickable
       />
       <PaginationComponent
         total={pagination.total}

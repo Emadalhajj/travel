@@ -17,11 +17,13 @@ Voucher PDF Service
 وظيفته الوحيدة:
 -----------------------------------------------------
 استقبال بيانات الحجز ورقم الفاوتشر
-ثم إنشاء ملف PDF وحفظه داخل uploads/vouchers.
+ثم إنشاء ملف PDF في التخزين الخاص للمستندات الحديثة،
+مع إبقاء مسار التخزين القديم للتوافق مع الاستعمالات القديمة فقط.
 =====================================================
 */
 
 import PDFDocument from "pdfkit";
+import { readPricingSnapshot } from "./pricing/legacy-pricing-adapter.js";
 import fs from "fs";
 import path from "path";
 
@@ -44,25 +46,60 @@ generateVoucherPdf
 
 وتعيد:
 -----------------------------------------------------
-رابط ملف PDF العام ليتم حفظه في قاعدة البيانات.
+بيانات الملف الخاص، أو الرابط القديم عند طلب legacy mode صراحة.
 =====================================================
 */
-/*
-الدالة الرئيسية تستقبل
-voucherNumber
-booking
-ثم
-تنشئ مجلد uploads/vouchers
-تنشئ اسم الملف
-تفتح PDF جديد
-تكتب بيانات الحجز
-تحفظ الملف
-ترجع رابط الملف
-*/
-export const generateVoucherPdf = async ({ voucherNumber, booking }) => {
-  const folderName = "vouchers";
+const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && value !== "") || "-";
 
-  const folderPath = ensurePdfFolderExists(folderName);
+export const buildVoucherViewModel = ({ voucherNumber, booking, locale = "en" }) => {
+  const room = booking.bookingItems?.room || {};
+  const isArabic = String(locale).toLowerCase().startsWith("ar");
+  return {
+    locale: isArabic ? "ar" : "en",
+    direction: isArabic ? "rtl" : "ltr",
+    voucherNumber,
+    bookingNumber: firstValue(booking.bookingNumber, booking._id),
+    customerName: firstValue(booking.customer?.name),
+    customerEmail: firstValue(booking.customer?.email),
+    customerPhone: firstValue(booking.customer?.phone),
+    hotelName: firstValue(
+      isArabic ? room.hotelNameAr : room.hotelNameEn,
+      isArabic ? room.hotelNameEn : room.hotelNameAr,
+    ),
+    roomTypeName: firstValue(
+      isArabic ? room.roomNameAr : room.roomNameEn,
+      isArabic ? room.roomNameEn : room.roomNameAr,
+    ),
+    checkIn: room.checkIn || null,
+    checkOut: room.checkOut || null,
+    nights: Number(room.nights || 0),
+    roomsCount: Number(room.quantity || 0),
+    adults: Number(room.adults || 0),
+    children: Number(room.children || 0),
+    mealPlan: firstValue(room.mealPlan),
+    paymentStatus: firstValue(booking.paymentStatus),
+    total: readPricingSnapshot(booking.pricing).total,
+    currency: firstValue(booking.pricing?.currency, "SAR"),
+  };
+};
+
+const findArabicFont = () => [
+  process.env.PDF_ARABIC_FONT_PATH,
+  "C:/Windows/Fonts/arial.ttf",
+  "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+].find((fontPath) => fontPath && fs.existsSync(fontPath));
+
+export const generateVoucherPdf = async ({
+  voucherNumber,
+  booking,
+  locale = "en",
+  privateDocument = false,
+}) => {
+  const folderName = privateDocument ? "service-documents" : "vouchers";
+  const folderPath = privateDocument
+    ? path.resolve("private-uploads", folderName)
+    : ensurePdfFolderExists(folderName);
+  fs.mkdirSync(folderPath, { recursive: true });
 
   const fileName = `${voucherNumber}.pdf`;
 
@@ -76,6 +113,13 @@ export const generateVoucherPdf = async ({ voucherNumber, booking }) => {
   const stream = fs.createWriteStream(filePath);
 
   doc.pipe(stream);
+  const view = buildVoucherViewModel({ voucherNumber, booking, locale });
+  const isArabic = view.locale === "ar";
+  const arabicFont = isArabic ? findArabicFont() : null;
+  if (arabicFont) doc.font(arabicFont);
+  const align = isArabic ? "right" : "left";
+  const label = (ar, en) => isArabic ? ar : en;
+  const date = (value) => value ? new Date(value).toISOString().slice(0, 10) : "-";
 
   /*
   =====================================================
@@ -85,9 +129,7 @@ export const generateVoucherPdf = async ({ voucherNumber, booking }) => {
 
   doc
     .fontSize(22)
-    .text("Umrah Booking Voucher", {
-      align: "center",
-    });
+    .text(label("قسيمة الحجز", "Booking Voucher"), { align: "center" });
 
   doc.moveDown();
 
@@ -97,13 +139,9 @@ export const generateVoucherPdf = async ({ voucherNumber, booking }) => {
   =====================================================
   */
 
-  doc.fontSize(14).text(`Voucher Number: ${voucherNumber}`);
-
-  doc.text(`Booking Number: ${booking.bookingNumber || booking._id}`);
-
-  doc.text(`Booking Status: ${booking.status || "-"}`);
-
-  doc.text(`Payment Status: ${booking.paymentStatus || "-"}`);
+  doc.fontSize(14).text(`${label("رقم القسيمة", "Voucher Number")}: ${view.voucherNumber}`, { align });
+  doc.text(`${label("رقم الحجز", "Booking Number")}: ${view.bookingNumber}`, { align });
+  doc.text(`${label("حالة الدفع", "Payment Status")}: ${view.paymentStatus}`, { align });
 
   doc.moveDown();
 
@@ -113,15 +151,13 @@ export const generateVoucherPdf = async ({ voucherNumber, booking }) => {
   =====================================================
   */
 
-  doc.fontSize(16).text("Customer Information");
+  doc.fontSize(16).text(label("بيانات العميل", "Customer Information"), { align });
 
   doc.moveDown(0.5);
 
-  doc.fontSize(12).text(`Name: ${booking.customer?.name || "-"}`);
-
-  doc.text(`Email: ${booking.customer?.email || "-"}`);
-
-  doc.text(`Phone: ${booking.customer?.phone || "-"}`);
+  doc.fontSize(12).text(`${label("الاسم", "Name")}: ${view.customerName}`, { align });
+  doc.text(`${label("البريد الإلكتروني", "Email")}: ${view.customerEmail}`, { align });
+  doc.text(`${label("الهاتف", "Phone")}: ${view.customerPhone}`, { align });
 
   doc.moveDown();
 
@@ -131,17 +167,21 @@ export const generateVoucherPdf = async ({ voucherNumber, booking }) => {
   =====================================================
   */
 
-  doc.fontSize(16).text("Booking Summary");
+  doc.fontSize(16).text(label("تفاصيل السكن", "Accommodation Details"), { align });
 
   doc.moveDown(0.5);
 
-  doc.fontSize(12).text(`Booking Type: ${booking.bookingType || "-"}`);
-
-  doc.text(`Current Step: ${booking.currentStep || "-"}`);
-
-  doc.text(`Total Amount: ${booking.pricing?.total || 0}`);
-
-  doc.text(`Currency: ${booking.pricing?.currency || "SAR"}`);
+  doc.fontSize(12).text(`${label("الفندق", "Hotel")}: ${view.hotelName}`, { align });
+  doc.text(`${label("نوع الغرفة", "Room Type")}: ${view.roomTypeName}`, { align });
+  doc.text(`${label("تسجيل الوصول", "Check-in")}: ${date(view.checkIn)}`, { align });
+  doc.text(`${label("تسجيل المغادرة", "Check-out")}: ${date(view.checkOut)}`, { align });
+  doc.text(`${label("الليالي", "Nights")}: ${view.nights}`, { align });
+  doc.text(`${label("عدد الغرف", "Rooms")}: ${view.roomsCount}`, { align });
+  doc.text(`${label("البالغون", "Adults")}: ${view.adults}`, { align });
+  doc.text(`${label("الأطفال", "Children")}: ${view.children}`, { align });
+  doc.text(`${label("خطة الوجبات", "Meal plan")}: ${view.mealPlan}`, { align });
+  doc.text(`${label("الإجمالي النهائي", "Final total")}: ${view.total}`, { align });
+  doc.text(`${label("العملة", "Currency")}: ${view.currency}`, { align });
 
   doc.moveDown();
 
@@ -153,7 +193,7 @@ export const generateVoucherPdf = async ({ voucherNumber, booking }) => {
 
   doc
     .fontSize(11)
-    .text("Thank you for booking with us.", {
+    .text(label("شكرًا لحجزكم معنا.", "Thank you for booking with us."), {
       align: "center",
     });
 
@@ -167,5 +207,11 @@ export const generateVoucherPdf = async ({ voucherNumber, booking }) => {
     stream.on("error", reject);
   });
 
-  return buildPdfPublicPath(folderName, fileName);
+  if (!privateDocument) return buildPdfPublicPath(folderName, fileName);
+  return {
+    storageName: fileName,
+    originalName: `${voucherNumber}.pdf`,
+    mimeType: "application/pdf",
+    size: fs.statSync(filePath).size,
+  };
 };

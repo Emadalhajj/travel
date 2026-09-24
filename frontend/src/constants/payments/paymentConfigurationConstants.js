@@ -11,12 +11,52 @@ export const PAYMENT_SECTION_CODES = {
   VISA_BOOKING: "VISA_BOOKING",
   FLIGHT_BOOKING: "FLIGHT_BOOKING",
   HOTEL_BOOKING: "HOTEL_BOOKING",
+  TRANSPORT_BOOKING: "TRANSPORT_BOOKING",
+  ZIYARAT_BOOKING: "ZIYARAT_BOOKING",
+  EXTRA_SERVICE_BOOKING: "EXTRA_SERVICE_BOOKING",
+};
+
+export const resolvePaymentSectionCode = (draftBooking = {}) => {
+  const draft = draftBooking || {};
+
+  if (
+    draft.bookingContext === "SERVICE" &&
+    ["FLIGHT", "TRIP"].includes(draft.serviceType)
+  ) {
+    return PAYMENT_SECTION_CODES.FLIGHT_BOOKING;
+  }
+
+  if (draft.bookingContext === "SERVICE") {
+    const serviceSections = {
+      ACCOMMODATION: PAYMENT_SECTION_CODES.HOTEL_BOOKING,
+      HOTEL: PAYMENT_SECTION_CODES.HOTEL_BOOKING,
+      VISA: PAYMENT_SECTION_CODES.VISA_BOOKING,
+      TRANSPORT: PAYMENT_SECTION_CODES.TRANSPORT_BOOKING,
+      ZIYARAT: PAYMENT_SECTION_CODES.ZIYARAT_BOOKING,
+      EXTRA_SERVICE: PAYMENT_SECTION_CODES.EXTRA_SERVICE_BOOKING,
+    };
+    return serviceSections[draft.serviceType] || PAYMENT_SECTION_CODES.CUSTOM_PACKAGE;
+  }
+
+  if (draft.bookingContext === "READY_PACKAGE") {
+    return PAYMENT_SECTION_CODES.PROGRAM_BOOKING;
+  }
+
+  return PAYMENT_SECTION_CODES.CUSTOM_PACKAGE;
 };
 
 export const PAYMENT_CONFIGURATION_TYPES = {
   PROVIDER: "PROVIDER",
   BANK_ACCOUNT: "BANK_ACCOUNT",
   MANUAL: "MANUAL",
+};
+
+export const resolveAuthoritativePricingTotal = (pricing = {}) => {
+  const total = Number(pricing?.total);
+  if (Number.isFinite(total) && total >= 0) return total;
+
+  const legacyTotal = Number(pricing?.totalPrice);
+  return Number.isFinite(legacyTotal) && legacyTotal >= 0 ? legacyTotal : 0;
 };
 
 /*
@@ -256,6 +296,21 @@ export const PAYMENT_SECTION_OPTIONS = [
     value: PAYMENT_SECTION_CODES.HOTEL_BOOKING,
     labelAr: "حجز الفنادق",
     labelEn: "Hotel Booking",
+  },
+  {
+    value: PAYMENT_SECTION_CODES.TRANSPORT_BOOKING,
+    labelAr: "حجز خدمات النقل",
+    labelEn: "Transport Booking",
+  },
+  {
+    value: PAYMENT_SECTION_CODES.ZIYARAT_BOOKING,
+    labelAr: "حجز الزيارات",
+    labelEn: "Ziyarat Booking",
+  },
+  {
+    value: PAYMENT_SECTION_CODES.EXTRA_SERVICE_BOOKING,
+    labelAr: "حجز الخدمات الإضافية",
+    labelEn: "Extra Service Booking",
   },
 ];
 

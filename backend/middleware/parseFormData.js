@@ -9,6 +9,7 @@ const parseFormData = (options = {}) =>
         attachmentsField = "attachments",
         uploadPath = "",
         allowImages = true,
+        privateAttachments = false,
       } = options;
 
       // 1️⃣ Parse JSON الموجود في data
@@ -24,7 +25,7 @@ const parseFormData = (options = {}) =>
       // 2️⃣ معالجة الصور (بأمان)
       if (allowImages && req.files?.[imagesField]) {
         req.body.newImages = req.files[imagesField].map((file) => ({
-          url: `/uploads/hotels/${file.filename}`,
+          url: `${uploadPath || "/uploads"}/${file.filename}`,
           alt: "",
           isMain: false,
         }));
@@ -35,7 +36,9 @@ const parseFormData = (options = {}) =>
       if (req.files?.[attachmentsField]) {
         req.body.newAttachments = req.files[attachmentsField].map((file) => ({
           fileName: file.filename,
-          url: `/uploads/hotels/${file.filename}`,
+          url: privateAttachments
+            ? ""
+            : `${uploadPath || "/uploads"}/${file.filename}`,
           originalName: file.originalname,
         }));
       }
@@ -44,6 +47,12 @@ const parseFormData = (options = {}) =>
       const deleted = req.body["deleteImages[]"] || req.body.deleteImages || [];
 
       req.body.deleteImages = Array.isArray(deleted) ? deleted : [deleted];
+
+      const deletedAttachments =
+        req.body["deleteAttachments[]"] || req.body.deleteAttachments || [];
+      req.body.deleteAttachments = Array.isArray(deletedAttachments)
+        ? deletedAttachments
+        : [deletedAttachments];
 
       // 4️⃣ تحويل الحقول المركبة المرسلة كنص JSON إلى كائنات
       const complexFields = ["capacity", "pricing", "amenities"];

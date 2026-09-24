@@ -28,6 +28,7 @@ export const transportFormConfig = {
       labelAr: "الاسم بالعربي",
       labelEn: "Arabic Name",
       type: "text",
+      language: "ar",
       order: 2,
       col: 6,
       required: true,
@@ -37,6 +38,7 @@ export const transportFormConfig = {
       labelAr: "الاسم بالإنجليزي",
       labelEn: "English Name",
       type: "text",
+      language: "en",
       col: 6,
       order: 2,
       required: true,
@@ -46,6 +48,7 @@ export const transportFormConfig = {
       labelAr: "الوصف بالعربي",
       labelEn: "Arabic Description",
       type: "textarea", // غيرته إلى textarea لوصف أطول
+      language: "ar",
       rows: 3,
       order: 3,
       col: 6,
@@ -55,6 +58,7 @@ export const transportFormConfig = {
       labelAr: "الوصف بالإنجليزي",
       labelEn: "English Description",
       type: "textarea",
+      language: "en",
       rows: 3,
       order: 3,
 

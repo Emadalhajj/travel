@@ -146,7 +146,7 @@ export default function AdminVisaTypeList() {
   }));
 
   return (
-    <div className="container py-3">
+    <div className="container-fluid py-3">
       <PageHeader
         titleAr="إدارة أنواع التأشيرات"
         titleEn="Manage Visa Types"

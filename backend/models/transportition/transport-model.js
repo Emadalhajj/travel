@@ -45,6 +45,6 @@ const transportSchema = new mongoose.Schema(
       default: true,
     },
   },
-  { timeseries: true },
+  { timestamps: true },
 );
 export default mongoose.model("Transport", transportSchema);

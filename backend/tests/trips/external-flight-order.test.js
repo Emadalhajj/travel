@@ -79,19 +79,51 @@ test("passenger mapper rejects count, category, DOB and contact gaps", () => {
   );
 });
 
-test("passport fields are required only when the order policy requires passport", () => {
-  const missing = [{ ...travelers[0], passportNumber: "" }, travelers[1]];
-  assert.doesNotThrow(() => buildExternalFlightPassengers({
-    travelers: missing,
-    providerPassengers,
-  }));
+test("passenger mapper rejects a birth date that conflicts with the offer category", () => {
   assert.throws(
     () => buildExternalFlightPassengers({
-      travelers: missing,
+      travelers: [
+        travelers[0],
+        { ...travelers[1], birthDate: "2010-01-01" },
+      ],
       providerPassengers,
-      requiredIdentityDocumentTypes: ["passport"],
+      travelStartsAt: "2026-10-01T08:00:00.000Z",
     }),
-    ({ code }) => code === "EXTERNAL_FLIGHT_PASSENGER_DOCUMENT_REQUIRED",
+    ({ code, field }) =>
+      code === "EXTERNAL_FLIGHT_PASSENGER_TYPE_MISMATCH" &&
+      field === "travelers.1.birthDate",
+  );
+});
+
+test("supported passport identity is optional and is sent only when complete", () => {
+  const missing = [{ ...travelers[0], passportNumber: "" }, travelers[1]];
+  const withoutDocuments = buildExternalFlightPassengers({
+    travelers: missing,
+    providerPassengers,
+    supportedIdentityDocumentTypes: ["passport"],
+  });
+  assert.deepEqual(withoutDocuments[0].identityDocuments, []);
+
+  const withDocuments = buildExternalFlightPassengers({
+    travelers,
+    providerPassengers,
+    supportedIdentityDocumentTypes: ["passport"],
+  });
+  assert.equal(withDocuments[0].identityDocuments[0].type, "passport");
+  assert.equal(withDocuments[0].identityDocuments[0].uniqueIdentifier, "P123");
+});
+
+test("passport must remain valid through the end of the external flight", () => {
+  assert.throws(
+    () => buildExternalFlightPassengers({
+      travelers,
+      providerPassengers,
+      supportedIdentityDocumentTypes: ["passport"],
+      travelEndsAt: "2031-01-01T10:00:00Z",
+    }),
+    ({ code, field }) =>
+      code === "EXTERNAL_FLIGHT_PASSPORT_EXPIRES_BEFORE_TRAVEL" &&
+      field === "travelers.0.passportExpiryDate",
   );
 });
 
@@ -106,9 +138,24 @@ test("Duffel v2 payload omits passenger type, images and hold payments", () => {
 
   assert.equal("payments" in hold.data, false);
   assert.equal("type" in hold.data.passengers[0], false);
+  assert.equal(hold.data.passengers[0].title, "mr");
   assert.equal("passportImage" in hold.data.passengers[0], false);
   assert.equal("nested" in hold.data.metadata, false);
   assert.equal(hold.data.passengers[0].infant_passenger_id, "pas_infant");
+});
+
+test("local child title is mapped to a Duffel-supported title by gender", () => {
+  const child = {
+    ...travelers[0],
+    passengerCategory: "child",
+    title: "CHILD",
+    gender: "female",
+  };
+  const result = buildExternalFlightPassengers({
+    travelers: [child],
+    providerPassengers: [{ providerPassengerId: "pas_child", category: "child" }],
+  });
+  assert.equal(result[0].title, "miss");
 });
 
 test("instant provider payment must equal the latest offer", () => {

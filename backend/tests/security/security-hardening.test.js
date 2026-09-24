@@ -11,6 +11,23 @@ test("user booking and draft queries include ownership in Mongo filters", () => 
   assert.match(drafts, /_id:\s*draftId,\s*user:\s*userId,\s*isDeleted:\s*false/);
 });
 
+test("booking logs and payment history are owner scoped outside admin roles", () => {
+  const bookingLogs = read("../../controllers/booking/booking-log-controller.js");
+  const paymentTransactions = read("../../controllers/payment/paymentTransaction-controller.js");
+
+  for (const source of [bookingLogs, paymentTransactions]) {
+    assert.match(source, /ADMIN_ROLES\.has\(req\.user\.role\)\s*\?\s*\{\}\s*:\s*\{\s*user:\s*req\.user\._id\s*\}/);
+  }
+});
+
+test("internal Umrah program details require an administrative role", () => {
+  const routes = read("../../routes/umrah-programs/umrah-program-route.js");
+  assert.match(
+    routes,
+    /"\/umrah-programs\/:id",\s*protect,\s*authorize\("admin",\s*"superAdmin"\),\s*getProgramById/,
+  );
+});
+
 test("payment initialization and public payment state are authenticated and owner scoped", () => {
   const routes = read("../../routes/payment/public-payment-routes.js");
   const initializer = read("../../services/payment/initialize-public-payment-service.js");

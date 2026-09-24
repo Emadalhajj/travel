@@ -21,6 +21,8 @@ const safeOrderSnapshot = (order) => order ? ({
   offerId: order.offerId,
   bookingReference: order.bookingReference,
   status: order.status,
+  awaitingPayment: Boolean(order.awaitingPayment),
+  paymentRequiredBy: order.paymentRequiredBy || null,
   total: order.total,
   slices: order.slices || [],
   passengers: order.passengers || [],
@@ -29,7 +31,7 @@ const safeOrderSnapshot = (order) => order ? ({
 }) : null;
 
 const markFromOrder = async ({ transactionId, order, update }) => {
-  if (order?.status === "CONFIRMED") {
+  if (order?.status === "CONFIRMED" && !order?.awaitingPayment) {
     return update({
       transactionId,
       status: EXTERNAL_FULFILLMENT_STATUSES.CONFIRMED,
@@ -80,7 +82,8 @@ export const createExternalFlightFulfillmentLayer = (dependencies = {}) => {
         provider: fulfillment.provider,
         offerId: fulfillment.offerId,
       });
-      order = orders?.find(({ status }) => status === "CONFIRMED") || orders?.[0] || null;
+      order = orders?.find(({ status, awaitingPayment }) =>
+        status === "CONFIRMED" && !awaitingPayment) || orders?.[0] || null;
     }
     if (!order) return update({
       transactionId: transaction._id,
@@ -132,9 +135,9 @@ export const createExternalFlightFulfillmentLayer = (dependencies = {}) => {
       const order = await createOrder({
         draft,
         payment: {
-          orderType: external.paymentRequirements?.requiresInstantPayment
-            ? "instant"
-            : "hold",
+          // Customer payment is already financially confirmed at this boundary,
+          // so the provider order must also be paid, even when the offer supports hold.
+          orderType: "instant",
           type: "balance",
         },
         metadata: { paymentTransactionId: String(transaction._id) },
@@ -143,11 +146,19 @@ export const createExternalFlightFulfillmentLayer = (dependencies = {}) => {
     } catch (error) {
       const ambiguous = ["FLIGHT_PROVIDER_TIMEOUT", "FLIGHT_PROVIDER_UNAVAILABLE"]
         .includes(error?.code);
+      console.error("External flight order creation failed:", {
+        transactionId: String(transaction._id),
+        code: error?.code || "EXTERNAL_FLIGHT_ORDER_FAILED",
+        providerCode: error?.params?.providerCode || null,
+        providerField: error?.params?.providerField || null,
+        requestId: error?.params?.requestId || null,
+      });
       current = await update({
         transactionId: transaction._id,
         status: ambiguous
           ? EXTERNAL_FULFILLMENT_STATUSES.AWAITING_PROVIDER
           : EXTERNAL_FULFILLMENT_STATUSES.FAILED_FINAL,
+        expectedStatuses: [EXTERNAL_FULFILLMENT_STATUSES.PROCESSING],
         updates: {
           retryable: ambiguous,
           lastErrorCode: error?.code || "EXTERNAL_FLIGHT_ORDER_FAILED",
@@ -155,7 +166,16 @@ export const createExternalFlightFulfillmentLayer = (dependencies = {}) => {
           providerStatus: ambiguous ? "UNKNOWN" : "FAILED",
         },
       });
-      if (!ambiguous) throw error;
+      if (!current) {
+        current = await findTransaction({ transactionId: transaction._id });
+      }
+      if (
+        !ambiguous &&
+        current?.externalFulfillment?.status !==
+          EXTERNAL_FULFILLMENT_STATUSES.CONFIRMED
+      ) {
+        throw error;
+      }
     }
     return {
       required: true,

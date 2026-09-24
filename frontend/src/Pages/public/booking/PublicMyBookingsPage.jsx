@@ -19,7 +19,7 @@ import BookingCard from "../../../Components/shared/booking-cards/BookingCard";
 import EmptyState from "../../../Components/shared/common/EmptyState";
 import PaginationComponent from "../../../Components/common/Pagination";
 import PageHeader from "../../../Components/layout/PageHeader";
-import Loader from "../../../Components/common/Loader";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
 import PendingBookingReviewCard from "../../../Components/shared/booking-cards/PendingBookingReviewCard";
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
@@ -80,7 +80,7 @@ export default function PublicMyBookingsPage() {
         }
       />
 
-      {loading && <Loader />}
+      {loading && <LoadingOverlay show overlay={false} size="sm" />}
 
       <ErrorOverlay show={!loading && Boolean(error)} message={error} />
       <ErrorOverlay

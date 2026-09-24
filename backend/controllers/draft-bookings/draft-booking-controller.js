@@ -32,6 +32,8 @@ import {
   convertDraftToBooking,
   expireOldDraftBookings,
   softDeleteDraftBooking,
+  applyDraftCouponService,
+  removeDraftCouponService,
 } from "../../services/draft-bookings/draft-booking-service.js";
 import AppError from "../../utils/AppError.js";
 
@@ -118,6 +120,27 @@ export const updateDraft = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+export const applyDraftCoupon = async (req, res, next) => {
+  try {
+    const pricing = await applyDraftCouponService({
+      draftId: req.params.id,
+      code: req.body?.couponCode,
+      userId: req.user?._id,
+    });
+    res.json({ success: true, data: { pricing } });
+  } catch (error) { next(error); }
+};
+
+export const removeDraftCoupon = async (req, res, next) => {
+  try {
+    const pricing = await removeDraftCouponService({
+      draftId: req.params.id,
+      userId: req.user?._id,
+    });
+    res.json({ success: true, data: { pricing } });
+  } catch (error) { next(error); }
 };
 
 /*

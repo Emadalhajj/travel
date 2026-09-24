@@ -1,4 +1,14 @@
-const UPLOADS_BASE_URL = "http://localhost:5000/uploads";
+const getUploadsBaseUrl = () => {
+  const apiBaseUrl = process.env.REACT_APP_API_URL || "/api";
+
+  if (!/^https?:\/\//i.test(apiBaseUrl)) return "/uploads";
+
+  try {
+    return `${new URL(apiBaseUrl).origin}/uploads`;
+  } catch {
+    return "/uploads";
+  }
+};
 
 export const formatImagePath = (
   image,
@@ -26,5 +36,5 @@ export const formatImagePath = (
   if (/^(https?:|data:|blob:)/i.test(normalizedPath)) return normalizedPath;
 
   const uploadPath = normalizedPath.replace(/^\/?uploads\/?/i, "");
-  return `${UPLOADS_BASE_URL}/${uploadPath.replace(/^\/+/, "")}`;
+  return `${getUploadsBaseUrl()}/${uploadPath.replace(/^\/+/, "")}`;
 };

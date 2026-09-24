@@ -26,6 +26,8 @@ export const AUDIT_ENTITIES = {
   USER: "user",
   UMRAH_PROGRAM: "umrah_program",
   TRIP: "trip",
+  HOTEL: "hotel",
+  ROOM_TYPE: "room_type",
   BANK_ACCOUNT: "bank_account",
   PAYMENT_METHOD: "payment_method",
   PAYMENT_PROVIDER: "payment_provider",

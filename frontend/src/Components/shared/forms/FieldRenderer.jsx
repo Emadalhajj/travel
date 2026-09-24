@@ -25,7 +25,7 @@ export default function FieldRenderer({
         </span>
 
         {renderField({ field, value, onChange, isArabic, error })}
-        {error && field.type !== "phone" && field.type !== "date" && (
+        {error && field.type !== "phone" && !["date", "datetime-local"].includes(field.type) && (
           <p className="mt-1 text-xs font-semibold text-red-600">{error}</p>
         )}
       </div>
@@ -50,7 +50,7 @@ function renderField({ field, value, onChange, isArabic, error }) {
     );
   }
 
-  if (field.type === "date") {
+  if (["date", "datetime-local"].includes(field.type)) {
     return (
       <CalendarField
         id={field.id || field.name}
@@ -61,6 +61,7 @@ function renderField({ field, value, onChange, isArabic, error }) {
         required={field.required}
         error={error}
         isArabic={isArabic}
+        includeTime={field.type === "datetime-local"}
       />
     );
   }

@@ -1,6 +1,6 @@
 import React, { lazy, Suspense } from "react";
 import "./App.css";
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useParams } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 
 import Loader from "../Components/common/Loader";
@@ -9,7 +9,9 @@ import ProtectedRoute from "../Components/auth/ProtectedRoute";
 import { ADMIN_ROLES } from "../constants/auth/roles";
 
 const Home = lazy(() => import("../Pages/client/Home"));
-const DashboardOverview = lazy(() => import("../Pages/admin/DashboardOverview"));
+const DashboardOverview = lazy(
+  () => import("../Pages/admin/DashboardOverview"),
+);
 const AdminLayout = lazy(() => import("../Pages/admin/AdminLayout"));
 const PublicProgramListPage = lazy(
   () => import("../Pages/public/programs/PublicProgramListPage"),
@@ -115,24 +117,27 @@ const AdminBankAccountsPage = lazy(
 );
 const AdminPaymentManagementPage = lazy(
   () => import("../Pages/admin/payments/AdminPaymentManagementPage"),
-)
+);
 
 const AdminPaymentMethodsPage = lazy(
   () => import("../Pages/admin/payments/AdminPaymentMethodsPage"),
-)
+);
 
 const AdminPaymentProvidersPage = lazy(
   () => import("../Pages/admin/payments/AdminPaymentProvidersPage"),
-)
+);
 
 const AdminPaymentConfigurationsPage = lazy(
   () => import("../Pages/admin/payments/AdminPaymentConfigurationsPage"),
-)
+);
 const AdminPaymentTransactionsPage = lazy(
   () => import("../Pages/admin/payments/AdminPaymentTransactionsPage"),
 );
 const AdminPaymentTransactionDetailsPage = lazy(
   () => import("../Pages/admin/payments/AdminPaymentTransactionDetailsPage"),
+);
+const AdminCouponsPage = lazy(
+  () => import("../Pages/admin/pricing/AdminCouponsPage"),
 );
 const AdminOperationsPage = lazy(
   () => import("../Pages/admin/operations/AdminOperationsPage"),
@@ -149,8 +154,13 @@ const AdminDocumentBrandingPage = lazy(
 const PublicPaymentResultPage = lazy(
   () => import("../Pages/public/payment/PublicPaymentResultPage"),
 );
-
-
+const PublicServicesPage = lazy(
+  () => import("../Pages/public/ourServices/PublicServicesPage"),
+);
+const PublicServiceCatalogPage = lazy(
+  () => import("../Pages/public/ourServices/PublicServiceCatalogPage"),
+);
+const NotFoundPage = lazy(() => import("../Pages/NotFoundPage"));
 
 function LegacyBookingWizardRedirect(): JSX.Element {
   const { programId } = useParams();
@@ -192,15 +202,47 @@ function App() {
         <Route path="/authpage" element={<AuthPage />} />
         <Route path="/forgotPassword" element={<PasswordRecoveryPage />} />
         <Route path="/forgot-password" element={<PasswordRecoveryPage />} />
-        <Route path="/reset-password/:token" element={<PasswordRecoveryPage />} />
+        <Route
+          path="/reset-password/:token"
+          element={<PasswordRecoveryPage />}
+        />
         <Route
           path="/myBookings"
           element={<Navigate to="/my-bookings" replace />}
         />
-        <Route path="/profile" element={<Profile />} />
+        <Route
+          path="/profile"
+          element={<ProtectedRoute><Profile /></ProtectedRoute>}
+        />
         <Route path="/programs" element={<PublicProgramListPage />} />
         <Route path="/programs/:id" element={<PublicProgramDetailsPage />} />
         <Route path="/services/flights" element={<PublicFlightsPage />} />
+        <Route
+          path="/services/trips"
+          element={<PublicServiceCatalogPage serviceType="trips" />}
+        />
+        <Route path="/services" element={<PublicServicesPage />} />
+        <Route
+          path="/services/hotels"
+          element={<PublicServiceCatalogPage serviceType="hotels" />}
+        />
+        <Route
+          path="/services/transports"
+          element={<PublicServiceCatalogPage serviceType="transports" />}
+        />
+        <Route
+          path="/services/visas"
+          element={<PublicServiceCatalogPage serviceType="visas" />}
+        />
+        <Route
+          path="/services/ziyarats"
+          element={<PublicServiceCatalogPage serviceType="ziyarats" />}
+        />
+        <Route
+          path="/services/extras"
+          element={<PublicServiceCatalogPage serviceType="extras" />}
+        />
+        <Route element={<ProtectedRoute><Outlet /></ProtectedRoute>}>
         <Route
           path="/booking/program/:programId"
           element={<PublicBookingPage />}
@@ -226,7 +268,10 @@ function App() {
           path="/custom-package"
           element={<PublicCustomPackageBuilderPage />}
         />
-        <Route path="/booking-wizard" element={<LegacyBookingWizardRedirect />} />
+        <Route
+          path="/booking-wizard"
+          element={<LegacyBookingWizardRedirect />}
+        />
         <Route
           path="/booking-wizard/program/:programId"
           element={<LegacyBookingWizardRedirect />}
@@ -262,6 +307,7 @@ function App() {
           path="/booking/custom/:draftId/travelers"
           element={<PublicCustomBookingTravelersPage />}
         />
+        </Route>
 
         {/* Admin Routes توحيد المسارات تحت /admin/... */}
         <Route
@@ -275,7 +321,10 @@ function App() {
           <Route index element={<DashboardOverview />} /> {/* /admin */}
           <Route path="dashboard" element={<DashboardOverview />} />{" "}
           {/* /admin/dashboard */}
-          <Route path="products" element={<Navigate to="/admin" replace />} />{" "}
+          <Route
+            path="products"
+            element={<Navigate to="/admin" replace />}
+          />{" "}
           <Route path="users" element={<AdminUsersPage />} />{" "}
           {/*  admin/users */}
           <Route path="hotels" element={<AdminHotelList />} />{" "}
@@ -317,7 +366,10 @@ function App() {
           <Route path="transports" element={<AdminTransportList />} />{" "}
           {/* /admin/transports */}
           <Route path="trips" element={<TransportTrips />} />{" "}
-          <Route path="trips/:tripId/departures" element={<AdminTripDeparturesPage />} />
+          <Route
+            path="trips/:tripId/departures"
+            element={<AdminTripDeparturesPage />}
+          />
           {/* /admin/trips */}
           <Route
             path="vehicle-rentals"
@@ -329,10 +381,7 @@ function App() {
             path="payments/bank-accounts"
             element={<AdminBankAccountsPage />}
           />
-          <Route
-            path="payments"
-            element={<AdminPaymentManagementPage />}
-          />
+          <Route path="payments" element={<AdminPaymentManagementPage />} />
           <Route
             path="payments/methods"
             element={<AdminPaymentMethodsPage />}
@@ -353,26 +402,24 @@ function App() {
             path="payments/payment-transactions/:transactionId"
             element={<AdminPaymentTransactionDetailsPage />}
           />
+          <Route path="pricing/coupons" element={<AdminCouponsPage />} />
           <Route path="operations" element={<AdminOperationsPage />} />
           <Route
             path="operations/bookings/:bookingId"
             element={<AdminBookingOperationsDetailsPage />}
           />
           <Route path="reports" element={<AdminReportsPage />} />
-          <Route path="settings/document-branding" element={<AdminDocumentBrandingPage />} />
-
-
- 
+          <Route
+            path="settings/document-branding"
+            element={<AdminDocumentBrandingPage />}
+          />
         </Route>
 
         <Route
           path="/adminDashboard"
           element={<Navigate to="/admin" replace />}
         />
-        <Route
-          path="/allProducts"
-          element={<Navigate to="/admin" replace />}
-        />
+        <Route path="/allProducts" element={<Navigate to="/admin" replace />} />
 
         <Route
           path="/adminVisaTypeList"
@@ -394,6 +441,7 @@ function App() {
           path="/transportTrips/"
           element={<Navigate to="/admin/trips" replace />}
         />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
   );

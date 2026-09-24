@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
+import { productPricingPolicySchema } from "../shared/product-pricing-policy-schema.js";
 
 const pricingPeriodSchema = new mongoose.Schema(
   {
@@ -78,6 +79,10 @@ const vehicleRentalSchema = new mongoose.Schema(
       },
 
       pricingPeriods: [pricingPeriodSchema],
+    },
+    pricingPolicy: {
+      type: productPricingPolicySchema,
+      default: undefined,
     },
 
     images: [String],

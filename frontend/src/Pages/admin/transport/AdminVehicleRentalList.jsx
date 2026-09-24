@@ -24,6 +24,7 @@ import { normalizeForForm } from "../../../Utils/formData/normalize";
 import { createHandleSave } from "../../../Utils/formData/createHandleSave";
 import { handleApiError } from "../../../Utils/handleApiError";
 import { formatPrice } from "../../../Utils/roundPrice";
+import { PRODUCT_SORT_OPTIONS } from "../../../constants/filters/productSortOptions";
 
 import PageHeader from "../../../Components/layout/PageHeader";
 import ActionButton from "../../../Components/common/buttons/ActionButton";
@@ -252,7 +253,7 @@ export default function AdminVehicleRentalList() {
   ];
 
   return (
-    <div className="container py-2">
+    <div className="container-fluid py-2">
       <PageHeader
         titleAr="إدارة تأجير وسائل النقل"
         titleEn="Vehicle Rentals Management"
@@ -284,7 +285,7 @@ export default function AdminVehicleRentalList() {
         config={{
           search: {
             type: "text",
-            col: 4,
+            col: 3,
             placeholder:
               lang === "ar"
                 ? "ابحث باسم العرض"
@@ -292,7 +293,7 @@ export default function AdminVehicleRentalList() {
           },
           rentalType: {
             type: "select",
-            col: 3,
+            col: 2,
             placeholder: lang === "ar" ? "نوع التأجير" : "Rental Type",
             options: [
               { value: "hourly", labelAr: "بالساعة", labelEn: "Hourly" },
@@ -304,12 +305,19 @@ export default function AdminVehicleRentalList() {
           },
           isActive: {
             type: "select",
-            col: 3,
+            col: 2,
             placeholder: lang === "ar" ? "الحالة" : "Status",
             options: [
               { value: "true", labelAr: "نشط", labelEn: "Active" },
               { value: "false", labelAr: "غير نشط", labelEn: "Inactive" },
             ],
+          },
+          sort: {
+            type: "select",
+            col: 3,
+            placeholder: lang === "ar" ? "الترتيب" : "Sort",
+            showAllOption: false,
+            options: PRODUCT_SORT_OPTIONS,
           },
         }}
       />

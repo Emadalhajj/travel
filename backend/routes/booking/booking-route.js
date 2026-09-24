@@ -39,7 +39,10 @@ import {
   completeBooking,
   changeBookingStatus,
   changePaymentStatus,
+  submitFulfillmentAction,
 } from "../../controllers/booking/booking-controller.js";
+import { uploadBookingActionDocuments } from "../../middleware/upload/index.js";
+import { uploadRateLimiter } from "../../middleware/security/rate-limiters.js";
 
 /*
 =====================================================
@@ -77,6 +80,14 @@ BookingRoute.patch(
   "/bookings/:id/cancel",
   protect,
   cancelBooking,
+);
+
+BookingRoute.post(
+  "/bookings/:id/fulfillment/action-response",
+  protect,
+  uploadRateLimiter,
+  uploadBookingActionDocuments.array("documents", 5),
+  submitFulfillmentAction,
 );
 
 /*

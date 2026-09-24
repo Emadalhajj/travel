@@ -16,23 +16,16 @@ APPLY_PAYMENT_TX_MIGRATION=true
 
 import mongoose from "mongoose";
 import "dotenv/config";
+import { assertExecuteApproved, getDatabaseConfig } from "../operations/database-safety.js";
 
-const uri =
-  process.env.DB_URL ||
-  process.env.MONGO_URI ||
-  process.env.MONGODB_URI;
-
-if (!uri) {
-  throw new Error("MongoDB connection URI is missing");
-}
+const { uri, dbName } = getDatabaseConfig();
 
 const apply =
   process.env.APPLY_PAYMENT_TX_MIGRATION === "true";
+assertExecuteApproved({ execute: apply, operation: "payment transaction legacy migration" });
 
 await mongoose.connect(uri, {
-  dbName:
-    process.env.DB_NAME ||
-    "umrahDB",
+  dbName,
 });
 
 const db = mongoose.connection.db;
@@ -50,11 +43,11 @@ const filter = {
 };
 
 const count = await transactions.countDocuments(filter);
-console.log(`Legacy transactions found: ${count}`);
+const summary = { mode: apply ? "execute" : "dry-run", scanned: count, changed: 0, skipped: 0, failed: 0 };
 
 if (!apply) {
   console.log(
-    "Dry run only. Set APPLY_PAYMENT_TX_MIGRATION=true to apply.",
+    JSON.stringify(summary),
   );
   await mongoose.disconnect();
   process.exit(0);
@@ -118,5 +111,6 @@ for await (const transaction of cursor) {
   migrated += 1;
 }
 
-console.log(`Migrated transactions: ${migrated}`);
+summary.changed = migrated;
+console.log(JSON.stringify(summary));
 await mongoose.disconnect();

@@ -1,4 +1,5 @@
 // src/config/visaFormConfig.js
+import { createPricingPolicyFields } from "../shared/pricingPolicyFields";
 
 export const visaFormConfig = (visaTypes = []) => ({
   // conditionKey: undefined,   // لا يوجد حقل شرطي هنا (كل الحقول مشتركة)
@@ -69,6 +70,7 @@ export const visaFormConfig = (visaTypes = []) => ({
       required: true,
       order: 3,
     },
+    ...createPricingPolicyFields({ order: 4 }),
 
     {
       name: "country.ar",

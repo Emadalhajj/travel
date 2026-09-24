@@ -57,7 +57,7 @@ export const logBookingCreated = async ({
       bookingNumber: booking.bookingNumber,
       bookingStatus: booking.bookingStatus,
       paymentStatus: booking.paymentStatus,
-      totalPrice: booking.pricing?.totalPrice,
+      totalPrice: booking.pricing?.total ?? booking.pricing?.totalPrice,
     },
     req,
   });

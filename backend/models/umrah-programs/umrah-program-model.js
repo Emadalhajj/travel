@@ -25,6 +25,7 @@ DraftBooking يمكن أن يحتوي على programId قبل تحويله إل�
 
 import mongoose from "mongoose";
 import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
+import { productPricingPolicySchema } from "../shared/product-pricing-policy-schema.js";
 
 import {
   UMRAH_PROGRAM_STATUS,
@@ -216,6 +217,11 @@ const umrahProgramSchema = new mongoose.Schema(
         enum: SUPPORTED_CURRENCIES,
         default: DEFAULT_CURRENCY,
       },
+    },
+
+    pricingPolicy: {
+      type: productPricingPolicySchema,
+      default: undefined,
     },
 
     /*

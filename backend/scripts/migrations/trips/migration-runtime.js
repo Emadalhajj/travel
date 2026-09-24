@@ -1,11 +1,11 @@
 import mongoose from "mongoose";
 import "dotenv/config";
+import { getDatabaseConfig } from "../../operations/database-safety.js";
 
 export const withMigrationDatabase = async (work) => {
-  const uri = process.env.DB_URL || process.env.MONGO_URI || process.env.MONGODB_URI;
-  if (!uri) throw new Error("MongoDB connection URI is missing");
+  const { uri, dbName } = getDatabaseConfig();
 
-  await mongoose.connect(uri, { dbName: process.env.DB_NAME || "umrahDB" });
+  await mongoose.connect(uri, { dbName });
   try {
     return await work(mongoose.connection.db);
   } finally {

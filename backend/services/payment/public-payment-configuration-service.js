@@ -189,7 +189,11 @@ export const getPublicPaymentConfigurationsService = async ({
     sectionCode,
     isActive: true,
     isDeleted: { $ne: true },
-    supportedCurrencies: currency,
+    $or: [
+      { supportedCurrencies: currency },
+      { supportedCurrencies: { $size: 0 } },
+      { supportedCurrencies: { $exists: false } },
+    ],
     ...buildAvailabilityFilter(),
   };
 

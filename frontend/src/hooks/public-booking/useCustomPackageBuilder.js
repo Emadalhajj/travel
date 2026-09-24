@@ -45,6 +45,11 @@ const initialFormData = {
   startDate: "",
   endDate: "",
   travelersCount: 1,
+  adults: 1,
+  children: 0,
+  roomsCount: 1,
+  page: 1,
+  limit: 10,
   nationality: "",
 };
 
@@ -76,6 +81,9 @@ export default function useCustomPackageBuilder() {
         ...prev,
         [name]: value,
       };
+
+      if (!["page", "limit"].includes(name)) next.page = 1;
+      if (name === "limit") next.page = 1;
 
       if (name === "travelersCount") {
         const count = Math.max(1, Number(value) || 1);
@@ -183,6 +191,36 @@ export default function useCustomPackageBuilder() {
     setSelectedProducts({});
   };
 
+  const hydrateAccommodationSelection = useCallback((draft) => {
+    const hotel = draft?.hotel;
+    if (!hotel?.roomTypeId) return;
+
+    setFormData((previous) => ({
+      ...previous,
+      startDate: hotel.checkIn ? String(hotel.checkIn).slice(0, 10) : "",
+      endDate: hotel.checkOut ? String(hotel.checkOut).slice(0, 10) : "",
+      roomsCount: Number(hotel.roomsCount || 1),
+      adults: Number(hotel.adults || 1),
+      children: Number(hotel.children || 0),
+      travelersCount: Math.max(
+        1,
+        Number(hotel.adults || 1) + Number(hotel.children || 0),
+      ),
+    }));
+    setSelectedProducts({
+      roomTypes: [{
+        _id: hotel.roomTypeId,
+        productId: hotel.roomTypeId,
+        roomTypeId: hotel.roomTypeId,
+        nameAr: hotel.roomTypeNameAr,
+        nameEn: hotel.roomTypeNameEn,
+        hotelNameAr: hotel.nameAr,
+        hotelNameEn: hotel.nameEn,
+        mealPlan: hotel.mealPlan,
+      }],
+    });
+  }, []);
+
   /*
   =====================================================
   selectedProductsList
@@ -285,45 +323,21 @@ export default function useCustomPackageBuilder() {
       return {};
     }
 
-    const raw = selectedHotel.raw || selectedHotel;
-
     return {
-      hotelId:
-        raw.hotelId ||
-        raw.hotel?._id ||
-        raw.hotel ||
-        selectedHotel.hotelId ||
-        selectedHotel.hotel?._id ||
-        selectedHotel._id ||
+      roomTypeId:
+        selectedHotel.roomTypeId ||
         selectedHotel.productId ||
+        selectedHotel.refId ||
+        selectedHotel._id ||
         null,
-
-      nameAr:
-        raw.hotelNameAr ||
-        raw.hotel?.nameAr ||
-        raw.nameAr ||
-        selectedHotel.hotelNameAr ||
-        selectedHotel.nameAr ||
-        "",
-
-      nameEn:
-        raw.hotelNameEn ||
-        raw.hotel?.nameEn ||
-        raw.nameEn ||
-        selectedHotel.hotelNameEn ||
-        selectedHotel.nameEn ||
-        "",
-
-      roomType:
-        raw.roomType ||
-        raw.roomTypeName ||
-        raw.nameAr ||
-        raw.nameEn ||
-        selectedHotel.nameAr ||
-        selectedHotel.nameEn ||
-        "",
-
-      nights: calculateNights(formData.startDate, formData.endDate),
+      checkIn: formData.startDate || null,
+      checkOut: formData.endDate || null,
+      roomsCount: Math.max(1, Number(formData.roomsCount || 1)),
+      adults: Math.max(
+        1,
+        Number(formData.adults || formData.travelersCount || 1),
+      ),
+      children: Math.max(0, Number(formData.children || 0)),
     };
   };
 
@@ -440,27 +454,62 @@ export default function useCustomPackageBuilder() {
     currentStep: "customer_info",
   });
 
+  const toAuthoritativeSelection = (item = {}) => {
+    const normalizedCategory = String(item.category || item.type || "")
+      .replace(/[^a-z]/gi, "")
+      .toLowerCase();
+    if (["roomtype", "roomtypes", "hotel", "hotels"].includes(normalizedCategory)) {
+      return {
+        type: "ROOM_TYPE",
+        productId: item.roomTypeId || item.productId || item.refId || item._id,
+        quantity: Math.max(1, Number(formData.roomsCount || 1)),
+      };
+    }
+    const selection = { ...item };
+    [
+      "unitPrice", "subtotal", "taxAmount", "discountAmount",
+      "couponDiscountAmount", "total", "totalPrice", "finalPrice",
+      "basePrice", "priceAtTime", "pricing",
+    ].forEach((field) => delete selection[field]);
+    return selection;
+  };
+
   /*
   =====================================================
   buildDraftUpdatePayload
   =====================================================
   بعد إنشاء المسودة نحدثها بكامل تفاصيل البرنامج المخصص.
   */
-  const buildDraftUpdatePayload = () => ({
-    program: buildProgramSnapshot(),
-    hotel: buildHotelSnapshot(),
-    trip: buildTripSnapshot(),
-    transport: buildTransportSnapshot(),
-    pricing,
-    currentStep: "customer_info",
+ const buildDraftUpdatePayload = ({
+  packageType = "CUSTOM_PACKAGE",
+  serviceType = null,
+} = {}) => ({
+  bookingContext: packageType,
+  serviceType: serviceType || "",
+  program: buildProgramSnapshot(),
+  hotel: buildHotelSnapshot(),
+  trip: buildTripSnapshot(),
+  transport: buildTransportSnapshot(),
 
-    data: {
-      packageType: "CUSTOM_PACKAGE",
-      selectedProducts: selectedProductsList,
-      selectedProductsByCategory: selectedProducts,
-      searchCriteria: formData,
-    },
-  });
+  currentStep: "customer_info",
+
+  data: {
+    packageType,
+    serviceType,
+
+    selectedProducts: selectedProductsList.map(toAuthoritativeSelection),
+    selectedProductsByCategory: Object.fromEntries(
+      Object.entries(selectedProducts).map(([category, items]) => [
+        category,
+        (items || []).map(toAuthoritativeSelection),
+      ]),
+    ),
+
+    searchCriteria: formData,
+    accommodationPricingPending:
+      packageType === "SERVICE" && serviceType === "ACCOMMODATION",
+  },
+});
 
   const hasValidTravelSelection = () => {
     const selected = selectedProducts.flights?.[0] || selectedProducts.trips?.[0];
@@ -491,6 +540,7 @@ export default function useCustomPackageBuilder() {
     removeProduct,
     clearCategory,
     clearSelectedProducts,
+    hydrateAccommodationSelection,
 
     buildDraftCreatePayload,
     buildDraftUpdatePayload,
@@ -498,27 +548,4 @@ export default function useCustomPackageBuilder() {
 
     resetBuilder,
   };
-}
-
-/*
-=========================================================
-Helpers
-=========================================================
-*/
-
-function calculateNights(startDate, endDate) {
-  if (!startDate || !endDate) return 0;
-
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return 0;
-  }
-
-  const diff = end.getTime() - start.getTime();
-
-  if (diff <= 0) return 0;
-
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }

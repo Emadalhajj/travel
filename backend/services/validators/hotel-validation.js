@@ -1,10 +1,11 @@
 import Joi from "joi";
+import { arabicTextSchema, englishTextSchema } from "../../utils/validation/text-language.js";
 
 export const createHotelSchema = (lang = "ar") => {
   const isArabic = lang === "ar";
 
   return Joi.object({
-    nameEn: Joi.string()
+    nameEn: englishTextSchema()
       .min(3)
       .max(70)
       .required()
@@ -17,7 +18,7 @@ export const createHotelSchema = (lang = "ar") => {
           : "English name is required",
       }),
 
-    nameAr: Joi.string()
+    nameAr: arabicTextSchema()
       .min(3)
       .max(70)
       .required()
@@ -30,8 +31,8 @@ export const createHotelSchema = (lang = "ar") => {
           : "Arabic name is required",
       }),
 
-    descriptionEn: Joi.string().allow("").max(2000).optional(),
-    descriptionAr: Joi.string().allow("").max(2000).optional(),
+    descriptionEn: englishTextSchema().allow("").max(2000).optional(),
+    descriptionAr: arabicTextSchema().allow("").max(2000).optional(),
 
     stars: Joi.number()
       .messages({
@@ -138,7 +139,11 @@ export const createHotelSchema = (lang = "ar") => {
 
     isActive: Joi.boolean().default(true),
     isFeatured: Joi.boolean().default(false),
-  }).unknown(true); // للسماح بالحقول الأخرى غير المعرفة في السكيما
+    newImages: Joi.array().items(Joi.object({ url: Joi.string().required(), alt: Joi.string().allow(""), isMain: Joi.boolean() })).default([]),
+    newAttachments: Joi.array().items(Joi.object({ fileName: Joi.string(), url: Joi.string().required(), originalName: Joi.string().allow("") })).default([]),
+    deleteImages: Joi.array().items(Joi.string()).default([]),
+    deleteAttachments: Joi.array().items(Joi.string()).default([]),
+  }).unknown(false);
 };
 // ====================== Update Schema ======================
 export const updateHotelSchema = (lang = "ar") => {

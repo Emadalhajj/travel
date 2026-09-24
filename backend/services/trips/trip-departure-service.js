@@ -30,6 +30,7 @@ import {
   setSingleInventoryActive,
   syncSingleInventoryCapacity,
 } from "../booking/inventory-service.js";
+import { assertDepartureTransportCapacity } from "../transports/transport-capacity-service.js";
 
 const runInTransaction = async (work) => {
   const session = await mongoose.startSession();
@@ -423,6 +424,12 @@ export const createTripDepartureService = async ({ data, userId, req, session = 
     },
   });
 
+  await assertDepartureTransportCapacity({
+    trip,
+    departure: preparedData,
+    session,
+  });
+
   const departureData = {
     ...preparedData,
 
@@ -658,6 +665,11 @@ export const updateTripDepartureService = async ({
     data: nextState,
   });
 
+  await assertDepartureTransportCapacity({
+    trip,
+    departure: preparedData,
+  });
+
   /*
     لا نريد تمرير Mongo internal fields
     مرة أخرى إلى Object.assign.
@@ -772,6 +784,7 @@ export const scheduleTripDepartureService = async ({
     _id: departureId,
     isDeleted: false,
   });
+
   if (!departure) {
     throw new AppError("TRIP_DEPARTURE_NOT_FOUND", 404, "tripDeparture", {
       id: departureId,
@@ -780,6 +793,10 @@ export const scheduleTripDepartureService = async ({
 
   assertTransition(departure.status, TRIP_DEPARTURE_STATUS.SCHEDULED);
   const parentTrip = await validateTrip(departure.tripId);
+  await assertDepartureTransportCapacity({
+    trip: parentTrip,
+    departure,
+  });
   if (!parentTrip.isActive) {
     throw new AppError("TRIP_NOT_FOUND", 404, "tripId", { id: departure.tripId });
   }

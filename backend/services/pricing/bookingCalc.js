@@ -1,8 +1,8 @@
 import { getPriceForDate } from "./priceEngine.js";
+import { calculatePricingLine } from "./pricing-calculator.js";
 import { roundPrice } from "../../utils/roundPrice.js";
 // ==================== Defaults ====================
 
-export const DEFAULT_TAX_RATE = 15;
 export const DEFAULT_CHILD_DISCOUNT = 0.5;
 
 // ==================== Helpers ====================
@@ -44,7 +44,7 @@ export const calculateBookingPrice = ({
   checkOut,
   adults = 1,
   children = 0,
-  taxRate = DEFAULT_TAX_RATE,
+  taxRate,
 }) => {
   const start = normalizeDate(checkIn);
   const end = normalizeDate(checkOut);
@@ -85,7 +85,21 @@ export const calculateBookingPrice = ({
   const adultTotal = roundPrice(subtotal * adults);           // ← roundPrice
   const childTotal = roundPrice(subtotal * DEFAULT_CHILD_DISCOUNT * children); // ← roundPrice
   const beforeTax = roundPrice(adultTotal + childTotal);      // ← roundPrice
-  const taxAmount = roundPrice(beforeTax * (taxRate / 100));  // ← roundPrice
+  const policy = roomType.pricingPolicy || {};
+  const resolvedTax = taxRate === undefined
+    ? policy.tax || { enabled: false, rate: 0, inclusive: false }
+    : { enabled: Number(taxRate) > 0, rate: Number(taxRate) || 0, inclusive: false };
+  const line = calculatePricingLine({
+    sourceType: "ROOM_TYPE_PREVIEW",
+    sourceId: roomType._id || null,
+    chargeType: "PER_BOOKING",
+    unitPrice: beforeTax,
+    quantity: 1,
+    currency: pricing?.currency || "SAR",
+    tax: resolvedTax,
+    adminDiscount: policy.discount,
+    couponEligible: false,
+  });
 
   return {
     nights,
@@ -96,11 +110,14 @@ export const calculateBookingPrice = ({
       baseTotal: roundPrice(subtotal),                         // ← roundPrice
       adultTotal,
       childTotal,
-      discountTotal: nightlyBreakdown.reduce((s, n) => s + n.discountApplied, 0),
-      subtotal: beforeTax,
-      taxRate,
-      taxAmount,
-      totalPrice: roundPrice(beforeTax + taxAmount),           // ← roundPrice
+      discountTotal: roundPrice(
+        nightlyBreakdown.reduce((s, n) => s + n.discountApplied, 0) +
+        line.adminDiscount.amount,
+      ),
+      subtotal: line.subtotal,
+      taxRate: line.tax.rate,
+      taxAmount: line.tax.amount,
+      totalPrice: line.total,
     },
     currency: pricing?.currency || "SAR",
   };

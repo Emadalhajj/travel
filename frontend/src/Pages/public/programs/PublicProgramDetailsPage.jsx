@@ -8,8 +8,9 @@ import {
   clearSelectedProgram,
 } from "../../../redux/public/programSlice";
 
-import Loader from "../../../Components/common/Loader";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
+import TruncatedText from "../../../Components/common/TruncatedText";
 
 // import PublicPageLayout from "../../../Components/shared/layouts/PublicPageLayout";
 // import PublicSectionCard from "../../../Components/shared/layouts/PublicSectionCard";
@@ -31,7 +32,7 @@ export default function PublicProgramDetailsPage() {
   const isArabic = i18n.language === "ar";
 
   const { selectedProgram, detailsLoading, error } = useSelector(
-    (state) => state.publicPrograms
+    (state) => state.publicPrograms,
   );
 
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function PublicProgramDetailsPage() {
   if (detailsLoading) {
     return (
       <PublicPageLayout>
-        <Loader />
+        <LoadingOverlay show overlay={false} />
       </PublicPageLayout>
     );
   }
@@ -156,9 +157,9 @@ export default function PublicProgramDetailsPage() {
           </h1>
 
           {programDescription && (
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-              {programDescription}
-            </p>
+            <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+              <TruncatedText text={programDescription} maxLines={3} />
+            </div>
           )}
         </div>
 
@@ -174,15 +175,19 @@ export default function PublicProgramDetailsPage() {
           <PublicSectionCard title={t("programInfo", "Program Information")}>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {infoItems.map((item) => (
-                <InfoBox key={item.label} label={item.label} value={item.value} />
+                <InfoBox
+                  key={item.label}
+                  label={item.label}
+                  value={item.value}
+                />
               ))}
             </div>
           </PublicSectionCard>
 
           <PublicSectionCard title={t("description", "Description")}>
-            <p className="text-sm leading-7 text-slate-600">
-              {programDescription || "-"}
-            </p>
+            <div className="text-sm leading-7 text-slate-600">
+              <TruncatedText text={programDescription || "-"} maxLines={6} />
+            </div>
           </PublicSectionCard>
 
           <PublicSectionCard title={t("includedServices", "Included Services")}>
@@ -216,7 +221,7 @@ export default function PublicProgramDetailsPage() {
             }}
             note={t(
               "draftBookingNote",
-              "A draft booking will be created first, then reviewed before final confirmation."
+              "A draft booking will be created first, then reviewed before final confirmation.",
             )}
           />
         </aside>
@@ -250,9 +255,9 @@ function ServiceItemCard({ item, isArabic, t }) {
           </p>
 
           {description && description !== "-" && (
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              {description}
-            </p>
+            <div className="mt-3 text-sm leading-6 text-slate-600">
+              <TruncatedText text={description} maxLines={3} />
+            </div>
           )}
         </div>
 

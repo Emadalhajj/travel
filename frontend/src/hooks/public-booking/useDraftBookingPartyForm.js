@@ -4,10 +4,17 @@ import { updatePublicDraftBooking } from "../../redux/public/bookingSlice";
 import { apiUploadDraftDocument } from "../../services/api/public/bookingApi";
 import { validateBookingParty } from "../../Utils/publicBookingValidation";
 import { getProgramAvailableSeats } from "../../Components/shared/booking-wizard/bookingPricing";
+import {
+  getBookingRequirementKey,
+  getBookingRequirements,
+  isRequirementVisible,
+} from "../../config/public-booking/bookingRequirements";
 
 const createEmptyTraveler = () => ({
   fullName: "", passportNumber: "", nationality: "", birthDate: "", gender: "male",
   givenName: "", familyName: "", email: "", phoneNumber: "",
+  title: "", firstName: "", middleName: "", lastName: "",
+  documentType: "PASSPORT", documentNumber: "", documentIssuingCountry: "",
   passengerCategory: "adult", passportExpiryDate: "",
   passportIssuingCountryCode: "", responsibleAdultTravelerId: "",
   passportImage: "", passportFiles: [], whatsapp: "",
@@ -35,14 +42,42 @@ export default function useDraftBookingPartyForm({
   const [localError, setLocalError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
-  const isExternalFlight = draftBooking?.bookingContext === "SERVICE" &&
-    draftBooking?.serviceType === "FLIGHT";
+  const bookingType = getBookingRequirementKey(draftBooking);
+  const requirements = getBookingRequirements(draftBooking);
+  const isExternalFlight = bookingType === "FLIGHT";
+  const serviceType = String(
+    draftBooking?.serviceType || draftBooking?.data?.serviceType || "",
+  ).toUpperCase();
+  const externalSlices = draftBooking?.trip?.external?.slices || [];
+  const firstExternalSegment = externalSlices[0]?.segments?.[0];
+  const finalExternalSlice = externalSlices[externalSlices.length - 1];
+  const finalExternalSegment = finalExternalSlice?.segments?.[
+    (finalExternalSlice?.segments?.length || 1) - 1
+  ];
+  const travelEndsAt = finalExternalSegment?.arrivalAt ||
+    draftBooking?.trip?.arrivalAt ||
+    draftBooking?.trip?.departureAt ||
+    null;
+  const travelStartsAt = firstExternalSegment?.departureAt ||
+    draftBooking?.trip?.departureAt ||
+    null;
+  const initialTravelerCount = useMemo(() => {
+    if (!isRequirementVisible(requirements.travelers)) return 0;
 
-  const initialTravelerCount = useMemo(() => Math.max(1, Number(
-    draftBooking?.data?.travelersCount ??
-      draftBooking?.data?.pilgrimsCount ??
-      draftBooking?.data?.searchCriteria?.travelersCount ?? 1,
-  )), [draftBooking]);
+    if (serviceType === "ACCOMMODATION") {
+      return Math.max(
+        1,
+        Number(draftBooking?.hotel?.adults || 0) +
+          Number(draftBooking?.hotel?.children || 0),
+      );
+    }
+
+    return Math.max(1, Number(
+      draftBooking?.data?.travelersCount ??
+        draftBooking?.data?.pilgrimsCount ??
+        draftBooking?.data?.searchCriteria?.travelersCount ?? 1,
+    ));
+  }, [draftBooking, requirements.travelers, serviceType]);
 
   const availableSeats = useMemo(() => {
     const packageType = String(draftBooking?.data?.packageType || "").toUpperCase();
@@ -53,6 +88,10 @@ export default function useDraftBookingPartyForm({
   useEffect(() => {
     if (!draftBooking?._id || hydratedDraftIdRef.current === draftBooking._id) return;
     const savedTravelers = Array.isArray(draftBooking.travelers) ? draftBooking.travelers : [];
+    const firstAdult = savedTravelers.find(
+      (traveler) => (traveler.passengerCategory || "adult") === "adult",
+    );
+    const firstAdultId = firstAdult?._id || firstAdult?.id || "";
 
     setCustomer({ ...emptyCustomer, ...(draftBooking.customer || {}) });
     setHosts(Array.isArray(draftBooking.hosts) ? draftBooking.hosts.map((host) => ({
@@ -65,6 +104,22 @@ export default function useDraftBookingPartyForm({
       const traveler = savedTravelers[index] || {};
       return {
         ...createEmptyTraveler(), ...traveler,
+        title: ["child", "infant_without_seat"].includes(traveler.passengerCategory)
+          ? "CHILD"
+          : (traveler.title || ""),
+        firstName: traveler.firstName || traveler.givenName || "",
+        lastName: traveler.lastName || traveler.familyName || "",
+        documentType: traveler.documentType || "PASSPORT",
+        documentNumber: traveler.documentNumber || traveler.passportNumber || "",
+        documentIssuingCountry:
+          traveler.documentIssuingCountry ||
+          traveler.passportIssuingCountryCode ||
+          "",
+        responsibleAdultTravelerId:
+          traveler.responsibleAdultTravelerId ||
+          (traveler.passengerCategory === "infant_without_seat"
+            ? String(firstAdultId)
+            : ""),
         passportFiles: storedFile(traveler.passportImage),
         personalPhotoFiles: storedFile(traveler.personalPhoto),
         vaccinationCertificateFiles: storedFile(traveler.vaccinationCertificate),
@@ -80,8 +135,20 @@ export default function useDraftBookingPartyForm({
     clearError(`customer.${name}`);
   }, [clearError]);
   const handleTravelerChange = useCallback((index, name, value) => {
-    setTravelers((previous) => previous.map((traveler, travelerIndex) =>
-      travelerIndex === index ? { ...traveler, [name]: value } : traveler));
+    const aliases = {
+      firstName: "givenName",
+      lastName: "familyName",
+      documentNumber: "passportNumber",
+      documentIssuingCountry: "passportIssuingCountryCode",
+    };
+    setTravelers((previous) => previous.map((traveler, travelerIndex) => {
+      if (travelerIndex !== index) return traveler;
+      return {
+        ...traveler,
+        [name]: value,
+        ...(aliases[name] ? { [aliases[name]]: value } : {}),
+      };
+    }));
     clearError(`travelers.${index}.${name}`);
   }, [clearError]);
   const handleHostsChange = useCallback((nextHosts) => {
@@ -102,7 +169,15 @@ export default function useDraftBookingPartyForm({
   ), []);
 
   const validateForm = () => {
-    const nextErrors = validateBookingParty({ customer, travelers, hosts, isArabic, isExternalFlight });
+    const nextErrors = validateBookingParty({
+      customer,
+      travelers,
+      hosts,
+      isArabic,
+      requirements,
+      travelStartsAt,
+      travelEndsAt,
+    });
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -145,8 +220,12 @@ export default function useDraftBookingPartyForm({
     setUploading(true);
     try {
       const [normalizedTravelers, normalizedHosts] = await Promise.all([
-        Promise.all(travelers.map(prepareTraveler)),
-        Promise.all(hosts.map(prepareHost)),
+        isRequirementVisible(requirements.travelers)
+          ? Promise.all(travelers.map(prepareTraveler))
+          : [],
+        isRequirementVisible(requirements.hosts)
+          ? Promise.all(hosts.map(prepareHost))
+          : [],
       ]);
       await dispatch(updatePublicDraftBooking({
         draftId,
@@ -170,6 +249,9 @@ export default function useDraftBookingPartyForm({
     travelersCount: travelers.length,
     showSaveConfirmation,
     isExternalFlight,
+    bookingType,
+    requirements,
+    serviceType,
     closeSaveConfirmation: () => !uploading && !submitLoading && setShowSaveConfirmation(false),
     requestSaveConfirmation,
     handleCustomerChange, handleTravelerChange, handleHostsChange,

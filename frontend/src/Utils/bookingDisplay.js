@@ -1,9 +1,9 @@
 export const buildTravelerFullName = (traveler = {}) =>
   [
-    traveler.firstNameAr || traveler.firstNameEn,
-    traveler.secondNameAr || traveler.secondNameEn,
+    traveler.firstName || traveler.givenName || traveler.firstNameAr || traveler.firstNameEn,
+    traveler.middleName || traveler.secondNameAr || traveler.secondNameEn,
     traveler.thirdNameAr || traveler.thirdNameEn,
-    traveler.lastNameAr || traveler.lastNameEn,
+    traveler.lastName || traveler.familyName || traveler.lastNameAr || traveler.lastNameEn,
   ]
     .filter(Boolean)
     .join(" ");

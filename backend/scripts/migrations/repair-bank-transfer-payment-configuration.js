@@ -21,18 +21,13 @@ import "dotenv/config";
 
 import PaymentConfiguration from "../../models/payments/payment-configuration-model.js";
 import BankAccount from "../../models/payments/bank-account-model.js";
+import { assertExecuteApproved, getDatabaseConfig } from "../operations/database-safety.js";
 
-const uri =
-  process.env.DB_URL ||
-  process.env.MONGO_URI ||
-  process.env.MONGODB_URI;
-
-if (!uri) {
-  throw new Error("MongoDB connection URI is missing");
-}
+const { uri, dbName } = getDatabaseConfig();
 
 const apply =
   process.env.APPLY_BANK_TRANSFER_CONFIGURATION_REPAIR === "true";
+assertExecuteApproved({ execute: apply, operation: "bank transfer configuration repair" });
 
 const isStoredApiError = (value) => {
   const text = String(value || "").trim();
@@ -45,7 +40,7 @@ const isStoredApiError = (value) => {
 
 try {
   await mongoose.connect(uri, {
-    dbName: process.env.DB_NAME || "umrahDB",
+    dbName,
   });
 
   const configurations = await PaymentConfiguration.find({

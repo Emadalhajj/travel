@@ -86,7 +86,7 @@ export default function DefaultField(props) {
   applyValue(e.target.value, e.target.checked);
  };
 
-  if (field.type === "date") {
+  if (["date", "datetime-local"].includes(field.type)) {
     return (
       <CalendarField
         id={getFieldStatePath(field)}
@@ -98,6 +98,7 @@ export default function DefaultField(props) {
         error={error}
         isArabic={isArabic}
         showMessage={false}
+        includeTime={field.type === "datetime-local"}
       />
     );
   }

@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import ErrorOverlay from "../../../Components/common/feedback/ErrorOverlay";
-import Loader from "../../../Components/common/Loader";
+import LoadingOverlay from "../../../Components/common/feedback/LoadingOverlay";
 import PageHeader from "../../../Components/layout/PageHeader";
 import PublicPageLayout from "../../../Components/layout/PublicPageLayout";
 import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
@@ -69,7 +69,7 @@ export default function PublicBookingSuccessPage() {
           subtitleEn="The draft has been converted into a booking and you can track it from your account."
         />
 
-        {loading && <Loader />}
+        {loading && <LoadingOverlay show overlay={false} size="sm" />}
 
         <ErrorOverlay show={!loading && Boolean(error)} message={error} />
 

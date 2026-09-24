@@ -41,9 +41,9 @@ const roomTypeUploadMiddleware  = [
 ];
 
 // Public routes
-RoomTypeRoute.get("/room-types", getAllRoomType);
-RoomTypeRoute.get("/room-types/:id", getRoomTypeById);
-RoomTypeRoute.get("/hotel/:hotelId/room-types", getRoomTypesByHotelId);
+RoomTypeRoute.get("/room-types", protect, authorize("admin", "superAdmin"), getAllRoomType);
+RoomTypeRoute.get("/room-types/:id", protect, authorize("admin", "superAdmin"), getRoomTypeById);
+RoomTypeRoute.get("/hotel/:hotelId/room-types", protect, authorize("admin", "superAdmin"), getRoomTypesByHotelId);
 
 // Protected routes التوجه المحمي
 RoomTypeRoute.post(
@@ -56,6 +56,8 @@ RoomTypeRoute.post(
 );
 
 RoomTypeRoute.post('/preview-price',
+  protect,
+  authorize("admin", "superAdmin"),
   previewBookingPrice
 )
 

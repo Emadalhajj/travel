@@ -1,7 +1,7 @@
 import asyncHandler from "express-async-handler";
 import Visa from "../models/visa-model.js";
 import { buildSearchQuery } from "../utils/Builders/buildSearchQuery.js";
-import { buildSort } from "../utils/Builders/buildSort.js";
+import { buildProductSort } from "../utils/buildProductSort.js";
 import { buildPagination } from "../utils/Builders/buildPagination.js";
 import { deleteImagesFromDisk } from "../utils/imageManager.js";
 
@@ -23,7 +23,10 @@ export const getAllVisas = asyncHandler(async (req, res) => {
     filter.isActive = isActive === "true";
   }
   //  3️⃣ Sort + Pagination
-  const sortOption = buildSort(req.query);
+  const sortOption = buildProductSort({
+    value: req.query.sort,
+    priceField: "price",
+  });
   const { page, skip, limit } = buildPagination(req.query);
   const [visas, total] = await Promise.all([
     // Promise يستخدم لتنفيذ استعلامين في نفس الوقت
@@ -70,6 +73,7 @@ export const createVisa = asyncHandler(async (req, res) => {
     country,
     isActive,
     isAlwaysAvailable,
+    pricingPolicy,
   } = req.body;
 
   if (
@@ -104,6 +108,7 @@ export const createVisa = asyncHandler(async (req, res) => {
     images: imagePaths, // ← مصفوفة من المسارات
     isActive: isActive ?? true, // استخدم القيمة المرسلة أو القيمة الافتراضية true
     isAlwaysAvailable: isAlwaysAvailable ?? true,
+    pricingPolicy,
   });
 
   // Populate لإرجاع البيانات الكاملة

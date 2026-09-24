@@ -27,6 +27,7 @@ export const mapPassengerToDuffel = (passenger) => {
     given_name: passenger.givenName,
     family_name: passenger.familyName,
     born_on: passenger.bornOn,
+    title: passenger.title,
     gender: passenger.gender,
     email: passenger.email,
     phone_number: passenger.phoneNumber,

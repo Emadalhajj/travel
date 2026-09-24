@@ -12,6 +12,7 @@ import UniversalFormModal from "../../../Components/forms/UniversalFormModal";
 import AdminPageActions from "../../../Components/layout/AdminPageActions";
 import PageHeader from "../../../Components/layout/PageHeader";
 import PublicSectionCard from "../../../Components/layout/PublicSectionCard";
+import AttachmentPreviewCard from "../../../Components/shared/attachments/AttachmentPreviewCard";
 import StatusBadge from "../../../Components/shared/common/StatusBadge";
 import {
   approveBankTransfer,
@@ -75,7 +76,11 @@ export default function AdminPaymentTransactionDetailsPage() {
   const availableActions = useMemo(() => ({
     approve:
       transaction?.paymentMethodCode === "BANK_TRANSFER" &&
-      ["PENDING_VERIFICATION", "PENDING_REVIEW"].includes(status),
+      [
+        "PENDING_VERIFICATION",
+        "PENDING_REVIEW",
+        "PAID_PENDING_BOOKING",
+      ].includes(status),
     reject:
       transaction?.paymentMethodCode === "BANK_TRANSFER" &&
       ["PENDING_VERIFICATION", "PENDING_REVIEW"].includes(status),
@@ -129,12 +134,29 @@ export default function AdminPaymentTransactionDetailsPage() {
   }), [dialog]);
 
   const reportOperationError = (operationError) => {
-    const message = handleApiError(
-      operationError,
-      (value) => value,
-      lang,
+    const fallback = isArabic
+      ? "تعذر تنفيذ العملية"
+      : "Operation failed";
+    const structuredMessage =
+      typeof operationError === "string"
+        ? operationError
+        : typeof operationError?.message === "string"
+          ? operationError.message
+          : Object.values(operationError?.errors || {}).find(
+              (value) => typeof value === "string",
+            );
+    const handledMessage = structuredMessage
+      ? null
+      : handleApiError(
+          operationError,
+          (value) => value,
+          lang,
+        );
+
+    toast.error(
+      structuredMessage ||
+        (typeof handledMessage === "string" ? handledMessage : fallback),
     );
-    toast.error(message || (isArabic ? "تعذر تنفيذ العملية" : "Operation failed"));
   };
 
   const refreshDetails = () =>
@@ -212,7 +234,15 @@ export default function AdminPaymentTransactionDetailsPage() {
         actions={transaction ? (
           <AdminPageActions>
             {availableActions.approve && (
-              <ActionButton action="activate" label={isArabic ? "اعتماد التحويل" : "Approve transfer"} onClick={() => setDialog(ACTIONS.APPROVE)} />
+              <ActionButton
+                action="activate"
+                label={
+                  status === "PAID_PENDING_BOOKING"
+                    ? (isArabic ? "استكمال إنشاء الحجز" : "Complete booking creation")
+                    : (isArabic ? "اعتماد التحويل" : "Approve transfer")
+                }
+                onClick={() => setDialog(ACTIONS.APPROVE)}
+              />
             )}
             {availableActions.reject && (
               <ActionButton action="deactivate" label={isArabic ? "رفض التحويل" : "Reject transfer"} onClick={() => setDialog(ACTIONS.REJECT)} />
@@ -261,6 +291,45 @@ export default function AdminPaymentTransactionDetailsPage() {
                   onClick={() => navigate(`/admin/operations/bookings/${transaction.bookingId}`)}
                 />
               </div>
+            )}
+          </PublicSectionCard>
+
+          <PublicSectionCard
+            title={isArabic ? "مرفقات التحويل" : "Transfer attachments"}
+            subtitle={
+              isArabic
+                ? "الإيصالات والمستندات التي أرسلها العميل لاعتماد التحويل."
+                : "Receipts and documents submitted by the customer for transfer approval."
+            }
+          >
+            {transaction.proofAttachments?.length ? (
+              <div className="row g-3">
+                {transaction.proofAttachments.map((attachment, index) => (
+                  <div
+                    className="col-12 col-sm-6 col-xl-4"
+                    key={attachment.publicId || attachment.url || index}
+                  >
+                    <AttachmentPreviewCard
+                      label={
+                        attachment.name ||
+                        (isArabic
+                          ? `إيصال التحويل ${index + 1}`
+                          : `Transfer receipt ${index + 1}`)
+                      }
+                      value={attachment}
+                      isArabic={isArabic}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title={
+                  isArabic
+                    ? "لم يرفق العميل إيصالًا للتحويل"
+                    : "No transfer receipt was submitted"
+                }
+              />
             )}
           </PublicSectionCard>
 

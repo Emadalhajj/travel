@@ -29,14 +29,51 @@ import {
   createPaymentTransactionService,
   findBlockingPublicPaymentForDraftService,
   initializeExternalFulfillmentService,
+  markPaymentTransactionFailedService,
 } from "./paymentTransaction-service.js";
 import { buildBookingPricingFromDraft } from "../draft-bookings/draft-booking-service.js";
+import {
+  buildAuthoritativeDraftQuote,
+  pricingQuoteChanged,
+} from "../pricing/draft-pricing-service.js";
+import { resolveCouponForDraft } from "../pricing/coupon-service.js";
 import { revalidateDraftExternalFlight } from "../trips/external-flight-revalidation-service.js";
 import { buildExternalFlightPassengers } from "../trips/providers/external-flight-passenger-mapper.js";
+import { assertDraftAccommodationAvailable } from "../availability/accommodation-availability-service.js";
+import { ensureDraftInventoryHoldService } from "../draft-bookings/draft-inventory-hold-service.js";
+import { releaseInventoryHoldService } from "../booking/inventory-hold-service.js";
 
 import { PAYMENT_CONFIGURATION_TYPES } from "../../constants/payments/payment-configuration-types.js";
 import { PAYMENT_TRANSACTION_STATUSES } from "../../constants/payments/payment-transaction-statuses.js";
 import { PAYMENT_TRANSACTION_EVENT_SOURCES } from "../../constants/payments/payment-transaction-events.js";
+import { PAYMENT_SECTION_CODES } from "../../constants/payments/payment-section-codes.js";
+
+export const resolveDraftPaymentSectionCode = (draft = {}) => {
+  if (
+    draft.bookingContext === "SERVICE" &&
+    ["FLIGHT", "TRIP"].includes(draft.serviceType)
+  ) {
+    return PAYMENT_SECTION_CODES.FLIGHT_BOOKING;
+  }
+
+  if (draft.bookingContext === "SERVICE") {
+    const serviceSections = {
+      ACCOMMODATION: PAYMENT_SECTION_CODES.HOTEL_BOOKING,
+      HOTEL: PAYMENT_SECTION_CODES.HOTEL_BOOKING,
+      VISA: PAYMENT_SECTION_CODES.VISA_BOOKING,
+      TRANSPORT: PAYMENT_SECTION_CODES.TRANSPORT_BOOKING,
+      ZIYARAT: PAYMENT_SECTION_CODES.ZIYARAT_BOOKING,
+      EXTRA_SERVICE: PAYMENT_SECTION_CODES.EXTRA_SERVICE_BOOKING,
+    };
+    return serviceSections[draft.serviceType] || PAYMENT_SECTION_CODES.CUSTOM_PACKAGE;
+  }
+
+  if (draft.bookingContext === "READY_PACKAGE") {
+    return PAYMENT_SECTION_CODES.PROGRAM_BOOKING;
+  }
+
+  return PAYMENT_SECTION_CODES.CUSTOM_PACKAGE;
+};
 
 const validateObjectId = (value, field) => {
   if (!mongoose.Types.ObjectId.isValid(value)) {
@@ -82,8 +119,14 @@ const getActivePaymentConfiguration = async ({
     paymentMethodCode,
     isActive: true,
     isDeleted: { $ne: true },
-    supportedCurrencies: currency,
     $and: [
+      {
+        $or: [
+          { supportedCurrencies: currency },
+          { supportedCurrencies: { $size: 0 } },
+          { supportedCurrencies: { $exists: false } },
+        ],
+      },
       {
         $or: [
           { availableFrom: null },
@@ -233,12 +276,60 @@ const initializeFlightFulfillment = async ({ transaction, draft }) => {
   }) || transaction;
 };
 
+const initializeNonProviderPaymentResources = async ({
+  transaction,
+  draft,
+  userId,
+  req,
+}) => {
+  let hold = null;
+
+  try {
+    hold = await ensureDraftInventoryHoldService({
+      draft,
+      idempotencyKey: `payment:${transaction._id}`,
+      paymentTransaction: transaction._id,
+      expiresAt: transaction.expiresAt || null,
+      userId: transaction.user || draft.user || userId || null,
+      req,
+    });
+    await initializeFlightFulfillment({ transaction, draft });
+    return hold;
+  } catch (error) {
+    try {
+      await markPaymentTransactionFailedService({
+        transactionId: transaction._id,
+        reason: error?.message || "Payment resource initialization failed",
+        source: PAYMENT_TRANSACTION_EVENT_SOURCES.SYSTEM,
+        updatedBy: userId || draft.user || null,
+      });
+    } catch (transactionError) {
+      console.error("Payment transaction failure update failed:", transactionError?.message || String(transactionError));
+    }
+
+    if (hold?._id) {
+      try {
+        await releaseInventoryHoldService({
+          holdId: hold._id,
+          reason: "Payment resource initialization failed",
+          req,
+        });
+      } catch (releaseError) {
+        console.error("Payment inventory hold release failed:", releaseError?.message || String(releaseError));
+      }
+    }
+
+    throw error;
+  }
+};
+
 const initializeBankTransfer = async ({
   draft,
   configuration,
   pricing,
   selectedBankAccountId,
   userId,
+  req,
 }) => {
   const selectedAccount = resolveSelectedBankAccount({
     configuration,
@@ -252,7 +343,7 @@ const initializeBankTransfer = async ({
     paymentMethodCode: configuration.paymentMethodCode,
     bankAccountId: selectedAccount._id,
     bankAccountSnapshot: buildBankAccountSnapshot(selectedAccount),
-    amount: pricing.totalPrice,
+    amount: pricing.total,
     currency: pricing.currency || "SAR",
     status: PAYMENT_TRANSACTION_STATUSES.PENDING_PROOF,
     createdBy: userId || draft.user || null,
@@ -260,7 +351,12 @@ const initializeBankTransfer = async ({
     eventSource: PAYMENT_TRANSACTION_EVENT_SOURCES.PUBLIC_API,
   });
 
-  await initializeFlightFulfillment({ transaction, draft });
+  await initializeNonProviderPaymentResources({
+    transaction,
+    draft,
+    userId,
+    req,
+  });
   return {
     action: "BANK_TRANSFER",
     paymentTransactionId: transaction._id,
@@ -291,13 +387,14 @@ const initializeManualPayment = async ({
   configuration,
   pricing,
   userId,
+  req,
 }) => {
   const transaction = await createPaymentTransactionService({
     draftBooking: draft._id,
     user: draft.user || userId || null,
     paymentConfigurationId: configuration._id,
     paymentMethodCode: configuration.paymentMethodCode,
-    amount: pricing.totalPrice,
+    amount: pricing.total,
     currency: pricing.currency || "SAR",
     status: PAYMENT_TRANSACTION_STATUSES.PENDING_APPROVAL,
     createdBy: userId || draft.user || null,
@@ -305,7 +402,12 @@ const initializeManualPayment = async ({
     eventSource: PAYMENT_TRANSACTION_EVENT_SOURCES.PUBLIC_API,
   });
 
-  await initializeFlightFulfillment({ transaction, draft });
+  await initializeNonProviderPaymentResources({
+    transaction,
+    draft,
+    userId,
+    req,
+  });
   return {
     action: "PENDING_APPROVAL",
     paymentTransactionId: transaction._id,
@@ -328,6 +430,15 @@ export const initializePublicPaymentService = async ({
   req,
 }) => {
   const draft = await getDraftBooking({ draftId, userId });
+  const expectedSectionCode = resolveDraftPaymentSectionCode(draft);
+
+  if (sectionCode !== expectedSectionCode) {
+    throw new AppError(
+      "PAYMENT_METHOD_NOT_AVAILABLE_FOR_BOOKING",
+      400,
+      "sectionCode",
+    );
+  }
 
   const refreshedExternal = await revalidateDraftExternalFlight({ trip: draft.trip });
   if (refreshedExternal) {
@@ -336,13 +447,40 @@ export const initializePublicPaymentService = async ({
     draft.trip.currency = refreshedExternal.pricing.currency;
     draft.trip.quantity = 1;
     draft.trip.chargeType = "PER_BOOKING";
-    await draft.save();
     buildExternalFlightPassengers({
       travelers: draft.travelers,
       providerPassengers: refreshedExternal.passengers.items,
-      requiredIdentityDocumentTypes:
+      supportedIdentityDocumentTypes:
         refreshedExternal.supportedIdentityDocumentTypes,
     });
+  }
+
+  await assertDraftAccommodationAvailable(draft);
+
+  const previousPricing = typeof draft.pricing?.toObject === "function"
+    ? draft.pricing.toObject()
+    : { ...(draft.pricing || {}) };
+  let coupon = null;
+  let couponInvalidated = false;
+  if (previousPricing.coupon?.code) {
+    try {
+      coupon = await resolveCouponForDraft({
+        code: previousPricing.coupon.code,
+        draft,
+        userId,
+      });
+    } catch (_error) {
+      couponInvalidated = true;
+    }
+  }
+  const authoritativeQuote = await buildAuthoritativeDraftQuote({ draft, coupon });
+  const priceChanged = pricingQuoteChanged(previousPricing, authoritativeQuote);
+  draft.pricing = authoritativeQuote;
+  await draft.save();
+  if (Number(previousPricing.version) === 2 && (priceChanged || couponInvalidated)) {
+    const error = new AppError("PRICE_CHANGED", 409, "pricing");
+    error.quote = authoritativeQuote;
+    throw error;
   }
 
   const existingPayment =
@@ -374,7 +512,7 @@ export const initializePublicPaymentService = async ({
 
   validateAmountRules({
     configuration,
-    amount: pricing.totalPrice,
+    amount: pricing.total,
   });
 
   if (
@@ -387,6 +525,7 @@ export const initializePublicPaymentService = async ({
       pricing,
       selectedBankAccountId,
       userId,
+      req,
     });
   }
 
@@ -422,6 +561,7 @@ export const initializePublicPaymentService = async ({
       configuration,
       pricing,
       userId,
+      req,
     });
   }
 

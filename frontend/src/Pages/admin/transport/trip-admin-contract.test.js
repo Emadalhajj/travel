@@ -93,9 +93,9 @@ describe("unified admin trips contract", () => {
   it("uses dedicated lifecycle endpoints and unwraps mutations", () => {
     const api = readFileSync(path.resolve(__dirname, "../../../services/api/admin/tripDepartures.js"), "utf8");
     const page = readFileSync(path.resolve(__dirname, "./AdminTripDeparturesPage.jsx"), "utf8");
-    expect(api).toContain("/${id}/schedule");
-    expect(api).toContain("/${id}/cancel");
-    expect(api).toContain("/${id}/complete");
+    expect(api).toMatch(/\/\$\{id\}\/schedule/);
+    expect(api).toMatch(/\/\$\{id\}\/cancel/);
+    expect(api).toMatch(/\/\$\{id\}\/complete/);
     expect(page).toContain(".unwrap()");
     expect(page).toContain("getTripById(tripId)");
     expect(page).toContain("extraPayload: () => ({ tripId })");

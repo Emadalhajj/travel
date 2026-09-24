@@ -22,6 +22,7 @@ import paymentProvidersReducer from "./payments/paymentProviderSlice";
 import paymentConfigurationReducer from "./payments/paymentConfigurationSlice";
 import publicPaymentConfigurationReducer from "./public/publicPaymentConfigurationSlice";
 import paymentTransactionReducer from "./payments/paymentTransactionSlice";
+import couponReducer from "./pricing/couponSlice";
 
 const store = configureStore({
   reducer: {
@@ -49,6 +50,7 @@ const store = configureStore({
     publicPaymentConfigurations:
   publicPaymentConfigurationReducer,
     paymentTransactions: paymentTransactionReducer,
+    coupons: couponReducer,
 
   }, // أضف الـ reducers الخاصة بك هنا
 });

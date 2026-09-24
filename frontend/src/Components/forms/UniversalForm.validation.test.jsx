@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import UniversalForm from "./UniversalForm";
+import i18n from "../../i18n";
 
 const config = {
   conditionKey: "tripType",
@@ -63,7 +64,8 @@ describe("UniversalForm field errors", () => {
   });
 
   it("shows immediate and backend errors below a nested conditional field", async () => {
-    const { rerender } = render(
+    await i18n.changeLanguage("ar");
+    const { rerender, unmount } = render(
       <UniversalForm
         config={config}
         initialData={{ tripType: "transport", capacity: { maxAdults: 1 } }}
@@ -82,5 +84,7 @@ describe("UniversalForm field errors", () => {
       />,
     );
     expect(await screen.findByText("خطأ قادم من الخادم")).toBeTruthy();
+    unmount();
+    await i18n.changeLanguage("en");
   });
 });

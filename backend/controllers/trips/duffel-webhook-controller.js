@@ -2,6 +2,7 @@ import { handleDuffelWebhookEvent, parseVerifiedDuffelWebhook } from
   "../../services/trips/duffel-webhook-service.js";
 import { recoverPaidPendingBookingsService } from
   "../../services/payment/payment-recovery-service.js";
+import { operationalLogger, safeErrorContext } from "../../utils/operational-logger.js";
 
 export const handleDuffelWebhook = async (req, res, next) => {
   try {
@@ -14,7 +15,10 @@ export const handleDuffelWebhook = async (req, res, next) => {
     if (result.confirmed) {
       setImmediate(() => {
         recoverPaidPendingBookingsService({ limit: 10 }).catch((error) => {
-          console.error("External flight recovery trigger failed:", error?.message || error);
+          operationalLogger.error(
+            "external_flight_recovery_trigger_failed",
+            safeErrorContext(error, { requestId: req.requestId, provider: "DUFFEL" }),
+          );
         });
       });
     }

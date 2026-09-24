@@ -1,6 +1,8 @@
 import Joi from "joi";
 import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
 import { isArabicRequest } from "../../utils/getRequestLanguage.js";
+import { arabicTextSchema, englishTextSchema } from "../../utils/validation/text-language.js";
+import { productPricingPolicyValidation } from "./pricing/product-pricing-policy-validation.js";
 // import { isArabicRequest } from "../../utils/isArabicRequest.js"; // تأكد من المسار الصحيح
 
 export const createExtraServiceSchema = ({ req, isArabic } = {}) => {
@@ -9,7 +11,7 @@ export const createExtraServiceSchema = ({ req, isArabic } = {}) => {
 
   return Joi.object({
     // معلومات أساسية
-    nameAr: Joi.string()
+    nameAr: arabicTextSchema()
       .min(3)
       .max(150)
       .required()
@@ -28,7 +30,7 @@ export const createExtraServiceSchema = ({ req, isArabic } = {}) => {
           : "Arabic name is required",
       }),
 
-    nameEn: Joi.string()
+    nameEn: englishTextSchema()
       .min(3)
       .max(150)
       .required()
@@ -47,7 +49,7 @@ export const createExtraServiceSchema = ({ req, isArabic } = {}) => {
           : "English name is required",
       }),
 
-    descriptionAr: Joi.string()
+    descriptionAr: arabicTextSchema()
       .max(500)
       .allow("", null)
       .optional()
@@ -57,7 +59,7 @@ export const createExtraServiceSchema = ({ req, isArabic } = {}) => {
           : "Arabic description cannot exceed 500 characters",
       }),
 
-    descriptionEn: Joi.string()
+    descriptionEn: englishTextSchema()
       .max(500)
       .allow("", null)
       .optional()
@@ -116,6 +118,8 @@ export const createExtraServiceSchema = ({ req, isArabic } = {}) => {
           ? "بيانات التسعير مطلوبة"
           : "Pricing information is required",
       }),
+
+    pricingPolicy: productPricingPolicyValidation.optional(),
 
     // الصور (مصفوفة روابط)
     images: Joi.array()

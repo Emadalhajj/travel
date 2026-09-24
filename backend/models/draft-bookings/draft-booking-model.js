@@ -31,6 +31,7 @@ DraftBooking يمكن أن يتحول لاحقًا إلى Booking حقيقي.
 
 import mongoose from "mongoose";
 import { DEFAULT_CURRENCY, SUPPORTED_CURRENCIES } from "../../constants/currencies.js";
+import { pricingQuoteSchema } from "../shared/pricing-quote-schema.js";
 
 import {
   DRAFT_BOOKING_STATUS,
@@ -189,7 +190,17 @@ const draftBookingSchema = new mongoose.Schema(
     },
     serviceType: {
       type: String,
-      enum: ["", "FLIGHT"],
+      enum: [
+        "",
+        "FLIGHT",
+        "TRIP",
+        "HOTEL",
+        "ACCOMMODATION",
+        "TRANSPORT",
+        "VISA",
+        "ZIYARAT",
+        "EXTRA_SERVICE",
+      ],
       default: "",
     },
     /*
@@ -241,6 +252,17 @@ const draftBookingSchema = new mongoose.Schema(
 
         givenName: { type: String, trim: true, default: "" },
         familyName: { type: String, trim: true, default: "" },
+        title: { type: String, enum: ["", "MR", "MRS", "MS", "CHILD", "OTHER"], default: "" },
+        firstName: { type: String, trim: true, default: "" },
+        middleName: { type: String, trim: true, default: "" },
+        lastName: { type: String, trim: true, default: "" },
+        documentType: {
+          type: String,
+          enum: ["PASSPORT", "NATIONAL_ID", "RESIDENCY_ID", "GCC_ID"],
+          default: "PASSPORT",
+        },
+        documentNumber: { type: String, trim: true, default: "" },
+        documentIssuingCountry: { type: String, trim: true, default: "" },
         email: { type: String, trim: true, lowercase: true, default: "" },
         phoneNumber: { type: String, trim: true, default: "" },
         passengerCategory: {
@@ -329,6 +351,19 @@ const draftBookingSchema = new mongoose.Schema(
       nameEn: String,
 
       roomType: String,
+      roomTypeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "RoomType",
+        default: null,
+      },
+      roomTypeNameAr: { type: String, default: "" },
+      roomTypeNameEn: { type: String, default: "" },
+      checkIn: { type: Date, default: null },
+      checkOut: { type: Date, default: null },
+      roomsCount: { type: Number, default: 1, min: 1 },
+      adults: { type: Number, default: 1, min: 1 },
+      children: { type: Number, default: 0, min: 0 },
+      mealPlan: { type: String, default: "" },
 
       nights: {
         type: Number,
@@ -353,38 +388,7 @@ const draftBookingSchema = new mongoose.Schema(
     بيانات التسعير المؤقتة.
     هذه ليست فاتورة نهائية، بل تقدير أثناء المسودة.
     */
-    pricing: {
-      subtotal: {
-        type: Number,
-        default: 0,
-      },
-
-      tax: {
-        type: Number,
-        default: 0,
-      },
-
-      taxRate: {
-        type: Number,
-        default: 15,
-      },
-
-      discount: {
-        type: Number,
-        default: 0,
-      },
-
-      total: {
-        type: Number,
-        default: 0,
-      },
-
-      currency: {
-        type: String,
-        enum: SUPPORTED_CURRENCIES,
-        default: DEFAULT_CURRENCY,
-      },
-    },
+    pricing: { type: pricingQuoteSchema, default: () => ({}) },
 
     /*
     الخطوة الحالية التي وصل إليها المستخدم.
